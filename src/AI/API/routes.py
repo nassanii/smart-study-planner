@@ -3,6 +3,7 @@ from Core.models.incoming_payload import IncomingPayload
 
 # استيراد الدوال التي كتبناها للتو
 from utils.math_helpers import calculate_burnout_score, calculate_difficulty_factor
+from ml_models.gemini_service import generate_intelligent_schedule
 
 router = APIRouter()
 
@@ -29,7 +30,18 @@ async def process_student_data(payload: IncomingPayload):
     if is_exhausted:
         print("⚠️ التحذير: الطالب مجهد جداً، يجب تخفيف الجدول!")
 
-    # 4. إعادة النتائج (الخلاصة الذكية) للـ Backend
+    # 4. Generate intelligent schedule with Gemini
+    tasks_to_plan_dict = [task.model_dump() for task in payload.current_tasks_to_plan]
+    
+    intelligent_response = await generate_intelligent_schedule(
+        burnout_score=burnout_score,
+        difficulty_factor=difficulty_factor,
+        is_exhausted=is_exhausted,
+        tasks_to_plan=tasks_to_plan_dict,
+        available_slots=payload.available_slots
+    )
+
+    # 5. إعادة النتائج (الخلاصة الذكية) للـ Backend
     return {
         "status": "success",
         "analysis_results": {
@@ -37,6 +49,6 @@ async def process_student_data(payload: IncomingPayload):
             "burnout_score": burnout_score,
             "is_exhausted": is_exhausted,
             "overall_difficulty_factor": difficulty_factor,
-            "tasks_to_reschedule": len(payload.current_tasks_to_plan)
-        }
+        },
+        "ai_schedule": intelligent_response
     }
