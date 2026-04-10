@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 import google.generativeai as genai
 from typing import List, Dict, Any
 from dotenv import load_dotenv
@@ -12,7 +13,8 @@ async def generate_intelligent_schedule(
     difficulty_factor: float, 
     is_exhausted: bool, 
     tasks_to_plan: List[Dict[str, Any]], 
-    available_slots: List[str]
+    available_slots: List[Dict[str, Any]],
+    deadline: str
 ) -> Dict[str, Any]:
     
     # Reload to catch .env updates without restarting server automatically
@@ -26,43 +28,74 @@ async def generate_intelligent_schedule(
         
     genai.configure(api_key=api_key)
 
-    # We use Gemini 2.5 Flash for speed, cost, and JSON generation abilities
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    # Calculate days remaining
+    try:
+        deadline_date = datetime.strptime(deadline, "%Y-%m-%d")
+        days_remaining = (deadline_date - datetime.now()).days
+    except:
+        days_remaining = "Unknown (Check format YYYY-MM-DD)"
+
+    # We use the latest available Flash model for speed, cost, and JSON generation abilities
+    model = genai.GenerativeModel("gemini-flash-latest")
     
     prompt = f"""
-    You are an intelligent Study Planner AI. 
-    Your goal is to allocate the following studying tasks into the available time slots.
+    You are a professional Academic Scheduler AI.
+    Your task is to generate a HIGHLY STRUCTURED study plan using the 50/10 Interval Method.
     
-    STUDENT CONTEXT:
-    - Burnout Score: {burnout_score} (0 is fresh, 1 is completely exhausted)
-    - Is Exhausted: {is_exhausted}
-    - Difficulty Factor: {difficulty_factor} (If > 1, tasks take longer than expected, multiply estimated times by this factor).
+    [CONTEXT]
+    - Master List of Subjects: {json.dumps(tasks_to_plan, indent=2)}
+    - Available Study Blocks: {json.dumps(available_slots, indent=2)}
+    - Global Deadline: {deadline}
+    - DAYS REMAINING UNTIL DEADLINE: {days_remaining}
+    - Global Difficulty Factor: {difficulty_factor} (Multiply task 'estimated_min' by this to find total work needed).
+    - Student Burnout: {burnout_score}
     
-    TASKS TO PLAN:
-    {json.dumps(tasks_to_plan, indent=2)}
+    [STRICT SCHEDULING RULES - DO NOT DEVIATE]
+    1. **Autonomous Session Estimation**:
+       - You are now responsible for deciding how much time each subject needs today.
+       - FOR EVERY SELECTED SUBJECT: Estimate the total study load needed today based on its `difficulty_rating` (1-10) and the `days_remaining` until the deadline.
+       - Adjust your estimate using the `difficulty_factor` (Calculated from user history).
+       - SPLIT your total estimation into discrete sessions of MAXIMUM 50 minutes each.
     
-    AVAILABLE SLOTS (times of day):
-    {json.dumps(available_slots, indent=2)}
+    2. **The Balancing Rules (CRITICAL)**:
+       - **ROTATION RULE**: If a task has `days_since_last_study` > 3, it is a TOP priority today. You MUST schedule at least one 50-minute session for it.
+       - **BURNOUT PROTECTION**: If a task has `consecutive_days_studied` >= 3, the student is suffering from "Subject Burnout". You MUST POSTPONE this subject today for rest, regardless of its importance.
     
-    INSTRUCTIONS:
-    1. If the student is exhausted (is_exhausted=True), you MUST schedule breaks and consider postponing lower priority tasks.
-    2. Multiply the 'estimated_min' for each task by the Difficulty Factor to get the realistic 'adjusted_duration_minutes'.
-    3. Map tasks to the available slots.
-    4. Provide a supportive, personalized 'ai_message' to the student.
+    3. **Urgency Handling**: 
+       - If 'days_remaining' is less than 7, be more aggressive with your time estimates to cover more material.
+       - If 'days_remaining' is less than 3, this is an EMERGENCY. Max out the available blocks with high-difficulty subjects.
     
-    Provide your output STRICTLY as a JSON object matching this exact structure:
+    4. **50/10 Pattern**:
+       - Every study session MUST be followed by a 10-minute break.
+       - STUDY (50m max) -> BREAK (10m).
+    
+    5. **Start Times (The 30-Minute Rule)**:
+       - Every study session MUST start at exactly :00 or :30 minutes. 
+    
+    6. **Prioritization**:
+       - Prioritize subjects with the highest 'difficulty_rating' (while respecting Balancing Rules).
+    
+    [OUTPUT FORMAT]
+    Return ONLY a JSON object:
     {{
-        "scheduled_slots": [
-            {{
-                "time_slot": "08:00",
-                "task_id": 501, 
-                "subject": "Math",
-                "adjusted_duration_minutes": 67, 
-                "activity_type": "study"
-            }}
-        ],
-        "postponed_tasks": [],
-        "ai_message": "Your message here..."
+      "scheduled_slots": [
+        {{
+          "time_slot": "08:00", 
+          "subject": "Math (Part 1)",
+          "adjusted_duration_minutes": 50,
+          "activity_type": "study",
+          "task_id": 1
+        }},
+        {{
+          "time_slot": "08:50",
+          "subject": "Break",
+          "adjusted_duration_minutes": 10,
+          "activity_type": "break",
+          "task_id": null
+        }}
+      ],
+      "postponed_tasks": [list of IDs],
+      "ai_message": "Strategic summary in Arabic/English. Mention the countdown to the deadline!"
     }}
     """
     
