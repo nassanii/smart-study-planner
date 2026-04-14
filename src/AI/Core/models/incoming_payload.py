@@ -5,7 +5,7 @@ from .task import Task
 from .time_range import TimeRange
 
 class IncomingPayload(BaseModel):
-    user_id: str
+    user_id: int
     deadline: str # Global deadline for all subjects (e.g., "2024-06-15")
     raw_history: RawHistory
     current_tasks_to_plan: List[Task]

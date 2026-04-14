@@ -1,0 +1,55 @@
+{
+    "burnout_model": {
+        "accuracy": 0.98,
+        "sample_count": 50,
+        "last_trained": "2026-04-14T15:45:11"
+    },
+    "subj_1": {
+        "mae_minutes": 16.93,
+        "r2_score": -0.019,
+        "sample_count": 50,
+        "top_errors": [
+            {
+                "task_id": 40,
+                "estimated": 60.0,
+                "actual": 48.0,
+                "predicted": 83.8,
+                "error_min": -35.8,
+                "abs_error": 35.8
+            },
+            {
+                "task_id": 41,
+                "estimated": 60.0,
+                "actual": 48.0,
+                "predicted": 83.8,
+                "error_min": -35.8,
+                "abs_error": 35.8
+            },
+            {
+                "task_id": 42,
+                "estimated": 60.0,
+                "actual": 48.0,
+                "predicted": 83.8,
+                "error_min": -35.8,
+                "abs_error": 35.8
+            },
+            {
+                "task_id": 43,
+                "estimated": 60.0,
+                "actual": 48.0,
+                "predicted": 83.8,
+                "error_min": -35.8,
+                "abs_error": 35.8
+            },
+            {
+                "task_id": 44,
+                "estimated": 60.0,
+                "actual": 48.0,
+                "predicted": 83.8,
+                "error_min": -35.8,
+                "abs_error": 35.8
+            }
+        ],
+        "last_trained": "2026-04-14T15:45:18"
+    }
+}

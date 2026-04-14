@@ -1,0 +1,31 @@
+{
+    "generated_at": "Tue Apr 14 18:23:31 +03 2026",
+    "subjects": [
+        {
+            "subject_id": 1,
+            "name": "Computer Science",
+            "performance_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_777/subject_1_performance.png",
+            "error_dist_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_777/subject_1_error_dist.png",
+            "outliers": [
+                {
+                    "task_id": 1025,
+                    "estimated": 90.0,
+                    "actual": 45.0,
+                    "error": -56.16696742957751
+                },
+                {
+                    "task_id": 1010,
+                    "estimated": 45.0,
+                    "actual": 90.0,
+                    "error": 38.2188820422535
+                },
+                {
+                    "task_id": 1040,
+                    "estimated": 90.0,
+                    "actual": 130.0,
+                    "error": 28.83303257042249
+                }
+            ]
+        }
+    ]
+}

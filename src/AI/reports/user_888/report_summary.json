@@ -1,0 +1,83 @@
+{
+    "generated_at": "Tue Apr 14 18:34:01 +03 2026",
+    "subjects": [
+        {
+            "subject_id": 1,
+            "name": "Mathematics",
+            "performance_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_888/subject_1_performance.png",
+            "error_dist_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_888/subject_1_error_dist.png",
+            "outliers": [
+                {
+                    "task_id": 1030,
+                    "estimated": 120.0,
+                    "actual": 173.6,
+                    "error": 33.820654105936825
+                },
+                {
+                    "task_id": 1000,
+                    "estimated": 60.0,
+                    "actual": 98.7,
+                    "error": 27.90588932337961
+                },
+                {
+                    "task_id": 1015,
+                    "estimated": 45.0,
+                    "actual": 80.1,
+                    "error": 26.552198127740297
+                }
+            ]
+        },
+        {
+            "subject_id": 2,
+            "name": "Programming",
+            "performance_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_888/subject_2_performance.png",
+            "error_dist_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_888/subject_2_error_dist.png",
+            "outliers": [
+                {
+                    "task_id": 2000,
+                    "estimated": 45.0,
+                    "actual": 88.1,
+                    "error": 46.88968190323442
+                },
+                {
+                    "task_id": 2045,
+                    "estimated": 60.0,
+                    "actual": 88.3,
+                    "error": 35.741486233627356
+                },
+                {
+                    "task_id": 2047,
+                    "estimated": 30.0,
+                    "actual": 63.9,
+                    "error": 34.037877572841495
+                }
+            ]
+        },
+        {
+            "subject_id": 3,
+            "name": "History",
+            "performance_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_888/subject_3_performance.png",
+            "error_dist_plot": "/Users/abdurrahmannassani/Documents/Projects/Smart-study-planner/src/AI/reports/user_888/subject_3_error_dist.png",
+            "outliers": [
+                {
+                    "task_id": 3000,
+                    "estimated": 30.0,
+                    "actual": 66.5,
+                    "error": 33.06683450672843
+                },
+                {
+                    "task_id": 3015,
+                    "estimated": 30.0,
+                    "actual": 64.5,
+                    "error": 31.066834506728433
+                },
+                {
+                    "task_id": 3090,
+                    "estimated": 45.0,
+                    "actual": 79.9,
+                    "error": 30.609584707245325
+                }
+            ]
+        }
+    ]
+}

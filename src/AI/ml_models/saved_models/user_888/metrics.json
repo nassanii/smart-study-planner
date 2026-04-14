@@ -1,0 +1,150 @@
+{
+    "burnout_model": {
+        "accuracy": 0.98,
+        "last_trained": "2026-04-14T15:33:18"
+    },
+    "subj_1": {
+        "mae_minutes": 0.0,
+        "r2_score": 1.0,
+        "sample_count": 50,
+        "top_errors": [
+            {
+                "task_id": 1000,
+                "estimated": 60.0,
+                "actual": 70.0,
+                "predicted": 70.0,
+                "error_min": 0.0,
+                "abs_error": 0.0
+            },
+            {
+                "task_id": 1001,
+                "estimated": 60.0,
+                "actual": 70.0,
+                "predicted": 70.0,
+                "error_min": 0.0,
+                "abs_error": 0.0
+            },
+            {
+                "task_id": 1002,
+                "estimated": 60.0,
+                "actual": 70.0,
+                "predicted": 70.0,
+                "error_min": 0.0,
+                "abs_error": 0.0
+            },
+            {
+                "task_id": 1003,
+                "estimated": 60.0,
+                "actual": 70.0,
+                "predicted": 70.0,
+                "error_min": 0.0,
+                "abs_error": 0.0
+            },
+            {
+                "task_id": 1004,
+                "estimated": 60.0,
+                "actual": 70.0,
+                "predicted": 70.0,
+                "error_min": 0.0,
+                "abs_error": 0.0
+            }
+        ],
+        "last_trained": "2026-04-14T15:52:09"
+    },
+    "subj_2": {
+        "mae_minutes": 12.06,
+        "r2_score": 0.687,
+        "sample_count": 60,
+        "top_errors": [
+            {
+                "task_id": 2000,
+                "estimated": 45.0,
+                "actual": 88.1,
+                "predicted": 41.2,
+                "error_min": 46.9,
+                "abs_error": 46.9
+            },
+            {
+                "task_id": 2045,
+                "estimated": 60.0,
+                "actual": 88.3,
+                "predicted": 52.6,
+                "error_min": 35.7,
+                "abs_error": 35.7
+            },
+            {
+                "task_id": 2047,
+                "estimated": 30.0,
+                "actual": 63.9,
+                "predicted": 29.9,
+                "error_min": 34.0,
+                "abs_error": 34.0
+            },
+            {
+                "task_id": 2042,
+                "estimated": 90.0,
+                "actual": 45.4,
+                "predicted": 75.3,
+                "error_min": -29.9,
+                "abs_error": 29.9
+            },
+            {
+                "task_id": 2051,
+                "estimated": 120.0,
+                "actual": 68.9,
+                "predicted": 98.0,
+                "error_min": -29.1,
+                "abs_error": 29.1
+            }
+        ],
+        "last_trained": "2026-04-14T15:33:18"
+    },
+    "subj_3": {
+        "mae_minutes": 4.5,
+        "r2_score": 0.94,
+        "sample_count": 100,
+        "top_errors": [
+            {
+                "task_id": 3000,
+                "estimated": 30.0,
+                "actual": 66.5,
+                "predicted": 33.4,
+                "error_min": 33.1,
+                "abs_error": 33.1
+            },
+            {
+                "task_id": 3015,
+                "estimated": 30.0,
+                "actual": 64.5,
+                "predicted": 33.4,
+                "error_min": 31.1,
+                "abs_error": 31.1
+            },
+            {
+                "task_id": 3090,
+                "estimated": 45.0,
+                "actual": 79.9,
+                "predicted": 49.3,
+                "error_min": 30.6,
+                "abs_error": 30.6
+            },
+            {
+                "task_id": 3030,
+                "estimated": 120.0,
+                "actual": 157.7,
+                "predicted": 128.6,
+                "error_min": 29.1,
+                "abs_error": 29.1
+            },
+            {
+                "task_id": 3075,
+                "estimated": 120.0,
+                "actual": 157.7,
+                "predicted": 128.6,
+                "error_min": 29.1,
+                "abs_error": 29.1
+            }
+        ],
+        "last_trained": "2026-04-14T15:33:18"
+    }
+}

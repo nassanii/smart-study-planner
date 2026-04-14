@@ -1,15 +1,24 @@
 from typing import List, Dict, Any
 
-def calculate_burnout_score(snooze_count: int, study_hours: float) -> float:
+def calculate_burnout_score(snooze_count: int, study_hours: float, avg_focus: float = 4.0) -> float:
     """
     يحسب نسبة الإرهاق (من 0.0 إلى 1.0).
-    كلما زاد عدد التأجيلات وساعات الدراسة المتواصلة، زادت النسبة.
+    يعتمد على: عدد التأجيلات، ساعات الدراسة، وجودة التركيز.
     """
-    # معادلة بسيطة مبدئية: كل تأجيل يضيف 10% إرهاق، وكل ساعة دراسة تضيف 5%
-    score = (snooze_count * 0.10) + (study_hours * 0.05)
+    # القاعدة الأساسية: السنوز وساعات الدراسة
+    base_score = (snooze_count * 0.10) + (study_hours * 0.05)
+    
+    # عقوبة التركيز المنخفض: إذا كان التركيز أقل من 3، نضيف إرهاق إضافي
+    focus_penalty = 0
+    if avg_focus < 3:
+        focus_penalty = (3 - avg_focus) * 0.15
+    elif avg_focus >= 4.5:
+        base_score *= 0.9 # تخفيض بسيط إذا كان التركيز خارق
+        
+    score = base_score + focus_penalty
     
     # التأكد من أن النتيجة لا تتجاوز 1.0 (أي 100%)
-    return min(round(score, 2), 1.0)
+    return min(max(0.0, round(score, 2)), 1.0)
 
 def calculate_difficulty_factor(recent_tasks: List[Dict[str, Any]]) -> float:
     """
