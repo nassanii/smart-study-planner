@@ -1,31 +1,47 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withTiming, 
-  withDelay, 
-  interpolate 
-} from 'react-native-reanimated';
 
 const LoadingDot = ({ delay }) => {
   const { colors } = useTheme();
-  const opacity = useSharedValue(0.3);
+  const opacity = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    opacity.value = withDelay(delay, withRepeat(withTiming(1, { duration: 600 }), -1, true));
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.3,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: interpolate(opacity.value, [0.3, 1], [0.8, 1.2]) }]
-  }));
+  const scale = opacity.interpolate({
+    inputRange: [0.3, 1],
+    outputRange: [0.8, 1.2],
+  });
 
-  return <Animated.View style={[styles.dot, { backgroundColor: colors.primary }, animatedStyle]} />;
+  return (
+    <Animated.View
+      style={[
+        styles.dot,
+        { backgroundColor: colors.primary },
+        { opacity, transform: [{ scale }] },
+      ]}
+    />
+  );
 };
 
 export const SplashScreen = ({ onFinish }) => {
@@ -46,16 +62,16 @@ export const SplashScreen = ({ onFinish }) => {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-         <MaterialCommunityIcons name="book-open-page-variant" size={60} color="#FFF" />
+        <MaterialCommunityIcons name="book-open-page-variant" size={60} color="#FFF" />
       </LinearGradient>
-      
+
       <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>
         Study<Text style={{ color: colors.accent.math }}>Plan</Text>
       </Text>
       <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.regular }]}>
         Smart Study Planning
       </Text>
-      
+
       <View style={styles.loadingDots}>
         <LoadingDot delay={0} />
         <LoadingDot delay={200} />
