@@ -34,7 +34,21 @@ public class BehavioralLogService : IBehavioralLogService
             LastFocusRatingsJson = "[]"
         };
         _db.BehavioralLogs.Add(log);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // Likely a race condition (already created). Detach the failed entry and fetch the existing one.
+            var entries = _db.Entry(log);
+            entries.State = EntityState.Detached;
+            
+            var existing = await _db.BehavioralLogs.FirstOrDefaultAsync(b => b.UserId == userId && b.Date == date, ct);
+            if (existing != null) return existing;
+            
+            throw; // If it's still not there, rethrow the original error
+        }
         return log;
     }
 

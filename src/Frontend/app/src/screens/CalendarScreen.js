@@ -16,6 +16,9 @@ export const CalendarScreen = () => {
   const days = Array.from({ length: 30 }, (_, i) => i + 1);
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  const { latestSchedule } = useAI();
+  const scheduledSlots = latestSchedule?.aiSchedule?.scheduled_slots || [];
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView 
@@ -120,24 +123,34 @@ export const CalendarScreen = () => {
 
         <View style={styles.sectionHeader}>
            <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Today's Schedule</Text>
-           <Text style={[styles.dateSub, { color: colors.textLight, fontFamily: fonts.medium }]}>Apr 8, 2026</Text>
+           <Text style={[styles.dateSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+             {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+           </Text>
         </View>
 
         <View style={styles.scheduleList}>
-           {[
-              { time: '9:00', title: 'Linear Algebra', sub: 'Chapter 5 — Eigenvalues', color: 'rgba(107, 92, 231, 0.1)' },
-              { time: '11:00', title: 'Biology Lab', sub: 'Lab Report Due', color: 'rgba(52, 211, 153, 0.1)' },
-              { time: '2:00', title: 'Literature Review', sub: 'Shakespeare Essay Prep', color: 'rgba(236, 72, 153, 0.1)' },
-              { time: '4:00', title: 'Focus Session', sub: 'AI-Optimized Study Block', color: 'rgba(107, 92, 231, 0.1)' }
-           ].map((item, idx) => (
-              <View key={idx} style={styles.scheduleItem}>
-                 <Text style={[styles.timeText, { color: colors.textLight, fontFamily: fonts.bold }]}>{item.time}</Text>
-                 <View style={[styles.taskBlock, { backgroundColor: item.color, borderColor: item.color.replace('0.1', '0.2'), borderLeftColor: item.color.replace('0.1', '1') }]}>
-                    <Text style={[styles.taskBlockTitle, { color: item.color.replace('0.1', '1'), fontFamily: fonts.bold }]}>{item.title}</Text>
-                    <Text style={[styles.taskBlockSub, { color: colors.textLight, fontFamily: fonts.medium }]}>{item.sub}</Text>
-                 </View>
-              </View>
-           ))}
+           {scheduledSlots.length === 0 && (
+             <Text style={{ color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center', marginTop: 20 }}>
+               No plan generated for today yet.
+             </Text>
+           )}
+           {scheduledSlots.map((item, idx) => {
+              const isBreak = item.activity_type === 'break';
+              const bgColor = isBreak ? 'rgba(107, 92, 231, 0.05)' : 'rgba(107, 92, 231, 0.1)';
+              const mainColor = isBreak ? colors.textLight : colors.primary;
+              
+              return (
+                <View key={idx} style={styles.scheduleItem}>
+                   <Text style={[styles.timeText, { color: colors.textLight, fontFamily: fonts.bold }]}>{item.time_slot}</Text>
+                   <View style={[styles.taskBlock, { backgroundColor: bgColor, borderColor: 'rgba(107, 92, 231, 0.2)', borderLeftColor: mainColor }]}>
+                      <Text style={[styles.taskBlockTitle, { color: mainColor, fontFamily: fonts.bold }]}>{item.subject}</Text>
+                      <Text style={[styles.taskBlockSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                        {isBreak ? 'Time to recharge' : `Duration: ${item.adjusted_duration_minutes}m`}
+                      </Text>
+                   </View>
+                </View>
+              );
+           })}
         </View>
       </ScrollView>
     </View>

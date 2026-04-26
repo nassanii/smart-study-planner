@@ -131,12 +131,16 @@ export const AIProvider = ({ children }) => {
       difficulty: Number(s.difficulty) || 5,
       examDate: s.examDate || null,
     }));
+    const slotsPayload = (form.slots || []).map(s => ({
+      dayOfWeek: Number(s.dayOfWeek),
+      startTime: s.startTime,
+      endTime: s.endTime,
+    }));
     await usersApi.onboard({
       name: form.name,
-      targetGpa: parseFloat(form.targetGPA ?? form.targetGpa ?? '0'),
-      maxHoursPerDay: parseFloat(form.maxHours ?? form.maxHoursPerDay ?? '0'),
       deadline: form.deadline,
       subjects: subjectsPayload,
+      availableSlots: slotsPayload,
     });
     await refreshUser();
     await reloadAll();

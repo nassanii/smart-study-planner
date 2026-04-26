@@ -14,12 +14,14 @@ public class UserService : IUserService
     private readonly UserManager<ApplicationUser> _users;
     private readonly IAppDbContext _db;
     private readonly TimeProvider _time;
+    private readonly SmartStudyPlanner.Application.Schedule.Services.IScheduleService _schedule;
 
-    public UserService(UserManager<ApplicationUser> users, IAppDbContext db, TimeProvider time)
+    public UserService(UserManager<ApplicationUser> users, IAppDbContext db, TimeProvider time, SmartStudyPlanner.Application.Schedule.Services.IScheduleService schedule)
     {
         _users = users;
         _db = db;
         _time = time;
+        _schedule = schedule;
     }
 
     public async Task<UserMeDto> UpdateAsync(int userId, UpdateUserDto dto, CancellationToken ct)
@@ -28,8 +30,6 @@ public class UserService : IUserService
             ?? throw new NotFoundException("User", userId);
 
         if (dto.Name is not null) user.Name = dto.Name;
-        if (dto.TargetGpa.HasValue) user.TargetGpa = dto.TargetGpa;
-        if (dto.MaxHoursPerDay.HasValue) user.MaxHoursPerDay = dto.MaxHoursPerDay;
         if (dto.Deadline.HasValue) user.Deadline = dto.Deadline;
         user.UpdatedAt = _time.GetUtcNow();
 
@@ -47,8 +47,6 @@ public class UserService : IUserService
             ?? throw new NotFoundException("User", userId);
 
         user.Name = dto.Name;
-        user.TargetGpa = dto.TargetGpa;
-        user.MaxHoursPerDay = dto.MaxHoursPerDay;
         user.Deadline = dto.Deadline;
         user.IsOnboarded = true;
         user.UpdatedAt = _time.GetUtcNow();
@@ -61,18 +59,49 @@ public class UserService : IUserService
         foreach (var s in dto.Subjects)
         {
             if (existingSubjects.Contains(s.Name)) continue;
-            _db.Subjects.Add(new Subject
+            var subject = new Subject
             {
                 UserId = userId,
                 Name = s.Name,
                 Difficulty = s.Difficulty,
                 ExamDate = s.ExamDate,
                 CreatedAt = _time.GetUtcNow()
+            };
+            _db.Subjects.Add(subject);
+
+            // Create an initial task so the AI has something to plan immediately
+            _db.StudyTasks.Add(new StudyTask
+            {
+                UserId = userId,
+                Subject = subject,
+                Status = SmartStudyPlanner.Domain.Enums.StudyTaskStatus.Upcoming,
+                Priority = SmartStudyPlanner.Domain.Enums.TaskPriority.Medium,
+                DifficultyRating = s.Difficulty,
+                EstimatedMinutes = 50,
+                CreatedAt = _time.GetUtcNow(),
+                UpdatedAt = _time.GetUtcNow()
+            });
+        }
+
+        var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+        foreach (var slot in dto.AvailableSlots)
+        {
+            _db.AvailableSlots.Add(new AvailableSlot
+            {
+                UserId = userId,
+                Date = today,
+                DayOfWeek = null,
+                StartTime = slot.StartTime,
+                EndTime = slot.EndTime
             });
         }
 
         await _users.UpdateAsync(user);
         await _db.SaveChangesAsync(ct);
+
+        // Automatically trigger AI schedule generation so it's ready when they hit the dashboard
+        await _schedule.GenerateAsync(userId, today, ct);
+
         return Map(user);
     }
 
@@ -81,8 +110,6 @@ public class UserService : IUserService
         UserId = u.Id,
         Name = u.Name,
         Email = u.Email ?? string.Empty,
-        TargetGpa = u.TargetGpa,
-        MaxHoursPerDay = u.MaxHoursPerDay,
         Deadline = u.Deadline,
         IsOnboarded = u.IsOnboarded
     };

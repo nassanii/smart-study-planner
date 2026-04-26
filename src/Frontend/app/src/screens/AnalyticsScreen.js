@@ -17,24 +17,9 @@ export const AnalyticsScreen = () => {
     analyticsApi.insights().then(setInsights).catch(() => {});
   }, []);
 
-  const chartConfig = {
-    backgroundGradientFrom: colors.surface,
-    backgroundGradientTo: colors.surface,
-    color: (opacity = 1) => `rgba(107, 92, 231, ${opacity})`,
-    labelColor: (opacity = 1) => colors.textLight,
-    barPercentage: 0.6,
-    propsForDots: { r: "4", strokeWidth: "2", stroke: colors.primary }
-  };
-
-  const planningFallacyData = {
-    labels: ["Math", "Physics", "Bio", "Hist"],
-    datasets: [
-       { data: [60, 45, 90, 30], color: (opacity = 1) => `rgba(107, 92, 231, 0.4)` }, // Estimated
-       { data: [75, 52, 85, 35], color: (opacity = 1) => colors.primary } // Actual
-    ],
-    legend: ["Est", "Act"]
-  };
-
+  const planningError = insights?.planningErrorMinutes ?? 0;
+  const streak = insights?.dayStreak ?? 0;
+  
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]} 
@@ -53,10 +38,10 @@ export const AnalyticsScreen = () => {
 
       <View style={styles.statsGrid}>
          {[
-           { l: 'Day Streak', v: insights ? `${insights.dayStreak}` : '—', i: 'fire', t: 'Consecutive', c: colors.accent.science },
-           { l: 'Planning Error', v: insights ? `${insights.planningErrorMinutes >= 0 ? '+' : ''}${insights.planningErrorMinutes}m` : '—', i: 'trending-up', t: 'Avg Fallacy', c: colors.accent.exam },
-           { l: 'Target GPA', v: insights?.gpa != null ? Number(insights.gpa).toFixed(2) : '—', i: 'graduation-cap', t: 'Configured', c: '#FFD166' },
-           { l: 'Snooze Rate', v: insights ? Number(insights.snoozeRatePerDay).toFixed(1) : '—', i: 'bell', t: 'Per Day', c: colors.primary }
+           { l: 'Day Streak', v: `${streak}`, i: 'fire', t: 'Consecutive', c: colors.accent.science },
+           { l: 'Planning Error', v: `${planningError >= 0 ? '+' : ''}${planningError}m`, i: 'trending-up', t: 'Avg Fallacy', c: colors.accent.exam },
+           { l: 'Study Time', v: `${insights?.studyHoursToday?.toFixed(1) || '0.0'}h`, i: 'clock', t: 'Today', c: '#FFD166' },
+           { l: 'Snooze Rate', v: insights ? Number(insights.snoozeRatePerDay).toFixed(1) : '0', i: 'bell', t: 'Per Day', c: colors.primary }
          ].map((s, i) => (
            <View key={i} style={[styles.statItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.iconCircle, { backgroundColor: colors.cardAlt }]}>
@@ -71,42 +56,30 @@ export const AnalyticsScreen = () => {
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
          <Text style={[styles.cardTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Planning Fallacy Analysis</Text>
-         <Text style={[styles.cardSub, { color: colors.textLight, fontFamily: fonts.medium }]}>Estimated vs. Actual Study Duration (Minutes)</Text>
-         <BarChart
-            data={planningFallacyData}
-            width={screenWidth - 84}
-            height={220}
-            chartConfig={chartConfig}
-            style={{ borderRadius: 16, marginTop: 20, marginLeft: -10 }}
-            yAxisLabel=""
-            yAxisSuffix="m"
-            fromZero
-            showBarTops={false}
-         />
+         <Text style={[styles.cardSub, { color: colors.textLight, fontFamily: fonts.medium }]}>Estimated vs. Actual Study Duration</Text>
+         <View style={{ marginTop: 20, alignItems: 'center', padding: 20 }}>
+            <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={48} color={colors.primary} style={{ opacity: 0.2, marginBottom: 15 }} />
+            <Text style={{ textAlign: 'center', color: colors.textDark, fontFamily: fonts.medium }}>
+               {planningError === 0 
+                 ? "You're perfectly on track! Your estimates match your actual study time."
+                 : planningError > 0 
+                   ? `You usually spend ${planningError}m more than planned per task.` 
+                   : `You're finishing tasks ${Math.abs(planningError)}m faster than expected!`}
+            </Text>
+         </View>
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
          <View style={styles.cardHeader}>
             <Text style={[styles.cardTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Peak Power Hours ⚡</Text>
-            <View style={[styles.miniBadge, { backgroundColor: colors.primaryLight }]}>
-               <Text style={[styles.miniBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>K-Means</Text>
-            </View>
          </View>
-         <LineChart
-            data={{
-               labels: ["6am", "10am", "2pm", "6pm", "10pm"],
-               datasets: [{ data: [15, 95, 45, 75, 30] }]
-            }}
-            width={screenWidth - 84}
-            height={180}
-            chartConfig={chartConfig}
-            bezier
-            style={{ marginTop: 20, marginLeft: -10 }}
-            withInnerLines={false}
-         />
-         <Text style={[styles.insightText, { color: colors.textDark, fontFamily: fonts.medium }]}>
-            The AI detected your absolute peak focus window between **10:00 AM** and **12:30 PM**.
-         </Text>
+         <View style={{ marginTop: 20, padding: 10 }}>
+            <Text style={[styles.insightText, { color: colors.textDark, fontFamily: fonts.medium }]}>
+               {insights?.peakHourBuckets?.length > 0 
+                 ? `Your peak productivity is around ${insights.peakHourBuckets.join(':00, ')}:00.`
+                 : "The AI is still learning your focus patterns. Keep logging sessions!"}
+            </Text>
+         </View>
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>

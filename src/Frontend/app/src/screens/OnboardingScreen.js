@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Dimensions, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -11,11 +11,10 @@ export const OnboardingScreen = () => {
   const { colors, fonts } = useTheme();
   const { completeOnboarding } = useAI();
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Step 1: Goal & Constraints
   const [name, setName] = useState('Ibrahim Hilvani');
-  const [targetGPA, setTargetGPA] = useState('3.8');
-  const [maxHours, setMaxHours] = useState('6');
   const [deadline, setDeadline] = useState('2026-06-15');
 
   // Step 2: Subjects
@@ -25,9 +24,23 @@ export const OnboardingScreen = () => {
   ]);
   const [newSub, setNewSub] = useState('');
 
-  const nextStep = () => {
+  // Step 3: Slots (Focusing only on Today)
+  const [slots, setSlots] = useState([
+    { startTime: '17:00', endTime: '19:00' },
+    { startTime: '20:00', endTime: '22:00' },
+  ]);
+
+  const nextStep = async () => {
     if (step < 3) setStep(step + 1);
-    else completeOnboarding({ name, targetGPA, maxHours, deadline, subjects });
+    else {
+      setIsSubmitting(true);
+      try {
+        // Send slots for today (dayOfWeek is ignored, backend will use today's date)
+        await completeOnboarding({ name, deadline, subjects, slots });
+      } catch (err) {
+        setIsSubmitting(false);
+      }
+    }
   };
 
   const addSubject = () => {
@@ -61,33 +74,6 @@ export const OnboardingScreen = () => {
         />
       </View>
 
-      <View style={styles.splitRow}>
-        <View style={[styles.inputGroup, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-          <View style={styles.inputHeader}>
-             <Ionicons name="trophy-outline" size={18} color="#FFD166" />
-             <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>TARGET GPA</Text>
-          </View>
-          <TextInput 
-            style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold }]} 
-            value={targetGPA}
-            onChangeText={setTargetGPA}
-            keyboardType="decimal-pad"
-          />
-        </View>
-        <View style={[styles.inputGroup, { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-          <View style={styles.inputHeader}>
-             <Ionicons name="time-outline" size={18} color={colors.accent.science} />
-             <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>MAX HRS/DAY</Text>
-          </View>
-          <TextInput 
-            style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold }]} 
-            value={maxHours}
-            onChangeText={setMaxHours}
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
-
       <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
         <View style={styles.inputHeader}>
            <Ionicons name="calendar-outline" size={20} color={colors.accent.exam} />
@@ -99,6 +85,13 @@ export const OnboardingScreen = () => {
           onChangeText={setDeadline}
           placeholder="YYYY-MM-DD"
         />
+      </View>
+
+      <View style={[styles.metaInfo, { backgroundColor: 'rgba(107, 92, 231, 0.05)', borderColor: colors.primaryLight, borderWidth: 1, marginTop: 20 }]}>
+         <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
+         <Text style={[styles.metaInfoText, { color: colors.textDark, fontFamily: fonts.medium }]}>
+           We've removed the GPA and hours tracking to focus entirely on your availability and subject difficulty.
+         </Text>
       </View>
     </View>
   );
@@ -152,26 +145,96 @@ export const OnboardingScreen = () => {
     </View>
   );
 
-  const renderStep3 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>AI Initialization ⚡</Text>
-      <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>We're calibrating the Heuristic Engine with your constraints.</Text>
-      
-      <View style={styles.pulseContainer}>
-         <LinearGradient colors={[colors.primary, '#A29BFE']} style={styles.pulseCircle}>
-            <MaterialCommunityIcons name="brain" size={60} color="#FFF" />
-         </LinearGradient>
-         <Text style={[styles.pulseText, { color: colors.primary, fontFamily: fonts.bold }]}>MODELS CALIBRATING</Text>
-      </View>
+  const [showPicker, setShowPicker] = useState(false);
+  const [activeSlot, setActiveSlot] = useState(null); // { idx, field: 'startTime' | 'endTime' }
 
-      <View style={[styles.metaInfo, { backgroundColor: 'rgba(107, 92, 231, 0.05)', borderColor: colors.primaryLight, borderWidth: 1 }]}>
-         <Ionicons name="shield-checkmark" size={24} color={colors.primary} />
-         <Text style={[styles.metaInfoText, { color: colors.textDark, fontFamily: fonts.medium }]}>
-           Your privacy is ensured. All focus data is used locally to refine your personalized ML parameters over the next 40 tasks.
-         </Text>
+  const hours = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`);
+
+  const renderStep3 = () => {
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Today's Availability 🕒</Text>
+        <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>Tell the AI when you are free to study TODAY. You can add multiple time blocks.</Text>
+        
+        <ScrollView style={{ maxHeight: SCREEN_WIDTH * 0.9 }} showsVerticalScrollIndicator={false}>
+          {slots.map((slot, idx) => (
+            <View key={idx} style={[styles.subjectCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: 15 }]}>
+               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                     <Ionicons name="time-outline" size={20} color={colors.primary} />
+                     <Text style={[styles.subName, { color: colors.textDark, fontFamily: fonts.bold }]}>Session {idx + 1}</Text>
+                  </View>
+                  
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                     <TouchableOpacity 
+                        style={[styles.addInput, { width: 70, height: 40, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={() => { setActiveSlot({ idx, field: 'startTime' }); setShowPicker(true); }}
+                     >
+                        <Text style={{ fontFamily: fonts.bold, fontSize: 13 }}>{slot.startTime}</Text>
+                     </TouchableOpacity>
+                     
+                     <Text style={{ color: colors.textLight }}>-</Text>
+                     
+                     <TouchableOpacity 
+                        style={[styles.addInput, { width: 70, height: 40, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={() => { setActiveSlot({ idx, field: 'endTime' }); setShowPicker(true); }}
+                     >
+                        <Text style={{ fontFamily: fonts.bold, fontSize: 13 }}>{slot.endTime}</Text>
+                     </TouchableOpacity>
+
+                     <TouchableOpacity 
+                        onPress={() => setSlots(slots.filter((_, i) => i !== idx))}
+                        style={{ marginLeft: 10, padding: 5 }}
+                     >
+                        <Ionicons name="trash-outline" size={20} color="#FF5252" />
+                     </TouchableOpacity>
+                  </View>
+               </View>
+            </View>
+          ))}
+        </ScrollView>
+
+        <TouchableOpacity 
+          style={[styles.addButton, { width: '100%', height: 50, marginTop: 10, flexDirection: 'row', gap: 10 }]} 
+          onPress={() => setSlots([...slots, { startTime: '17:00', endTime: '18:00' }])}
+        >
+          <Ionicons name="add" size={20} color="#FFF" />
+          <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>ADD TIME BLOCK</Text>
+        </TouchableOpacity>
+
+        {/* Custom Hour Picker Modal */}
+        <Modal visible={showPicker} transparent animationType="fade">
+           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ backgroundColor: colors.surface, width: '80%', borderRadius: 20, padding: 20, maxHeight: '60%' }}>
+                 <Text style={{ fontFamily: fonts.bold, fontSize: 18, marginBottom: 15, textAlign: 'center' }}>Select Hour</Text>
+                 <ScrollView>
+                    {hours.map(h => (
+                       <TouchableOpacity 
+                          key={h} 
+                          style={{ paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border, alignItems: 'center' }}
+                          onPress={() => {
+                             const newSlots = [...slots];
+                             newSlots[activeSlot.idx][activeSlot.field] = h;
+                             setSlots(newSlots);
+                             setShowPicker(false);
+                          }}
+                       >
+                          <Text style={{ fontFamily: fonts.medium, fontSize: 16 }}>{h}</Text>
+                       </TouchableOpacity>
+                    ))}
+                 </ScrollView>
+                 <TouchableOpacity 
+                    style={{ marginTop: 15, padding: 15, backgroundColor: colors.border, borderRadius: 10, alignItems: 'center' }}
+                    onPress={() => setShowPicker(false)}
+                 >
+                    <Text style={{ fontFamily: fonts.bold }}>Cancel</Text>
+                 </TouchableOpacity>
+              </View>
+           </View>
+        </Modal>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.container, { backgroundColor: colors.background }]}>
@@ -194,13 +257,23 @@ export const OnboardingScreen = () => {
              <Text style={[styles.navBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Back</Text>
            </TouchableOpacity>
          )}
-         <TouchableOpacity style={[styles.mainBtn, { backgroundColor: colors.primary }]} onPress={nextStep}>
+         <TouchableOpacity style={[styles.mainBtn, { backgroundColor: colors.primary }]} onPress={nextStep} disabled={isSubmitting}>
             <Text style={[styles.mainBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>
-               {step === 3 ? 'INITIATE PLAN' : 'CONTINUE'}
+               {step === 3 ? (isSubmitting ? 'GENERATING...' : 'START MY PLAN') : 'CONTINUE'}
             </Text>
-            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+            {!isSubmitting && <Ionicons name="chevron-forward" size={20} color="#FFF" />}
          </TouchableOpacity>
       </View>
+
+      <Modal visible={isSubmitting} transparent>
+         <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+            <LinearGradient colors={[colors.primary, '#8575F3']} style={styles.pulseCircle}>
+               <MaterialCommunityIcons name="brain" size={60} color="#FFF" />
+            </LinearGradient>
+            <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold, marginTop: 40, textAlign: 'center' }]}>Crafting Your AI Plan</Text>
+            <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center' }]}>The AI Advisor is analyzing your subjects and availability to create the optimal study flow...</Text>
+         </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };

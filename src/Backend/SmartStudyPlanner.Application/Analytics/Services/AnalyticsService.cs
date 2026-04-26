@@ -72,10 +72,10 @@ public class AnalyticsService : IAnalyticsService
             SnoozeRatePerDay = snoozeRate,
             CompletedTasks = completed,
             PlanningErrorMinutes = (int)Math.Round(planningError),
-            Gpa = user?.TargetGpa,
             LatestBurnout = latestSchedule is null ? null : latestSchedule.BurnoutScore,
             LatestIsExhausted = latestSchedule?.IsExhausted ?? false,
-            PeakHourBuckets = peakHours.Select(p => p.Hour).ToList()
+            PeakHourBuckets = peakHours.Select(p => p.Hour).ToList(),
+            StudyHoursToday = (decimal)logs.Where(l => l.Date == today).Sum(l => l.StudyHours)
         };
     }
 

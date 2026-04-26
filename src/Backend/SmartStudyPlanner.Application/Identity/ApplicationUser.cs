@@ -6,8 +6,6 @@ namespace SmartStudyPlanner.Application.Identity;
 public class ApplicationUser : IdentityUser<int>
 {
     public string Name { get; set; } = string.Empty;
-    public decimal? TargetGpa { get; set; }
-    public decimal? MaxHoursPerDay { get; set; }
     public DateOnly? Deadline { get; set; }
     public bool IsOnboarded { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

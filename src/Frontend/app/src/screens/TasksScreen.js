@@ -15,7 +15,7 @@ const FILTERS = [
 
 export const TasksScreen = () => {
   const { colors, fonts } = useTheme();
-  const { tasks, subjects, addTask, updateTaskDifficulty, completeTask, snoozeTask, removeTask, reloadTasks } = useAI();
+  const { tasks, subjects, latestSchedule, addTask, updateTaskDifficulty, completeTask, snoozeTask, removeTask, reloadTasks } = useAI();
   const [filter, setFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTask, setNewTask] = useState({ subjectId: null, difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
@@ -116,55 +116,97 @@ export const TasksScreen = () => {
         </View>
 
         <View style={styles.taskList}>
-           {tasks.length === 0 && (
-             <Text style={{ color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center', marginTop: 30 }}>
-               No tasks for this filter.
-             </Text>
-           )}
-           {tasks.map((item) => (
-             <View key={item.id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.indicator, { backgroundColor: getPrioColor(item.priority) }]} />
-                <View style={styles.content}>
-                   <View style={styles.titleRow}>
-                      <Text style={[styles.taskTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{item.subject}</Text>
-                      <View style={[styles.prioTag, { backgroundColor: getPrioColor(item.priority) + '15' }]}>
-                         <Text style={[styles.prioTagText, { color: getPrioColor(item.priority), fontFamily: fonts.bold }]}>{getPrioLabel(item.priority)}</Text>
-                      </View>
-                   </View>
-                   <View style={styles.metaRow}>
-                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                        {item.deadline ? `Exam: ${item.deadline}` : `Est: ${item.estimated_minutes}m`}
-                      </Text>
-                      <View style={[styles.dot, { backgroundColor: colors.border }]} />
-                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>D: {item.difficulty_rating}/10</Text>
-                      <View style={[styles.dot, { backgroundColor: colors.border }]} />
-                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>{item.status}</Text>
-                   </View>
-                </View>
-                <View style={styles.controls}>
-                   {item.status !== 'done' ? (
-                     <>
-                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => updateTaskDifficulty(item.id, Math.max(1, item.difficulty_rating - 1))}>
-                          <Ionicons name="remove" size={16} color={colors.textDark} />
-                       </TouchableOpacity>
-                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.primary }]} onPress={() => updateTaskDifficulty(item.id, Math.min(10, item.difficulty_rating + 1))}>
-                          <Ionicons name="add" size={16} color="#FFF" />
-                       </TouchableOpacity>
-                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleSnooze(item)}>
-                          <Ionicons name="moon" size={16} color={colors.textDark} />
-                       </TouchableOpacity>
-                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.accent.science || '#22C55E' }]} onPress={() => handleComplete(item)}>
-                          <Ionicons name="checkmark" size={16} color="#FFF" />
-                       </TouchableOpacity>
-                     </>
-                   ) : (
-                     <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDelete(item)}>
-                        <Ionicons name="trash" size={16} color={colors.textDark} />
-                     </TouchableOpacity>
-                   )}
-                </View>
-             </View>
-           ))}
+           {(() => {
+             const scheduledSlots = latestSchedule?.aiSchedule?.scheduled_slots || [];
+             const scheduledTaskIds = new Set(scheduledSlots.filter(s => s.task_id).map(s => s.task_id));
+             
+             let displayItems = [];
+             if (filter === 'today') {
+               displayItems = scheduledSlots;
+             } else if (filter === 'all') {
+               // Show scheduled slots first, then other non-scheduled tasks
+               const otherTasks = tasks.filter(t => !scheduledTaskIds.has(t.id));
+               displayItems = [...scheduledSlots, ...otherTasks];
+             } else {
+               displayItems = tasks;
+             }
+
+             if (displayItems.length === 0) {
+               return (
+                 <Text style={{ color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center', marginTop: 30 }}>
+                   No tasks for this filter.
+                 </Text>
+               );
+             }
+
+             return displayItems.map((item, idx) => {
+               const isAiSlot = item.time_slot !== undefined;
+               const isBreak = item.activity_type === 'break';
+               const id = isAiSlot ? `slot-${idx}` : item.id;
+               const title = isAiSlot ? item.subject : item.subject;
+               const priority = isAiSlot ? (isBreak ? 3 : 1) : item.priority;
+               
+               return (
+                 <View key={id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: isBreak ? 'transparent' : colors.border, opacity: isBreak ? 0.7 : 1 }]}>
+                    <View style={[styles.indicator, { backgroundColor: isBreak ? colors.border : getPrioColor(priority) }]} />
+                    <View style={styles.content}>
+                       <View style={styles.titleRow}>
+                          <Text style={[styles.taskTitle, { color: isBreak ? colors.textLight : colors.textDark, fontFamily: fonts.bold }]}>{title}</Text>
+                          {!isBreak && (
+                            <View style={[styles.prioTag, { backgroundColor: getPrioColor(priority) + '15' }]}>
+                               <Text style={[styles.prioTagText, { color: getPrioColor(priority), fontFamily: fonts.bold }]}>{isAiSlot ? 'Scheduled' : getPrioLabel(priority)}</Text>
+                            </View>
+                          )}
+                       </View>
+                       <View style={styles.metaRow}>
+                          <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                            {isAiSlot ? `${item.time_slot} · ${item.adjusted_duration_minutes}m` : (item.deadline ? `Exam: ${item.deadline}` : `Est: ${item.estimated_minutes}m`)}
+                          </Text>
+                          {!isAiSlot && (
+                            <>
+                              <View style={[styles.dot, { backgroundColor: colors.border }]} />
+                              <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>D: {item.difficulty_rating}/10</Text>
+                              <View style={[styles.dot, { backgroundColor: colors.border }]} />
+                              <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>{item.status}</Text>
+                            </>
+                          )}
+                       </View>
+                    </View>
+                    <View style={styles.controls}>
+                       {!isAiSlot ? (
+                         item.status !== 'done' ? (
+                           <>
+                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => updateTaskDifficulty(item.id, Math.max(1, item.difficulty_rating - 1))}>
+                                <Ionicons name="remove" size={16} color={colors.textDark} />
+                             </TouchableOpacity>
+                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.primary }]} onPress={() => updateTaskDifficulty(item.id, Math.min(10, item.difficulty_rating + 1))}>
+                                <Ionicons name="add" size={16} color="#FFF" />
+                             </TouchableOpacity>
+                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleSnooze(item)}>
+                                <Ionicons name="moon" size={16} color={colors.textDark} />
+                             </TouchableOpacity>
+                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.accent.science || '#22C55E' }]} onPress={() => handleComplete(item)}>
+                                <Ionicons name="checkmark" size={16} color="#FFF" />
+                             </TouchableOpacity>
+                           </>
+                         ) : (
+                           <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDelete(item)}>
+                              <Ionicons name="trash" size={16} color={colors.textDark} />
+                           </TouchableOpacity>
+                         )
+                       ) : (
+                         !isBreak && (
+                           <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.accent.science || '#22C55E' }]} onPress={() => handleComplete({ id: item.task_id, subject: item.subject, estimated_minutes: item.adjusted_duration_minutes })}>
+                              <Ionicons name="checkmark" size={16} color="#FFF" />
+                           </TouchableOpacity>
+                         )
+                       )}
+                    </View>
+                 </View>
+               );
+             });
+           })()}
+
         </View>
       </ScrollView>
 

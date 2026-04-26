@@ -16,7 +16,7 @@ export const DashboardScreen = () => {
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    analyticsApi.insights().then(setInsights).catch(() => {});
+    analyticsApi.insights().then(setInsights).catch(() => { });
   }, []);
 
   const completedCount = insights?.completedTasks ?? tasks.filter(t => t.status === 'done').length;
@@ -63,7 +63,7 @@ export const DashboardScreen = () => {
         </View>
         <View style={styles.headerRight}>
           <LinearGradient colors={[colors.primary, '#A29BFE']} style={styles.avatar}>
-             <Text style={[styles.avatarText, { fontFamily: fonts.bold }]}>{initial}</Text>
+            <Text style={[styles.avatarText, { fontFamily: fonts.bold }]}>{initial}</Text>
           </LinearGradient>
         </View>
       </View>
@@ -76,10 +76,10 @@ export const DashboardScreen = () => {
       >
         <View style={styles.aiCardHeader}>
           <View style={styles.aiIconRow}>
-             <MaterialCommunityIcons name="robot" size={24} color={colors.primary} />
-             <Text style={[styles.aiTitle, { color: colors.primary, fontFamily: fonts.bold }]}>
-               {latestSchedule ? 'AI Strategic Summary' : 'No plan yet'}
-             </Text>
+            <MaterialCommunityIcons name="robot" size={24} color={colors.primary} />
+            <Text style={[styles.aiTitle, { color: colors.primary, fontFamily: fonts.bold }]}>
+              {latestSchedule ? 'AI Strategic Summary' : 'No plan yet'}
+            </Text>
           </View>
         </View>
         {aiMessage && (
@@ -97,17 +97,17 @@ export const DashboardScreen = () => {
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.statTop}>
-             <Ionicons name="flame" size={20} color="#FF7675" />
-             <Text style={[styles.statVal, { color: colors.textDark, fontFamily: fonts.bold }]}>{dayStreak}</Text>
+            <Ionicons name="flame" size={20} color="#FF7675" />
+            <Text style={[styles.statVal, { color: colors.textDark, fontFamily: fonts.bold }]}>{dayStreak}</Text>
           </View>
           <Text style={[styles.statLab, { color: colors.textLight, fontFamily: fonts.medium }]}>DAY STREAK</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.statTop}>
-             <Text style={[styles.statVal, { color: colors.textDark, fontFamily: fonts.bold }]}>
-               {avgFocus != null ? Number(avgFocus).toFixed(1) : '—'}
-             </Text>
-             <Ionicons name="star" size={20} color="#FDCB6E" />
+            <Text style={[styles.statVal, { color: colors.textDark, fontFamily: fonts.bold }]}>
+              {avgFocus != null ? Number(avgFocus).toFixed(1) : '—'}
+            </Text>
+            <Ionicons name="star" size={20} color="#FDCB6E" />
           </View>
           <Text style={[styles.statLab, { color: colors.textLight, fontFamily: fonts.medium }]}>AVG RATING</Text>
         </View>
@@ -115,81 +115,39 @@ export const DashboardScreen = () => {
 
       <View style={[styles.wellnessCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.sectionHeader}>
-           <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Wellness Status</Text>
-           {burnoutPct != null && (
-             <View style={[styles.statusBadge, { backgroundColor: burnoutPct < 40 ? '#DCFCE7' : burnoutPct < 75 ? '#FFF3CD' : '#FED7D7' }]}>
-                <Ionicons name={burnoutPct < 40 ? 'checkmark-circle' : 'warning'} size={14} color={burnoutPct < 40 ? '#059669' : burnoutPct < 75 ? '#B45309' : '#B91C1C'} />
-                <Text style={[styles.statusText, { color: burnoutPct < 40 ? '#059669' : burnoutPct < 75 ? '#B45309' : '#B91C1C', fontFamily: fonts.bold }]}>
-                  {burnoutPct < 40 ? 'Balanced' : burnoutPct < 75 ? 'Watch' : 'Exhausted'}
-                </Text>
-             </View>
-           )}
+          <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Wellness Status</Text>
+          {burnoutPct != null && (
+            <View style={[styles.statusBadge, { backgroundColor: burnoutPct < 40 ? '#DCFCE7' : burnoutPct < 75 ? '#FFF3CD' : '#FED7D7' }]}>
+              <Ionicons name={burnoutPct < 40 ? 'checkmark-circle' : 'warning'} size={14} color={burnoutPct < 40 ? '#059669' : burnoutPct < 75 ? '#B45309' : '#B91C1C'} />
+              <Text style={[styles.statusText, { color: burnoutPct < 40 ? '#059669' : burnoutPct < 75 ? '#B45309' : '#B91C1C', fontFamily: fonts.bold }]}>
+                {burnoutPct < 40 ? 'Balanced' : burnoutPct < 75 ? 'Watch' : 'Exhausted'}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.progressRow}>
-           <View style={styles.progressItem}>
-              <View style={styles.progLabelRow}>
-                 <MaterialCommunityIcons name="waves" size={14} color={colors.accent.science} />
-                 <Text style={[styles.progLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>Study Today</Text>
-              </View>
-              <View style={[styles.progBarBg, { backgroundColor: colors.cardAlt }]}>
-                 <View style={[styles.progBarFill, { backgroundColor: colors.accent.science, width: `${Math.min(100, Math.round((behavioralLogs.study_hours_today / (userData.max_hours_per_day || 6)) * 100))}%` }]} />
-              </View>
-              <Text style={[styles.progHint, { color: colors.textLight, fontFamily: fonts.medium }]}>{behavioralLogs.study_hours_today.toFixed(1)}h logged</Text>
-           </View>
-           <View style={styles.progressItem}>
-              <View style={styles.progLabelRow}>
-                 <Ionicons name="flame" size={14} color={colors.accent.exam} />
-                 <Text style={[styles.progLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>Burnout</Text>
-              </View>
-              <View style={[styles.progBarBg, { backgroundColor: colors.cardAlt }]}>
-                 <View style={[styles.progBarFill, { backgroundColor: colors.accent.exam, width: `${burnoutPct ?? 0}%` }]} />
-              </View>
-              <Text style={[styles.progHint, { color: colors.textLight, fontFamily: fonts.medium }]}>{burnoutPct != null ? `${burnoutPct}%` : 'No data'}</Text>
-           </View>
-        </View>
-      </View>
-
-      <View style={styles.tasksHeader}>
-        <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-           <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Today's Tasks</Text>
-           {isColdStart && (
-             <View style={[styles.coldStartBadge, { backgroundColor: '#FFF9E6' }]}>
-                <Text style={[styles.coldStartText, { color: '#D97706', fontFamily: fonts.bold }]}>COLD START</Text>
-             </View>
-           )}
-        </View>
-      </View>
-
-      <View style={styles.taskList}>
-        {todaysTasks.length === 0 && (
-          <Text style={{ color: colors.textLight, fontFamily: fonts.medium, paddingVertical: 20 }}>
-            No upcoming tasks. Add one from the Tasks tab.
-          </Text>
-        )}
-        {todaysTasks.map((task) => (
-          <View key={task.id} style={[styles.taskItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.taskIndicator, { backgroundColor: task.priority === 1 ? colors.accent.exam : task.priority === 2 ? '#FFD166' : colors.accent.science }]} />
-            <View style={styles.taskInfo}>
-              <Text style={[styles.taskSubject, { color: colors.textDark, fontFamily: fonts.bold }]}>{task.subject}</Text>
-              <View style={styles.taskMeta}>
-                 <MaterialCommunityIcons name="account-school-outline" size={14} color={colors.textLight} />
-                 <Text style={[styles.taskMetaText, { color: colors.textLight, fontFamily: fonts.medium }]}> D{task.difficulty_rating}/10 · ~{task.estimated_minutes}m</Text>
-              </View>
+          <View style={styles.progressItem}>
+            <View style={styles.progLabelRow}>
+              <MaterialCommunityIcons name="waves" size={14} color={colors.accent.science} />
+              <Text style={[styles.progLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>Study Today</Text>
             </View>
-            <View style={styles.taskAction}>
-               <TouchableOpacity onPress={() => snoozeTask(task.id, 'dashboard snooze').catch(() => {})}>
-                 <View style={[styles.snoozeBadge, { backgroundColor: '#FFF3E0' }]}>
-                    <MaterialCommunityIcons name="clock-outline" size={12} color="#E67E22" />
-                    <Text style={[styles.snoozeText, { color: '#E67E22', fontFamily: fonts.bold }]}>Snooze</Text>
-                 </View>
-               </TouchableOpacity>
-               <TouchableOpacity onPress={() => completeTask(task.id, task.estimated_minutes || 50).catch(() => {})}>
-                 <View style={[styles.checkCircle, { borderColor: colors.primary, backgroundColor: 'transparent' }]} />
-               </TouchableOpacity>
+            <View style={[styles.progBarBg, { backgroundColor: colors.cardAlt }]}>
+              <View style={[styles.progBarFill, { backgroundColor: colors.accent.science, width: `${Math.min(100, Math.round((behavioralLogs.study_hours_today / (userData.max_hours_per_day || 6)) * 100))}%` }]} />
             </View>
+            <Text style={[styles.progHint, { color: colors.textLight, fontFamily: fonts.medium }]}>{behavioralLogs.study_hours_today.toFixed(1)}h logged</Text>
           </View>
-        ))}
+          <View style={styles.progressItem}>
+            <View style={styles.progLabelRow}>
+              <Ionicons name="flame" size={14} color={colors.accent.exam} />
+              <Text style={[styles.progLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>Burnout</Text>
+            </View>
+            <View style={[styles.progBarBg, { backgroundColor: colors.cardAlt }]}>
+              <View style={[styles.progBarFill, { backgroundColor: colors.accent.exam, width: `${burnoutPct ?? 0}%` }]} />
+            </View>
+            <Text style={[styles.progHint, { color: colors.textLight, fontFamily: fonts.medium }]}>{burnoutPct != null ? `${burnoutPct}%` : 'No data'}</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.tasksHeader}>
@@ -197,30 +155,30 @@ export const DashboardScreen = () => {
       </View>
 
       <View style={[styles.progressCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-         {subjects.length === 0 && (
-           <Text style={{ color: colors.textLight, fontFamily: fonts.medium }}>No subjects yet.</Text>
-         )}
-         {subjects.map((s) => {
-           const subTasks = tasks.filter(t => t.subject_id === s.id);
-           const doneCount = subTasks.filter(t => t.status === 'done').length;
-           const pct = subTasks.length === 0 ? 0 : Math.round((doneCount / subTasks.length) * 100);
-           return (
-             <View key={s.id} style={styles.progressItemLine}>
-                <View style={[styles.subIcon, { backgroundColor: colors.cardAlt }]}>
-                   <MaterialCommunityIcons name="book-outline" size={18} color={colors.primary} />
+        {subjects.length === 0 && (
+          <Text style={{ color: colors.textLight, fontFamily: fonts.medium }}>No subjects yet.</Text>
+        )}
+        {subjects.map((s) => {
+          const subTasks = tasks.filter(t => t.subject_id === s.id);
+          const doneCount = subTasks.filter(t => t.status === 'done').length;
+          const pct = subTasks.length === 0 ? 0 : Math.round((doneCount / subTasks.length) * 100);
+          return (
+            <View key={s.id} style={styles.progressItemLine}>
+              <View style={[styles.subIcon, { backgroundColor: colors.cardAlt }]}>
+                <MaterialCommunityIcons name="book-outline" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.progLineHeader}>
+                  <Text style={[styles.progSubName, { color: colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
+                  <Text style={[styles.progPerc, { color: colors.textLight, fontFamily: fonts.medium }]}>{pct}%</Text>
                 </View>
-                <View style={{flex: 1}}>
-                   <View style={styles.progLineHeader}>
-                      <Text style={[styles.progSubName, { color: colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
-                      <Text style={[styles.progPerc, { color: colors.textLight, fontFamily: fonts.medium }]}>{pct}%</Text>
-                   </View>
-                   <View style={[styles.progLineBg, { backgroundColor: colors.cardAlt }]}>
-                      <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: `${pct}%` }]} />
-                   </View>
+                <View style={[styles.progLineBg, { backgroundColor: colors.cardAlt }]}>
+                  <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: `${pct}%` }]} />
                 </View>
-             </View>
-           );
-         })}
+              </View>
+            </View>
+          );
+        })}
       </View>
 
     </ScrollView>

@@ -228,8 +228,6 @@ public class AuthService : IAuthService
         UserId = u.Id,
         Name = u.Name,
         Email = u.Email ?? string.Empty,
-        TargetGpa = u.TargetGpa,
-        MaxHoursPerDay = u.MaxHoursPerDay,
         Deadline = u.Deadline,
         IsOnboarded = u.IsOnboarded
     };
