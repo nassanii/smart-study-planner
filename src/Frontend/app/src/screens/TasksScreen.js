@@ -1,28 +1,87 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { showAlert, showConfirm } from '../services/dialogs';
+
+const FILTERS = [
+  { label: 'All', value: 'all' },
+  { label: 'High', value: 'high' },
+  { label: 'Today', value: 'today' },
+  { label: 'Done', value: 'done' },
+];
 
 export const TasksScreen = () => {
   const { colors, fonts } = useTheme();
-  const { tasks, updateTaskDifficulty, addTask } = useAI();
-  const [filter, setFilter] = useState('All');
+  const { tasks, subjects, addTask, updateTaskDifficulty, completeTask, snoozeTask, removeTask, reloadTasks } = useAI();
+  const [filter, setFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newTask, setNewTask] = useState({ subject: '', difficulty_rating: 5, priority: 2, deadline: 'May 15, 2026' });
+  const [newTask, setNewTask] = useState({ subjectId: null, difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
+  const [busy, setBusy] = useState(false);
 
-  const handleAddTask = () => {
-    if (newTask.subject) {
-      addTask({
-         ...newTask,
-         days_since_last_study: 0,
-         consecutive_days_studied: 0,
-         status: 'upcoming'
-      });
-      setNewTask({ subject: '', difficulty_rating: 5, priority: 2, deadline: 'May 15, 2026' });
-      setShowAddModal(false);
+  useEffect(() => {
+    reloadTasks(filter).catch(() => {});
+  }, [filter, reloadTasks]);
+
+  useEffect(() => {
+    if (subjects.length && newTask.subjectId === null) {
+      setNewTask(t => ({ ...t, subjectId: subjects[0].id }));
     }
+  }, [subjects, newTask.subjectId]);
+
+  const handleAddTask = async () => {
+    if (!newTask.subjectId) {
+      showAlert('Select a subject', 'Please add a subject in onboarding first or pick one.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await addTask({
+        subjectId: newTask.subjectId,
+        priority: newTask.priority,
+        difficultyRating: newTask.difficulty_rating,
+        estimatedMinutes: newTask.estimatedMinutes,
+      });
+      setNewTask({ subjectId: subjects[0]?.id ?? null, difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
+      setShowAddModal(false);
+    } catch (err) {
+      showAlert('Could not create task', err.response?.data?.title || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleComplete = (item) => {
+    showConfirm({
+      title: 'Complete task',
+      message: `Mark "${item.subject}" as done?`,
+      confirmText: 'Done',
+      onConfirm: async () => {
+        try { await completeTask(item.id, item.estimated_minutes || 50); }
+        catch (err) { showAlert('Failed', err.response?.data?.title || err.message); }
+      },
+    });
+  };
+
+  const handleSnooze = (item) => {
+    snoozeTask(item.id, 'manual snooze').catch(err =>
+      showAlert('Failed', err.response?.data?.title || err.message)
+    );
+  };
+
+  const handleDelete = (item) => {
+    showConfirm({
+      title: 'Delete task',
+      message: 'Are you sure?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try { await removeTask(item.id); }
+        catch (err) { showAlert('Failed', err.response?.data?.title || err.message); }
+      },
+    });
   };
 
   const getPrioColor = (p) => p === 1 ? colors.accent.exam : p === 2 ? '#FFD166' : colors.accent.science;
@@ -34,29 +93,34 @@ export const TasksScreen = () => {
         <View style={styles.header}>
            <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Study Plan</Text>
            <View style={[styles.activeBadge, { backgroundColor: 'rgba(107, 92, 231, 0.1)' }]}>
-              <Text style={[styles.activeBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>{tasks.length} Active</Text>
+              <Text style={[styles.activeBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>{tasks.length} {filter === 'done' ? 'Done' : 'Active'}</Text>
            </View>
         </View>
 
         <View style={[styles.filterRow, { backgroundColor: colors.cardAlt }]}>
-          {['All', 'High', 'Today', 'Done'].map(f => (
-            <TouchableOpacity 
-              key={f} 
-              style={[styles.filterBtn, filter === f && { backgroundColor: colors.surface }]}
-              onPress={() => setFilter(f)}
+          {FILTERS.map(f => (
+            <TouchableOpacity
+              key={f.value}
+              style={[styles.filterBtn, filter === f.value && { backgroundColor: colors.surface }]}
+              onPress={() => setFilter(f.value)}
             >
               <Text style={[
-                styles.filterText, 
-                { 
-                  color: filter === f ? colors.primary : colors.textLight,
-                  fontFamily: filter === f ? fonts.bold : fonts.medium 
+                styles.filterText,
+                {
+                  color: filter === f.value ? colors.primary : colors.textLight,
+                  fontFamily: filter === f.value ? fonts.bold : fonts.medium
                 }
-              ]}>{f}</Text>
+              ]}>{f.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         <View style={styles.taskList}>
+           {tasks.length === 0 && (
+             <Text style={{ color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center', marginTop: 30 }}>
+               No tasks for this filter.
+             </Text>
+           )}
            {tasks.map((item) => (
              <View key={item.id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={[styles.indicator, { backgroundColor: getPrioColor(item.priority) }]} />
@@ -68,35 +132,43 @@ export const TasksScreen = () => {
                       </View>
                    </View>
                    <View style={styles.metaRow}>
-                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>Exam: {item.deadline || 'Jun 10'}</Text>
+                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                        {item.deadline ? `Exam: ${item.deadline}` : `Est: ${item.estimated_minutes}m`}
+                      </Text>
                       <View style={[styles.dot, { backgroundColor: colors.border }]} />
-                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>Difficulty: {item.difficulty_rating}/10</Text>
+                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>D: {item.difficulty_rating}/10</Text>
+                      <View style={[styles.dot, { backgroundColor: colors.border }]} />
+                      <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>{item.status}</Text>
                    </View>
                 </View>
                 <View style={styles.controls}>
-                   <TouchableOpacity 
-                     style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} 
-                     onPress={() => updateTaskDifficulty(item.id, Math.max(1, item.difficulty_rating - 1))}
-                   >
-                      <Ionicons name="remove" size={16} color={colors.textDark} />
-                   </TouchableOpacity>
-                   <TouchableOpacity 
-                     style={[styles.controlBtn, { backgroundColor: colors.primary }]} 
-                     onPress={() => updateTaskDifficulty(item.id, Math.min(10, item.difficulty_rating + 1))}
-                   >
-                      <Ionicons name="add" size={16} color="#FFF" />
-                   </TouchableOpacity>
+                   {item.status !== 'done' ? (
+                     <>
+                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => updateTaskDifficulty(item.id, Math.max(1, item.difficulty_rating - 1))}>
+                          <Ionicons name="remove" size={16} color={colors.textDark} />
+                       </TouchableOpacity>
+                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.primary }]} onPress={() => updateTaskDifficulty(item.id, Math.min(10, item.difficulty_rating + 1))}>
+                          <Ionicons name="add" size={16} color="#FFF" />
+                       </TouchableOpacity>
+                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleSnooze(item)}>
+                          <Ionicons name="moon" size={16} color={colors.textDark} />
+                       </TouchableOpacity>
+                       <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.accent.science || '#22C55E' }]} onPress={() => handleComplete(item)}>
+                          <Ionicons name="checkmark" size={16} color="#FFF" />
+                       </TouchableOpacity>
+                     </>
+                   ) : (
+                     <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDelete(item)}>
+                        <Ionicons name="trash" size={16} color={colors.textDark} />
+                     </TouchableOpacity>
+                   )}
                 </View>
              </View>
            ))}
         </View>
       </ScrollView>
 
-      <TouchableOpacity 
-        style={styles.fab} 
-        activeOpacity={0.8}
-        onPress={() => setShowAddModal(true)}
-      >
+      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => setShowAddModal(true)}>
         <LinearGradient colors={[colors.primary, '#9F8FFF']} style={styles.fabInner}>
            <Ionicons name="add" size={32} color="#FFF" />
         </LinearGradient>
@@ -106,19 +178,36 @@ export const TasksScreen = () => {
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>New AI Task</Text>
-               <TextInput 
-                  style={[styles.modalInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.medium }]} 
-                  placeholder="Subject name..."
-                  placeholderTextColor={colors.textLight}
-                  value={newTask.subject}
-                  onChangeText={v => setNewTask({...newTask, subject: v})}
+
+               <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>SUBJECT</Text>
+               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+                 {subjects.map(s => (
+                   <TouchableOpacity
+                     key={s.id}
+                     onPress={() => setNewTask({ ...newTask, subjectId: s.id })}
+                     style={[styles.subjectChip, {
+                       borderColor: newTask.subjectId === s.id ? colors.primary : colors.border,
+                       backgroundColor: newTask.subjectId === s.id ? colors.primary + '15' : 'transparent'
+                     }]}
+                   >
+                     <Text style={[{ color: newTask.subjectId === s.id ? colors.primary : colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
+                   </TouchableOpacity>
+                 ))}
+               </ScrollView>
+
+               <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>ESTIMATED MINUTES</Text>
+               <TextInput
+                 style={[styles.modalInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.medium }]}
+                 keyboardType="numeric"
+                 value={String(newTask.estimatedMinutes)}
+                 onChangeText={v => setNewTask({ ...newTask, estimatedMinutes: Math.max(5, parseInt(v || '0', 10) || 0) })}
                />
-               
+
                <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>INITIAL DIFFICULTY</Text>
                <View style={styles.difficultyRow}>
                   {[...Array(10)].map((_, i) => (
-                    <TouchableOpacity 
-                      key={i} 
+                    <TouchableOpacity
+                      key={i}
                       style={[styles.diffBox, { backgroundColor: newTask.difficulty_rating > i ? colors.primary : colors.cardAlt }]}
                       onPress={() => setNewTask({...newTask, difficulty_rating: i + 1})}
                     />
@@ -129,8 +218,8 @@ export const TasksScreen = () => {
                <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>PRIORITY LEVEL</Text>
                <View style={styles.prioGrid}>
                   {[1, 2, 3].map(p => (
-                     <TouchableOpacity 
-                        key={p} 
+                     <TouchableOpacity
+                        key={p}
                         style={[styles.prioSelect, { borderColor: newTask.priority === p ? colors.primary : colors.border }]}
                         onPress={() => setNewTask({...newTask, priority: p})}
                      >
@@ -144,8 +233,8 @@ export const TasksScreen = () => {
                   <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border, borderWidth: 1 }]} onPress={() => setShowAddModal(false)}>
                      <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleAddTask}>
-                     <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Create AI Task</Text>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleAddTask} disabled={busy}>
+                     {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Create AI Task</Text>}
                   </TouchableOpacity>
                </View>
             </View>
@@ -172,22 +261,23 @@ const styles = StyleSheet.create({
   taskTitle: { fontSize: 16 },
   prioTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   prioTagText: { fontSize: 10, letterSpacing: 0.5 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  metaText: { fontSize: 12, opacity: 0.6 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  metaText: { fontSize: 11, opacity: 0.6 },
   dot: { width: 3, height: 3, borderRadius: 1.5 },
-  controls: { flexDirection: 'row', gap: 10 },
+  controls: { flexDirection: 'row', gap: 6 },
   controlBtn: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   fab: { position: 'absolute', bottom: 30, right: 30, width: 66, height: 66, borderRadius: 33, elevation: 10, shadowColor: '#6B5CE7', shadowOpacity: 0.4, shadowRadius: 15 },
   fabInner: { flex: 1, borderRadius: 33, justifyContent: 'center', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { padding: 30, borderTopLeftRadius: 40, borderTopRightRadius: 40, elevation: 20 },
   modalTitle: { fontSize: 24, marginBottom: 25 },
-  modalInput: { height: 60, borderRadius: 18, paddingHorizontal: 20, marginBottom: 30, fontSize: 16 },
-  fieldLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 15, opacity: 0.6 },
-  difficultyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 35 },
+  modalInput: { height: 60, borderRadius: 18, paddingHorizontal: 20, marginBottom: 25, fontSize: 16 },
+  fieldLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 12, opacity: 0.6 },
+  subjectChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, marginRight: 10 },
+  difficultyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 30 },
   diffBox: { height: 10, flex: 1, borderRadius: 5 },
   diffVal: { fontSize: 18, marginLeft: 10, width: 25, textAlign: 'right' },
-  prioGrid: { flexDirection: 'row', gap: 12, marginBottom: 40 },
+  prioGrid: { flexDirection: 'row', gap: 12, marginBottom: 35 },
   prioSelect: { flex: 1, height: 54, borderRadius: 16, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   prioDot: { width: 8, height: 8, borderRadius: 4 },
   prioSelectText: { fontSize: 13 },

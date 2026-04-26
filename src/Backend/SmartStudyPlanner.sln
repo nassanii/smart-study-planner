@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartStudyPlanner.Api", "SmartStudyPlanner.Api\SmartStudyPlanner.Api.csproj", "{2A8DF27A-9E39-4C42-B801-49678D5FAC67}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartStudyPlanner.Application", "SmartStudyPlanner.Application\SmartStudyPlanner.Application.csproj", "{9DA566A5-6830-4993-8A25-E2C630D8783A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartStudyPlanner.Domain", "SmartStudyPlanner.Domain\SmartStudyPlanner.Domain.csproj", "{9CFB1B1C-A53D-48CB-A943-E36EB8192CCD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartStudyPlanner.Infrastructure", "SmartStudyPlanner.Infrastructure\SmartStudyPlanner.Infrastructure.csproj", "{573E5676-FEA9-49C8-8B03-FE863F14E61C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartStudyPlanner.Tests", "SmartStudyPlanner.Tests\SmartStudyPlanner.Tests.csproj", "{A4B1C020-D388-40FF-9493-7DB3C456EEA1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2A8DF27A-9E39-4C42-B801-49678D5FAC67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A8DF27A-9E39-4C42-B801-49678D5FAC67}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A8DF27A-9E39-4C42-B801-49678D5FAC67}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A8DF27A-9E39-4C42-B801-49678D5FAC67}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9DA566A5-6830-4993-8A25-E2C630D8783A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DA566A5-6830-4993-8A25-E2C630D8783A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DA566A5-6830-4993-8A25-E2C630D8783A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DA566A5-6830-4993-8A25-E2C630D8783A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9CFB1B1C-A53D-48CB-A943-E36EB8192CCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9CFB1B1C-A53D-48CB-A943-E36EB8192CCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9CFB1B1C-A53D-48CB-A943-E36EB8192CCD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9CFB1B1C-A53D-48CB-A943-E36EB8192CCD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{573E5676-FEA9-49C8-8B03-FE863F14E61C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{573E5676-FEA9-49C8-8B03-FE863F14E61C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{573E5676-FEA9-49C8-8B03-FE863F14E61C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{573E5676-FEA9-49C8-8B03-FE863F14E61C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4B1C020-D388-40FF-9493-7DB3C456EEA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4B1C020-D388-40FF-9493-7DB3C456EEA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4B1C020-D388-40FF-9493-7DB3C456EEA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4B1C020-D388-40FF-9493-7DB3C456EEA1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

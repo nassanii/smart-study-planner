@@ -11,7 +11,7 @@ Thread-safe file I/O via per-path locks.
 import os
 import threading
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import joblib
 import json

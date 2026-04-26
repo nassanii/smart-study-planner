@@ -1,15 +1,21 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LineChart, BarChart } from 'react-native-chart-kit';
+import { analyticsApi } from '../services/api';
 
 const screenWidth = Dimensions.get('window').width;
 
 export const AnalyticsScreen = () => {
   const { colors, fonts } = useTheme();
   const { userData } = useAI();
+  const [insights, setInsights] = useState(null);
+
+  useEffect(() => {
+    analyticsApi.insights().then(setInsights).catch(() => {});
+  }, []);
 
   const chartConfig = {
     backgroundGradientFrom: colors.surface,
@@ -47,10 +53,10 @@ export const AnalyticsScreen = () => {
 
       <View style={styles.statsGrid}>
          {[
-           { l: 'Study Focus', v: '92%', i: 'target', t: 'Excellent', c: colors.accent.science },
-           { l: 'Planning Error', v: '+12m', i: 'trending-up', t: 'Avg Fallacy', c: colors.accent.exam },
-           { l: 'Current GPA', v: '3.75', i: 'mortar-board', t: 'Near Target', c: '#FFD166' },
-           { l: 'Snooze Rate', v: '2.4', i: 'alarm', t: 'Per Day', c: colors.primary }
+           { l: 'Day Streak', v: insights ? `${insights.dayStreak}` : '—', i: 'fire', t: 'Consecutive', c: colors.accent.science },
+           { l: 'Planning Error', v: insights ? `${insights.planningErrorMinutes >= 0 ? '+' : ''}${insights.planningErrorMinutes}m` : '—', i: 'trending-up', t: 'Avg Fallacy', c: colors.accent.exam },
+           { l: 'Target GPA', v: insights?.gpa != null ? Number(insights.gpa).toFixed(2) : '—', i: 'graduation-cap', t: 'Configured', c: '#FFD166' },
+           { l: 'Snooze Rate', v: insights ? Number(insights.snoozeRatePerDay).toFixed(1) : '—', i: 'bell', t: 'Per Day', c: colors.primary }
          ].map((s, i) => (
            <View key={i} style={[styles.statItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.iconCircle, { backgroundColor: colors.cardAlt }]}>

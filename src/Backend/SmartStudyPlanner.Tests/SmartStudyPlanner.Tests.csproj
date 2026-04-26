@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="WireMock.Net" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Bogus" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmartStudyPlanner.Api\SmartStudyPlanner.Api.csproj" />
+    <ProjectReference Include="..\SmartStudyPlanner.Application\SmartStudyPlanner.Application.csproj" />
+    <ProjectReference Include="..\SmartStudyPlanner.Infrastructure\SmartStudyPlanner.Infrastructure.csproj" />
+    <ProjectReference Include="..\SmartStudyPlanner.Domain\SmartStudyPlanner.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

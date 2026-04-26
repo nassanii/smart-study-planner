@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator, SafeAreaView, StatusBar } from 'react-native';
 import * as Font from 'expo-font';
-import { 
-  Outfit_400Regular, 
-  Outfit_500Medium, 
-  Outfit_600SemiBold, 
-  Outfit_700Bold 
+import { purgeWebCaches } from './src/services/cache_buster';
+import {
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold
 } from '@expo-google-fonts/outfit';
 
 import { ThemeProvider, useTheme } from './src/theme/theme';
+import { AuthProvider, useAuth } from './src/context/auth_context';
 import { AIProvider, useAI } from './src/context/ai_context';
 import { SplashScreen } from './src/screens/SplashScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -20,22 +22,25 @@ import { FocusScreen } from './src/screens/FocusScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { BottomNavigation } from './src/components/BottomNavigation';
+import { AppDialogHost } from './src/components/AppDialogHost';
 
 const MainApp = () => {
   const { isSplashScreenVisible, setIsSplashScreenVisible, colors, isDarkMode } = useTheme();
+  const { isAuthenticated, hydrating, user } = useAuth();
   const { userData } = useAI();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
 
-  if (isSplashScreenVisible) {
+  console.log('[MainApp] hydrating=', hydrating, 'isAuthenticated=', isAuthenticated, 'isOnboarded=', user?.isOnboarded ?? userData.isOnboarded);
+
+  if (isSplashScreenVisible || hydrating) {
     return <SplashScreen onFinish={() => setIsSplashScreenVisible(false)} />;
   }
 
   if (!isAuthenticated) {
-    return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+    return <LoginScreen />;
   }
 
-  if (!userData.isOnboarded) {
+  if (!(user?.isOnboarded ?? userData.isOnboarded)) {
     return <OnboardingScreen />;
   }
 
@@ -65,6 +70,8 @@ const MainApp = () => {
 };
 
 export default function App() {
+  useEffect(() => { purgeWebCaches(); }, []);
+
   const [fontsLoaded] = Font.useFonts({
     Outfit_400Regular,
     Outfit_500Medium,
@@ -82,9 +89,12 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <AIProvider>
-        <MainApp />
-      </AIProvider>
+      <AuthProvider>
+        <AIProvider>
+          <MainApp />
+          <AppDialogHost />
+        </AIProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
