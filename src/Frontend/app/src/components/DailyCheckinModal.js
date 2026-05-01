@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { Ionicons } from '@expo/vector-icons';
 import { slotsApi } from '../services/api';
+import { showAlert } from '../services/dialogs';
 
 export const DailyCheckinModal = ({ visible, onClose }) => {
   const { colors, fonts } = useTheme();
-  const { subjects, addSubject, generateSchedule, showAlert } = useAI();
-  const [newSubject, setNewSubject] = useState({ name: '', difficulty: 5, priority: 2 });
+  const { subjects, addSubject, generateSchedule, userData } = useAI();
+  const [newSubject, setNewSubject] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState([]);
   const [newSlot, setNewSlot] = useState({ start: '08:00', end: '10:00' });
@@ -21,6 +22,10 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
     if (visible) {
       const todayDate = new Date().toISOString().split('T')[0];
       slotsApi.list(todayDate).then(setSlots).catch(console.warn);
+      // Pre-fill examDate with user's global deadline if available
+      if (userData?.deadline && !newSubject.examDate) {
+        setNewSubject(prev => ({ ...prev, examDate: userData.deadline }));
+      }
     }
   }, [visible]);
 
@@ -53,19 +58,29 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
       return;
     }
 
+    if (!newSubject.examDate) {
+      showAlert('Missing Date', 'Please set an exam/deadline date for this subject.');
+      return;
+    }
+
     try {
       await addSubject({ 
         name: trimmedName, 
         difficulty: newSubject.difficulty, 
-        priority: newSubject.priority 
+        priority: newSubject.priority,
+        examDate: newSubject.examDate
       });
-      setNewSubject({ name: '', difficulty: 5, priority: 2 });
+      setNewSubject({ name: '', difficulty: 5, priority: 2, examDate: userData?.deadline || '' });
     } catch (err) {
       showAlert('Error', err.response?.data?.title || err.message);
     }
   };
 
   const handleGenerate = async () => {
+    if (subjects.length === 0) {
+      showAlert('No Subjects', 'Please add at least one subject to generate your study plan for today.');
+      return;
+    }
     setLoading(true);
     try {
       await generateSchedule();
@@ -82,14 +97,18 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
           <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Good Morning!</Text>
           <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-            Let's plan your day. Verify your available time blocks and add any new subjects you want to tackle today.
+            Let's plan your day. Set your available time blocks, add any new subjects, then generate your AI study plan.
           </Text>
 
+          {/* ── SECTION 1: TIME BLOCKS ── */}
           <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold }]}>Today's Study Blocks</Text>
           <ScrollView style={styles.slotsList} horizontal showsHorizontalScrollIndicator={false}>
+            {slots.length === 0 && (
+              <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 13, paddingVertical: 8 }}>No time blocks yet — add one below</Text>
+            )}
             {slots.map(s => (
               <View key={s.id} style={[styles.slotChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={{ color: colors.textDark, fontFamily: fonts.medium, fontSize: 13 }}>{s.startTime.slice(0,5)} - {s.endTime.slice(0,5)}</Text>
@@ -130,7 +149,11 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
             </View>
           </View>
 
-          <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold, marginTop: 10 }]}>Today's Subjects</Text>
+          {/* ── SECTION 2: SUBJECTS ── */}
+          <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold, marginTop: 10 }]}>Your Subjects</Text>
+          <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginBottom: 12 }}>
+            {subjects.length === 0 ? 'No subjects yet — add your first one below!' : 'Want to add a new subject before generating the plan?'}
+          </Text>
           <ScrollView style={styles.subjectsList} horizontal showsHorizontalScrollIndicator={false}>
             {subjects.map(s => (
               <View key={s.id} style={[styles.chip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -142,6 +165,7 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
           <View style={styles.formContainer}>
             <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>ADD NEW SUBJECT</Text>
             
+            {/* Subject Name */}
             <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                <View style={styles.inputHeader}>
                   <Ionicons name="book-outline" size={20} color={colors.primary} />
@@ -155,8 +179,43 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
                   placeholderTextColor={colors.textLight}
                />
             </View>
+
+            {/* Exam Date */}
+            <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+               <View style={styles.inputHeader}>
+                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                  <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>EXAM / DEADLINE DATE</Text>
+               </View>
+               {Platform.OS === 'web' ? (
+                 <input
+                    type="date"
+                    value={newSubject.examDate}
+                    onChange={(e) => setNewSubject({ ...newSubject, examDate: e.target.value })}
+                    style={{
+                       fontSize: 16,
+                       fontFamily: 'Outfit_700Bold',
+                       color: colors.textDark,
+                       backgroundColor: 'transparent',
+                       border: 'none',
+                       outline: 'none',
+                       width: '100%',
+                       paddingLeft: 30,
+                       height: 30
+                    }}
+                 />
+               ) : (
+                 <TextInput 
+                    style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]} 
+                    value={newSubject.examDate}
+                    onChangeText={(v) => setNewSubject({ ...newSubject, examDate: v })}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.textLight}
+                 />
+               )}
+            </View>
             
-            <View style={{ marginTop: 20 }}>
+            {/* Priority */}
+            <View style={{ marginTop: 10 }}>
                <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PRIORITY</Text>
                <View style={styles.priorityGrid}>
                   {[
@@ -178,6 +237,7 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
                </View>
             </View>
 
+            {/* Difficulty */}
             <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 25 }]}>DIFFICULTY: {newSubject.difficulty}/10</Text>
             <View style={styles.diffBarRow}>
                {[...Array(10)].map((_, i) => (
@@ -197,16 +257,17 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
             </TouchableOpacity>
           </View>
 
+          {/* ── GENERATE BUTTON ── */}
           <TouchableOpacity 
-            style={[styles.generateBtn, { backgroundColor: colors.primary }]}
+            style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
             onPress={handleGenerate}
             disabled={loading}
           >
             <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>
-              {loading ? 'Generating AI Plan...' : 'Generate Today\'s Plan'}
+              {loading ? 'Generating AI Plan...' : "Generate Today's Plan"}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
 
       <Modal visible={showHourPicker} transparent animationType="fade">
@@ -249,8 +310,8 @@ const styles = StyleSheet.create({
   container: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    padding: 24,
-    minHeight: 400,
+    maxHeight: '90%',
+    marginTop: 'auto',
   },
   title: {
     fontSize: 24,
@@ -280,7 +341,7 @@ const styles = StyleSheet.create({
   },
   subjectsList: {
     maxHeight: 50,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   chip: {
     paddingHorizontal: 16,
@@ -303,6 +364,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     alignItems: 'center',
+    marginTop: 10,
   },
   generateText: {
     color: '#fff',

@@ -72,7 +72,7 @@ export const DashboardScreen = () => {
       </View>
 
       {/* AI Alert Card */}
-      {showAiAlert && (
+      {showAiAlert && latestSchedule && new Date(latestSchedule.generatedAt).toDateString() === new Date().toDateString() && (
         <LinearGradient
           colors={[colors.primaryLight, colors.primaryLight]}
           style={[styles.aiCard, { borderColor: colors.border }]}
@@ -158,10 +158,17 @@ export const DashboardScreen = () => {
       {/* Subject Progress */}
       <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 15 }]}>Subject Progress</Text>
       <View style={[styles.subjectCard, { backgroundColor: colors.surface }]}>
-        {subjects.map((s, idx) => {
+        {subjects.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+            <MaterialCommunityIcons name="book-plus-outline" size={40} color={colors.textLight} />
+            <Text style={{ color: colors.textLight, fontFamily: fonts.medium, marginTop: 10, textAlign: 'center' }}>
+              No subjects yet. Use the Daily Check-in or Subjects tab to add your first one!
+            </Text>
+          </View>
+        ) : subjects.map((s, idx) => {
           const subTasks = tasks.filter(t => t.subject_id === s.id);
           const doneCount = subTasks.filter(t => t.status === 'done').length;
-          const pct = subTasks.length === 0 ? 40 + (idx * 15) : Math.round((doneCount / subTasks.length) * 100);
+          const pct = subTasks.length === 0 ? 0 : Math.round((doneCount / subTasks.length) * 100);
           const icon = idx === 0 ? "math-compass" : idx === 1 ? "microscope" : idx === 2 ? "book-open-page-variant" : "bank";
           const subColor = idx === 0 ? "#3B82F6" : idx === 1 ? "#10B981" : idx === 2 ? "#F43F5E" : "#F59E0B";
           

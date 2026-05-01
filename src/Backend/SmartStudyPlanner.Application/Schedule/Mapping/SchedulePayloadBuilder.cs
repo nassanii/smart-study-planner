@@ -70,6 +70,17 @@ public class SchedulePayloadBuilder
             })
             .ToListAsync(ct);
 
+        var subjects = await _db.Subjects
+            .Where(s => s.UserId == userId)
+            .Select(s => new AiSubjectDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Difficulty = s.Difficulty,
+                Priority = s.Priority
+            })
+            .ToListAsync(ct);
+
         var slots = await _slots.ListForDateAsync(userId, date, ct);
         var slotPayload = slots.Select(s => new AiSlotDto
         {
@@ -92,6 +103,7 @@ public class SchedulePayloadBuilder
                 }
             },
             CurrentTasksToPlan = upcoming,
+            Subjects = subjects,
             AvailableSlots = slotPayload
         };
     }

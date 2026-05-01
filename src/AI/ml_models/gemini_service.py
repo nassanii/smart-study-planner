@@ -14,19 +14,13 @@ async def generate_intelligent_schedule(
     difficulty_factors: Dict[int, float],
     is_exhausted: bool,
     tasks_to_plan: List[Dict[str, Any]],
+    subjects: List[Dict[str, Any]],
     available_slots: List[Dict[str, Any]],
     deadline: str,
     mode: str,
 ) -> Dict[str, Any]:
     """
     Build a rich prompt with ML context and send to Gemini 1.5 Flash.
-
-    Parameters
-    ----------
-    difficulty_factors : dict
-        {subject_id: float} — per-subject difficulty multipliers.
-    mode : str
-        "Cold Start (Heuristics)" or "Machine Learning (Personalized Models)".
     """
 
     # Reload to catch .env updates without restarting server automatically
@@ -75,40 +69,41 @@ async def generate_intelligent_schedule(
 {difficulty_block}
 
     [CONTEXT]
-    - Master List of Subjects: {json.dumps(tasks_to_plan, indent=2)}
+    - All Available Subjects: {json.dumps(subjects, indent=2)}
+    - Pending Tasks (Master List): {json.dumps(tasks_to_plan, indent=2)}
     - Available Study Blocks: {json.dumps(available_slots, indent=2)}
     - Global Deadline: {deadline}
     - DAYS REMAINING UNTIL DEADLINE: {days_remaining}
     
     [STRICT SCHEDULING RULES - DO NOT DEVIATE]
-    1. **Autonomous Session Estimation**:
-       - You are now responsible for deciding how much time each task/subject needs today.
-       - CRITICAL PROGRESS TRACKING: Look at the `estimated_minutes` and `actual_minutes` for each task in the Master List. The REMAINING time needed is roughly (estimated_minutes - actual_minutes).
-       - Schedule sessions to cover the remaining time needed for top priority tasks. Do not schedule time for tasks where actual_minutes >= estimated_minutes.
-       - Adjust your time estimate using the per-subject `difficulty_factor` from the ML CONTEXT above (Multiply the remaining time estimate by this factor).
+    1. **Real Data Integrity**:
+       - You MUST use the REAL names of the subjects from the "All Available Subjects" list. 
+       - DO NOT use generic names like "Subject 1" or "Study Block".
+       - If a subject has pending tasks in the "Pending Tasks" list, prioritize those tasks and use their IDs.
+       - If a subject has NO pending tasks, but you determine it needs study time to stay on track for the deadline, you can still schedule general study sessions for it. Use its Subject ID in those cases.
+    
+    2. **Autonomous Session Estimation**:
+       - Decided how much time each task/subject needs today.
+       - For pending tasks: The REMAINING time needed is roughly (estimated_minutes - actual_minutes).
+       - Adjust your time estimate using the per-subject `difficulty_factor` from the ML CONTEXT.
        - SPLIT your total estimation into discrete sessions of MAXIMUM 50 minutes each.
     
-    2. **The Balancing Rules (CRITICAL)**:
-       - **ROTATION RULE**: If a task has `days_since_last_study` > 3, it is a TOP priority today. You MUST schedule at least one 50-minute session for it.
-       - **BURNOUT PROTECTION**: If a task has `consecutive_days_studied` >= 3, the student is suffering from "Subject Burnout". You MUST POSTPONE this subject today for rest, regardless of its importance.
+    3. **The Balancing Rules (CRITICAL)**:
+       - **ROTATION RULE**: If a task has `days_since_last_study` > 3, it is a TOP priority today.
+       - **BURNOUT PROTECTION**: If a task has `consecutive_days_studied` >= 3, POSTPONE this subject today.
     
-    3. **Urgency Handling**: 
-       - If 'days_remaining' is less than 7, be more aggressive with your time estimates to cover more material.
-       - If 'days_remaining' is less than 3, this is an EMERGENCY. Max out the available blocks with high-difficulty subjects.
+    4. **Urgency Handling**: 
+       - If 'days_remaining' is low, be more aggressive with time estimates.
     
-    4. **50/10 Pattern**:
+    5. **50/10 Pattern**:
        - Every study session MUST be followed by a 10-minute break.
        - STUDY (50m max) -> BREAK (10m).
     
-    5. **Start Times (The 30-Minute Rule)**:
+    6. **Start Times**:
        - Every study session MUST start at exactly :00 or :30 minutes. 
     
-    6. **Prioritization**:
-       - Prioritize subjects with the highest 'difficulty_rating' (while respecting Balancing Rules).
-    
-    7. **Sequential Subject Blocking (Batching)**:
-       - DO NOT interleave sessions of different subjects.
-       - Once you start a subject, you MUST complete all its estimated sessions for the day (e.g., Part 1, Part 2, Part 3) sequentially before moving to the next subject (respecting the 50/10 pattern).
+    7. **Sequential Subject Blocking**:
+       - Once you start a subject, complete all its daily sessions sequentially before moving to the next subject.
     
     [OUTPUT FORMAT]
     Return ONLY a JSON object:
@@ -116,17 +111,19 @@ async def generate_intelligent_schedule(
       "scheduled_slots": [
         {{
           "time_slot": "08:00", 
-          "subject": "Math (Part 1)",
+          "subject": "Real Subject Name (Part 1)",
           "adjusted_duration_minutes": 50,
           "activity_type": "study",
-          "task_id": 1
+          "task_id": 123,
+          "subject_id": 45
         }},
         {{
           "time_slot": "08:50",
           "subject": "Break",
           "adjusted_duration_minutes": 10,
           "activity_type": "break",
-          "task_id": null
+          "task_id": null,
+          "subject_id": null
         }}
       ],
       "postponed_tasks": [list of IDs],

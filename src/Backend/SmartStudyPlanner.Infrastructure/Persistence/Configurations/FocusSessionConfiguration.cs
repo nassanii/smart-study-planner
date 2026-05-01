@@ -26,7 +26,7 @@ public class FocusSessionConfiguration : IEntityTypeConfiguration<FocusSession>
         builder.HasOne(s => s.Subject)
             .WithMany(sub => sub.FocusSessions)
             .HasForeignKey(s => s.SubjectId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(s => new { s.UserId, s.StartedAt });
         builder.HasIndex(s => new { s.UserId, s.SubjectId, s.StartedAt });

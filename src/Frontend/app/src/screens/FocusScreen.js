@@ -28,6 +28,7 @@ export const FocusScreen = () => {
 
   const [mode, setMode] = useState('Focus');
   const [timeLeft, setTimeLeft] = useState(MODE_DURATIONS.Focus);
+  const [initialDuration, setInitialDuration] = useState(MODE_DURATIONS.Focus);
   const [isActive, setIsActive] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const sessionStartTime = useRef(null);
@@ -40,31 +41,60 @@ export const FocusScreen = () => {
   const [focusRating, setFocusRating] = useState(0);
   const [snoozeReason, setSnoozeReason] = useState(null);
 
+  const [scheduleSlots, setScheduleSlots] = useState(null);
+  const [currentSlotIndex, setCurrentSlotIndex] = useState(null);
+  const [showUpNextModal, setShowUpNextModal] = useState(false);
+  const [nextSlotPreview, setNextSlotPreview] = useState(null);
+
+  const [plannedSubjectName, setPlannedSubjectName] = useState(null);
+
   useEffect(() => {
-    if (subjects.length && selectedSubjectId === null) {
+    if (subjects.length && selectedSubjectId === null && !plannedSubjectName) {
       setSelectedSubjectId(subjects[0].id);
     }
-  }, [subjects, selectedSubjectId]);
+  }, [subjects, selectedSubjectId, plannedSubjectName]);
 
-  // Handle Auto-Start from Calendar
+  // Handle Auto-Start from Calendar or Up Next
   useEffect(() => {
-    if (navigationParams?.autoStart && navigationParams?.subjectId) {
-      const { subjectId, duration } = navigationParams;
+    if (navigationParams?.autoStart) {
+      const { subjectId, duration, scheduleContext, subjectName } = navigationParams;
       
       const initializeAutoSession = async () => {
-        if (isActive || activeSession) return;
+        if (isActive) return;
 
-        setSelectedSubjectId(subjectId);
-        if (duration) setTimeLeft(duration * 60);
+        if (scheduleContext) {
+          setScheduleSlots(scheduleContext.slots);
+          setCurrentSlotIndex(scheduleContext.startIndex);
+        }
+
+        const isBreak = subjectName === 'Break' || !subjectId;
+        setMode(isBreak ? 'Short' : 'Focus');
+        setPlannedSubjectName(subjectName || (isBreak ? 'Break' : null));
+
+        if (!isBreak) {
+          setSelectedSubjectId(subjectId);
+        } else {
+          setSelectedSubjectId(null);
+          setSelectedTaskId(null);
+        }
+        
+        if (duration) {
+          setTimeLeft(duration * 60);
+          setInitialDuration(duration * 60);
+        }
 
         try {
-          const session = await startFocusSession({
-            taskId: navigationParams.taskId || null,
-            subjectId: subjectId,
-            mode: 0, 
-          });
-          setActiveSession(session);
-          if (navigationParams.taskId) setSelectedTaskId(navigationParams.taskId);
+          if (!isBreak) {
+            const session = await startFocusSession({
+              taskId: navigationParams.taskId || null,
+              subjectId: subjectId,
+              mode: 0, 
+            });
+            setActiveSession(session);
+            if (navigationParams.taskId) setSelectedTaskId(navigationParams.taskId);
+          } else {
+            setActiveSession(null);
+          }
           sessionStartTime.current = Date.now();
           setIsActive(true);
         } catch (err) {
@@ -81,15 +111,30 @@ export const FocusScreen = () => {
     let interval = null;
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    } else if (timeLeft === 0 && activeSession) {
+    } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
-      setShowRatingModal(true);
       if (interval) clearInterval(interval);
+      
+      if (activeSession) {
+        setShowRatingModal(true);
+      } else {
+        triggerUpNextFlow();
+      }
     } else if (interval) {
       clearInterval(interval);
     }
     return () => { if (interval) clearInterval(interval); };
   }, [isActive, timeLeft, activeSession]);
+
+  const triggerUpNextFlow = () => {
+    if (scheduleSlots && currentSlotIndex !== null && currentSlotIndex + 1 < scheduleSlots.length) {
+      const nextSlot = scheduleSlots[currentSlotIndex + 1];
+      setNextSlotPreview(nextSlot);
+      setShowUpNextModal(true);
+    } else {
+      resetTimer();
+    }
+  };
 
   const toggleTimer = async () => {
     if (isActive) {
@@ -97,7 +142,7 @@ export const FocusScreen = () => {
       return;
     }
     if (!activeSession) {
-      if (!selectedSubjectId) {
+      if (mode === 'Focus' && !selectedSubjectId) {
         showAlert('Pick a subject', 'Please complete onboarding to add subjects first.');
         return;
       }
@@ -164,12 +209,55 @@ export const FocusScreen = () => {
     setShowRatingModal(false);
     setFocusRating(0);
     setLastCompletedSession({ subjectId: selectedSubjectId, completedAt: Date.now() });
-    resetTimer();
+    triggerUpNextFlow();
+  };
+
+  const startNextSlot = async () => {
+    if (!nextSlotPreview) return;
+    
+    const nextIdx = currentSlotIndex + 1;
+    const item = nextSlotPreview;
+    
+    setShowUpNextModal(false);
+    setCurrentSlotIndex(nextIdx);
+    
+    const isBreak = item.activity_type === 'break';
+    setMode(isBreak ? 'Short' : 'Focus');
+    setPlannedSubjectName(item.subject);
+    
+    if (!isBreak) {
+      setSelectedSubjectId(item.subject_id);
+    } else {
+      setSelectedSubjectId(null);
+      setSelectedTaskId(null);
+    }
+    
+    const dur = item.adjusted_duration_minutes || 25;
+    setTimeLeft(dur * 60);
+    setInitialDuration(dur * 60);
+    
+    try {
+      if (!isBreak) {
+        const session = await startFocusSession({
+          taskId: item.task_id || null,
+          subjectId: item.subject_id,
+          mode: 0,
+        });
+        setActiveSession(session);
+        if (item.task_id) setSelectedTaskId(item.task_id);
+      } else {
+        setActiveSession(null);
+      }
+      sessionStartTime.current = Date.now();
+      setIsActive(true);
+    } catch (err) {
+      showAlert('Auto-start failed', err.message);
+    }
   };
 
   const resetTimer = () => {
     setIsActive(false);
-    setTimeLeft(MODE_DURATIONS[mode]);
+    setTimeLeft(initialDuration);
   };
 
   const formatTime = (seconds) => {
@@ -179,7 +267,9 @@ export const FocusScreen = () => {
   };
 
   const upcomingTasksForSubject = tasks.filter(t => t.subject_id === selectedSubjectId && t.status !== 'done');
-  const selectedSubjectName = subjects.find(s => s.id === selectedSubjectId)?.name || '—';
+  const selectedSubjectName = (mode === 'Short' || mode === 'Long') 
+    ? 'Break' 
+    : (plannedSubjectName || subjects.find(s => s.id === selectedSubjectId)?.name || '—');
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -229,7 +319,7 @@ export const FocusScreen = () => {
            {Object.keys(MODE_DURATIONS).map(m => {
              const isSel = mode === m;
              return (
-               <TouchableOpacity key={m} style={[styles.modeBtn, isSel && { backgroundColor: colors.surface }]} onPress={() => { setMode(m); setTimeLeft(MODE_DURATIONS[m]); }}>
+               <TouchableOpacity key={m} style={[styles.modeBtn, isSel && { backgroundColor: colors.surface }]} onPress={() => { setMode(m); setTimeLeft(MODE_DURATIONS[m]); setInitialDuration(MODE_DURATIONS[m]); }}>
                   <Text style={[styles.modeText, { color: isSel ? colors.primary : colors.textLight, fontFamily: isSel ? fonts.bold : fonts.medium }]}>{m}</Text>
                </TouchableOpacity>
              );
@@ -238,8 +328,16 @@ export const FocusScreen = () => {
 
         <View style={[styles.timerCircle, { borderColor: 'rgba(107, 92, 231, 0.08)' }]}>
           <LinearGradient colors={isActive ? ['rgba(107, 92, 231, 0.03)', 'transparent'] : ['transparent', 'transparent']} style={styles.circleInner}>
+             <Text style={{ color: colors.textLight, fontFamily: fonts.semiBold, fontSize: 14, marginBottom: -10, letterSpacing: 1, textTransform: 'uppercase' }}>
+               {mode === 'Focus' ? 'Studied' : 'Rested'}: {formatTime(initialDuration - timeLeft)}
+             </Text>
              <Text style={[styles.timerText, { color: colors.textDark, fontFamily: fonts.bold }]}>{formatTime(timeLeft)}</Text>
-             <Text style={[styles.timerSubtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>{selectedSubjectName}</Text>
+             <Text style={[styles.timerSubtitle, { color: colors.textLight, fontFamily: fonts.medium, marginTop: -15 }]}>
+               {mode === 'Focus' ? 'Until Break' : 'Until Study'}
+             </Text>
+             <Text style={[styles.timerSubtitle, { color: colors.primary, fontFamily: fonts.bold, marginTop: 10, fontSize: 16 }]}>
+               {selectedSubjectName}
+             </Text>
           </LinearGradient>
         </View>
 
@@ -315,6 +413,40 @@ export const FocusScreen = () => {
                </View>
                <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: focusRating === 0 ? 0.5 : 1 }]} disabled={focusRating === 0} onPress={() => submitRating(focusRating)}>
                   <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>Submit to AI Advisor</Text>
+               </TouchableOpacity>
+            </View>
+         </View>
+      </Modal>
+
+      <Modal visible={showUpNextModal} transparent animationType="slide">
+         <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface, alignItems: 'center' }]}>
+               <View style={[styles.congratsIcon, { backgroundColor: 'rgba(34, 197, 94, 0.1)' }]}>
+                  <MaterialCommunityIcons name="fast-forward" size={48} color={colors.accent.science || '#22C55E'} />
+               </View>
+               <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Up Next</Text>
+               <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center' }]}>
+                 {nextSlotPreview?.subject === 'Break' ? "Time for a well-deserved break!" : `Get ready for ${nextSlotPreview?.subject}`}
+               </Text>
+               
+               <View style={[styles.statsCard, { marginBottom: 30, backgroundColor: colors.cardAlt, borderWidth: 0 }]}>
+                 <View style={styles.statCol}>
+                   <Text style={[styles.statBig, { color: colors.textDark, fontSize: 18, fontFamily: fonts.bold }]}>{nextSlotPreview?.adjusted_duration_minutes}m</Text>
+                   <Text style={[styles.statSmall, { color: colors.textLight, fontFamily: fonts.bold }]}>Duration</Text>
+                 </View>
+                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                 <View style={styles.statCol}>
+                   <Text style={[styles.statBig, { color: colors.primary, fontSize: 18, fontFamily: fonts.bold }]}>{nextSlotPreview?.subject}</Text>
+                   <Text style={[styles.statSmall, { color: colors.textLight, fontFamily: fonts.bold }]}>Activity</Text>
+                 </View>
+               </View>
+
+               <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.primary }]} onPress={startNextSlot}>
+                  <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>Start Next Block</Text>
+               </TouchableOpacity>
+               
+               <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowUpNextModal(false); resetTimer(); }}>
+                  <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>I'll start later</Text>
                </TouchableOpacity>
             </View>
          </View>

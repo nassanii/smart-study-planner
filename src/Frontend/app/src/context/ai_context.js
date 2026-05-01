@@ -24,6 +24,7 @@ export const AIProvider = ({ children }) => {
   const [subjects, setSubjects] = useState([]);
   const [behavioralLogs, setBehavioralLogs] = useState(emptyBehavioral);
   const [latestSchedule, setLatestSchedule] = useState(null);
+  const [scheduleProgress, setScheduleProgress] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -214,6 +215,8 @@ export const AIProvider = ({ children }) => {
       addSubject,
       updateSubject,
       generateSchedule,
+      scheduleProgress,
+      setScheduleProgress,
     }}>
       {children}
     </AIContext.Provider>

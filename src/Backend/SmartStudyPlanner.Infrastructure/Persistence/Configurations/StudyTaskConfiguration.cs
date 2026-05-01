@@ -23,7 +23,7 @@ public class StudyTaskConfiguration : IEntityTypeConfiguration<StudyTask>
         builder.HasOne(t => t.Subject)
             .WithMany(s => s.Tasks)
             .HasForeignKey(t => t.SubjectId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(t => new { t.UserId, t.Status, t.Deadline });
         builder.HasIndex(t => new { t.UserId, t.SubjectId });
