@@ -10,4 +10,6 @@ public class AiTaskDto
     [JsonPropertyName("difficulty_rating")] public int DifficultyRating { get; set; }
     [JsonPropertyName("days_since_last_study")] public int DaysSinceLastStudy { get; set; }
     [JsonPropertyName("consecutive_days_studied")] public int ConsecutiveDaysStudied { get; set; }
+    [JsonPropertyName("estimated_minutes")] public int EstimatedMinutes { get; set; }
+    [JsonPropertyName("actual_minutes")] public int ActualMinutes { get; set; }
 }

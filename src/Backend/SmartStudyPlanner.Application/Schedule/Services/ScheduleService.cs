@@ -38,7 +38,21 @@ public class ScheduleService : IScheduleService
     {
         var targetDate = date ?? DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
         var request = await _builder.BuildAsync(userId, targetDate, ct);
-        var response = await _ai.OptimizeScheduleAsync(request, ct);
+        
+        AiOptimizeResponseDto response;
+        try
+        {
+            response = await _ai.OptimizeScheduleAsync(request, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "AI optimization failed for user {UserId}", userId);
+            response = new AiOptimizeResponseDto
+            {
+                AiSchedule = new AiScheduleResultDto { Error = "AI service unavailable", Details = ex.Message },
+                AnalysisResults = new AiAnalysisResultsDto { Mode = "Cold Start", BurnoutScore = 0 }
+            };
+        }
 
         var hasError = !string.IsNullOrEmpty(response.AiSchedule.Error);
         var mode = ParseMode(response.AnalysisResults.Mode);
@@ -79,11 +93,16 @@ public class ScheduleService : IScheduleService
     public async Task<GenerateScheduleResponse?> GetTodayAsync(int userId, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
-        var startUtc = new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        return await GetByDateAsync(userId, today, ct);
+    }
+
+    public async Task<GenerateScheduleResponse?> GetByDateAsync(int userId, DateOnly date, CancellationToken ct)
+    {
+        var startUtc = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var endUtc = startUtc.AddDays(1);
 
         var entity = await _db.AiSchedules
-            .Where(a => a.UserId == userId && a.GeneratedAt >= startUtc && a.GeneratedAt < endUtc)
+            .Where(a => a.UserId == userId && a.GeneratedAt >= startUtc && a.GeneratedAt < endUtc && !a.HasError)
             .OrderByDescending(a => a.GeneratedAt)
             .FirstOrDefaultAsync(ct);
 

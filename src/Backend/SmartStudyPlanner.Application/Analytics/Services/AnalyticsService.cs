@@ -57,13 +57,23 @@ public class AnalyticsService : IAnalyticsService
 
         var user = await _users.FindByIdAsync(userId.ToString());
 
-        var peakHours = await _db.FocusSessions
+        var peakHoursRaw = await _db.FocusSessions
             .Where(s => s.UserId == userId && s.CompletedAt != null)
-            .GroupBy(s => s.StartedAt.UtcDateTime.Hour)
+            .Select(s => s.StartedAt)
+            .ToListAsync(ct);
+
+        var peakHours = peakHoursRaw
+            .GroupBy(s => s.Hour)
             .Select(g => new { Hour = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
             .Take(3)
-            .ToListAsync(ct);
+            .ToList();
+
+        var badges = new List<string>();
+        if (streak >= 7) badges.Add("Consistent");
+        if (avgFocus >= 4.5m) badges.Add("Deep Focus");
+        if (logs.Where(l => l.Date == today).Sum(l => l.StudyHours) >= 4m) badges.Add("Hard Worker");
+        if (completed >= 10) badges.Add("Achiever");
 
         return new InsightsDto
         {
@@ -75,7 +85,8 @@ public class AnalyticsService : IAnalyticsService
             LatestBurnout = latestSchedule is null ? null : latestSchedule.BurnoutScore,
             LatestIsExhausted = latestSchedule?.IsExhausted ?? false,
             PeakHourBuckets = peakHours.Select(p => p.Hour).ToList(),
-            StudyHoursToday = (decimal)logs.Where(l => l.Date == today).Sum(l => l.StudyHours)
+            StudyHoursToday = (decimal)logs.Where(l => l.Date == today).Sum(l => l.StudyHours),
+            Badges = badges
         };
     }
 

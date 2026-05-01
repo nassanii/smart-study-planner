@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Globalization;
 
 namespace SmartStudyPlanner.Api.Common;
 
@@ -8,6 +9,7 @@ public class FlexibleTimeOnlyConverter : JsonConverter<TimeOnly>
     private static readonly string[] Formats =
     {
         "HH:mm",
+        "H:mm",
         "HH:mm:ss",
         "HH:mm:ss.f",
         "HH:mm:ss.ff",
@@ -22,7 +24,21 @@ public class FlexibleTimeOnlyConverter : JsonConverter<TimeOnly>
         {
             throw new JsonException("Time string is empty.");
         }
-        return TimeOnly.ParseExact(raw, Formats, System.Globalization.CultureInfo.InvariantCulture);
+
+        if (TimeOnly.TryParseExact(raw, Formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
+        {
+            return time;
+        }
+
+        // Try standard parsing as a last resort
+        try 
+        {
+            return TimeOnly.Parse(raw, CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex)
+        {
+            throw new JsonException($"Unable to parse time '{raw}'. Expected formats: HH:mm", ex);
+        }
     }
 
     public override void Write(Utf8JsonWriter writer, TimeOnly value, JsonSerializerOptions options)
@@ -38,7 +54,17 @@ public class FlexibleNullableTimeOnlyConverter : JsonConverter<TimeOnly?>
     public override TimeOnly? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null) return null;
-        return Inner.Read(ref reader, typeof(TimeOnly), options);
+        var raw = reader.GetString();
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        try
+        {
+            return Inner.Read(ref reader, typeof(TimeOnly), options);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public override void Write(Utf8JsonWriter writer, TimeOnly? value, JsonSerializerOptions options)

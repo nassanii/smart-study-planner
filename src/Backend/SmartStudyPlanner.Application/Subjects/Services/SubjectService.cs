@@ -46,6 +46,7 @@ public class SubjectService : ISubjectService
             UserId = userId,
             Name = dto.Name,
             Difficulty = dto.Difficulty,
+            Priority = dto.Priority,
             ExamDate = dto.ExamDate,
             CreatedAt = _time.GetUtcNow()
         };
@@ -66,6 +67,7 @@ public class SubjectService : ISubjectService
             s.Name = dto.Name;
         }
         if (dto.Difficulty.HasValue) s.Difficulty = dto.Difficulty.Value;
+        if (dto.Priority.HasValue) s.Priority = dto.Priority.Value;
         if (dto.ExamDate.HasValue) s.ExamDate = dto.ExamDate;
 
         await _db.SaveChangesAsync(ct);
@@ -85,6 +87,7 @@ public class SubjectService : ISubjectService
         Id = s.Id,
         Name = s.Name,
         Difficulty = s.Difficulty,
+        Priority = s.Priority,
         ExamDate = s.ExamDate,
         CreatedAt = s.CreatedAt
     };

@@ -31,6 +31,13 @@ public class ScheduleController : ControllerBase
         return today is null ? NotFound() : Ok(today);
     }
 
+    [HttpGet("day/{date}")]
+    public async Task<ActionResult<GenerateScheduleResponse>> GetByDate(DateOnly date, CancellationToken ct)
+    {
+        var result = await _schedule.GetByDateAsync(_currentUser.RequireUserId(), date, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [HttpGet("history")]
     public async Task<ActionResult<IReadOnlyList<ScheduleSummaryDto>>> History([FromQuery] int limit = 10, CancellationToken ct = default)
         => Ok(await _schedule.GetHistoryAsync(_currentUser.RequireUserId(), limit, ct));

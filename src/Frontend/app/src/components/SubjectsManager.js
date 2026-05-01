@@ -4,14 +4,13 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
-import { subjectsApi } from '../services/api';
 import { showAlert, showConfirm } from '../services/dialogs';
 
 const emptyForm = { id: null, name: '', difficulty: 5, examDate: '' };
 
 export const SubjectsManager = ({ visible, onClose }) => {
   const { colors, fonts } = useTheme();
-  const { subjects, reloadSubjects } = useAI();
+  const { subjects, addSubject, updateSubject, removeSubject } = useAI();
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -20,9 +19,8 @@ export const SubjectsManager = ({ visible, onClose }) => {
     if (visible) {
       setForm(emptyForm);
       setError('');
-      reloadSubjects().catch(() => {});
     }
-  }, [visible, reloadSubjects]);
+  }, [visible]);
 
   const startEdit = (s) => {
     setForm({ id: s.id, name: s.name, difficulty: s.difficulty, examDate: s.examDate || '' });
@@ -52,11 +50,10 @@ export const SubjectsManager = ({ visible, onClose }) => {
         examDate: form.examDate ? form.examDate.trim() : null,
       };
       if (form.id) {
-        await subjectsApi.update(form.id, payload);
+        await updateSubject(form.id, payload);
       } else {
-        await subjectsApi.create(payload);
+        await addSubject(payload);
       }
-      await reloadSubjects();
       reset();
     } catch (err) {
       setError(err.response?.data?.title || err.message || 'Could not save subject.');
@@ -73,8 +70,7 @@ export const SubjectsManager = ({ visible, onClose }) => {
       destructive: true,
       onConfirm: async () => {
         try {
-          await subjectsApi.remove(s.id);
-          await reloadSubjects();
+          await removeSubject(s.id);
           if (form.id === s.id) reset();
         } catch (err) {
           showAlert('Failed', err.response?.data?.title || err.message);

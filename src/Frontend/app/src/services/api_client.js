@@ -1,6 +1,7 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
 import { getTokens, setTokens, clearTokens } from './auth_storage';
+import { incrementLoading, decrementLoading } from './loading_bus';
 
 const baseURL = Constants.expoConfig?.extra?.apiBaseUrl
   || Constants.manifest?.extra?.apiBaseUrl
@@ -20,6 +21,7 @@ let onAuthFailure = null;
 export const setAuthFailureHandler = (fn) => { onAuthFailure = fn; };
 
 apiClient.interceptors.request.use(async (config) => {
+  incrementLoading();
   config.headers = config.headers || {};
   config.headers['X-Client-Ts'] = Date.now().toString();
   if (!config.skipAuth) {
@@ -32,16 +34,21 @@ apiClient.interceptors.request.use(async (config) => {
     console.log('[api ->]', (config.method || 'get').toUpperCase(), config.baseURL + config.url);
   }
   return config;
+}, (err) => {
+  decrementLoading();
+  return Promise.reject(err);
 });
 
 apiClient.interceptors.response.use(
   (res) => {
+    decrementLoading();
     if (typeof console !== 'undefined') {
       console.log('[api <-]', res.status, res.config.url);
     }
     return res;
   },
   (err) => {
+    decrementLoading();
     if (typeof console !== 'undefined') {
       console.log('[api !!]', err.response?.status || 'NETWORK', err.config?.url, err.response?.data?.title || err.message);
     }

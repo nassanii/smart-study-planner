@@ -6,6 +6,7 @@ public class Subject
     public int UserId { get; set; }
     public string Name { get; set; } = string.Empty;
     public short Difficulty { get; set; }
+    public short Priority { get; set; } = 2;
     public DateOnly? ExamDate { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 

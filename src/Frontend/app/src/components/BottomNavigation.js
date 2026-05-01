@@ -6,7 +6,7 @@ import { useTheme } from '../theme/theme';
 const TABS = [
   { name: 'Home', icon: 'home', id: 'home' },
   { name: 'Calendar', icon: 'calendar', id: 'calendar' },
-  { name: 'Tasks', icon: 'checkmark-circle', id: 'tasks' },
+  { name: 'Subjects', icon: 'library', id: 'subjects' },
   { name: 'Focus', icon: 'time', id: 'focus' },
   { name: 'Profile', icon: 'person', id: 'profile' },
 ];

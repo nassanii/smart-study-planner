@@ -1,13 +1,12 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
+namespace SmartStudyPlanner.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -16,11 +15,11 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "AspNetRoles",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    normalized_name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    concurrency_stamp = table.Column<string>(type: "text", nullable: true)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    normalized_name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    concurrency_stamp = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -31,46 +30,42 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "AspNetUsers",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    target_gpa = table.Column<decimal>(type: "numeric(3,2)", nullable: true),
-                    max_hours_per_day = table.Column<decimal>(type: "numeric(4,2)", nullable: true),
-                    deadline = table.Column<DateOnly>(type: "date", nullable: true),
-                    is_onboarded = table.Column<bool>(type: "boolean", nullable: false),
-                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    user_name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    normalized_user_name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    normalized_email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    email_confirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    password_hash = table.Column<string>(type: "text", nullable: true),
-                    security_stamp = table.Column<string>(type: "text", nullable: true),
-                    concurrency_stamp = table.Column<string>(type: "text", nullable: true),
-                    phone_number = table.Column<string>(type: "text", nullable: true),
-                    phone_number_confirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    two_factor_enabled = table.Column<bool>(type: "boolean", nullable: false),
-                    lockout_end = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    lockout_enabled = table.Column<bool>(type: "boolean", nullable: false),
-                    access_failed_count = table.Column<int>(type: "integer", nullable: false)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    deadline = table.Column<DateOnly>(type: "TEXT", nullable: true),
+                    is_onboarded = table.Column<bool>(type: "INTEGER", nullable: false),
+                    created_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    updated_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    user_name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    normalized_user_name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    email = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    normalized_email = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    email_confirmed = table.Column<bool>(type: "INTEGER", nullable: false),
+                    password_hash = table.Column<string>(type: "TEXT", nullable: true),
+                    security_stamp = table.Column<string>(type: "TEXT", nullable: true),
+                    concurrency_stamp = table.Column<string>(type: "TEXT", nullable: true),
+                    phone_number = table.Column<string>(type: "TEXT", nullable: true),
+                    phone_number_confirmed = table.Column<bool>(type: "INTEGER", nullable: false),
+                    two_factor_enabled = table.Column<bool>(type: "INTEGER", nullable: false),
+                    lockout_end = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    lockout_enabled = table.Column<bool>(type: "INTEGER", nullable: false),
+                    access_failed_count = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_asp_net_users", x => x.id);
-                    table.CheckConstraint("ck_users_max_hours_range", "max_hours_per_day IS NULL OR (max_hours_per_day > 0 AND max_hours_per_day <= 24)");
-                    table.CheckConstraint("ck_users_target_gpa_range", "target_gpa IS NULL OR (target_gpa >= 0 AND target_gpa <= 4)");
                 });
 
             migrationBuilder.CreateTable(
                 name: "AspNetRoleClaims",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    role_id = table.Column<int>(type: "integer", nullable: false),
-                    claim_type = table.Column<string>(type: "text", nullable: true),
-                    claim_value = table.Column<string>(type: "text", nullable: true)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    role_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    claim_type = table.Column<string>(type: "TEXT", nullable: true),
+                    claim_value = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -87,17 +82,17 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "ai_schedules",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    generated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    mode = table.Column<short>(type: "smallint", nullable: false),
-                    burnout_score = table.Column<decimal>(type: "numeric(4,3)", nullable: false),
-                    is_exhausted = table.Column<bool>(type: "boolean", nullable: false),
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    generated_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    mode = table.Column<short>(type: "INTEGER", nullable: false),
+                    burnout_score = table.Column<decimal>(type: "decimal(4,3)", nullable: false),
+                    is_exhausted = table.Column<bool>(type: "INTEGER", nullable: false),
                     ai_message = table.Column<string>(type: "text", nullable: false),
                     request_payload = table.Column<string>(type: "jsonb", nullable: false),
                     response_payload = table.Column<string>(type: "jsonb", nullable: false),
-                    has_error = table.Column<bool>(type: "boolean", nullable: false)
+                    has_error = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -114,11 +109,11 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "AspNetUserClaims",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    claim_type = table.Column<string>(type: "text", nullable: true),
-                    claim_value = table.Column<string>(type: "text", nullable: true)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    claim_type = table.Column<string>(type: "TEXT", nullable: true),
+                    claim_value = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -135,10 +130,10 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "AspNetUserLogins",
                 columns: table => new
                 {
-                    login_provider = table.Column<string>(type: "text", nullable: false),
-                    provider_key = table.Column<string>(type: "text", nullable: false),
-                    provider_display_name = table.Column<string>(type: "text", nullable: true),
-                    user_id = table.Column<int>(type: "integer", nullable: false)
+                    login_provider = table.Column<string>(type: "TEXT", nullable: false),
+                    provider_key = table.Column<string>(type: "TEXT", nullable: false),
+                    provider_display_name = table.Column<string>(type: "TEXT", nullable: true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -155,8 +150,8 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "AspNetUserRoles",
                 columns: table => new
                 {
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    role_id = table.Column<int>(type: "integer", nullable: false)
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    role_id = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -179,10 +174,10 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "AspNetUserTokens",
                 columns: table => new
                 {
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    login_provider = table.Column<string>(type: "text", nullable: false),
-                    name = table.Column<string>(type: "text", nullable: false),
-                    value = table.Column<string>(type: "text", nullable: true)
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    login_provider = table.Column<string>(type: "TEXT", nullable: false),
+                    name = table.Column<string>(type: "TEXT", nullable: false),
+                    value = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -199,13 +194,13 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "available_slots",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    day_of_week = table.Column<int>(type: "integer", nullable: true),
-                    date = table.Column<DateOnly>(type: "date", nullable: true),
-                    start_time = table.Column<TimeOnly>(type: "time without time zone", nullable: false),
-                    end_time = table.Column<TimeOnly>(type: "time without time zone", nullable: false)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    day_of_week = table.Column<int>(type: "INTEGER", nullable: true),
+                    date = table.Column<DateOnly>(type: "TEXT", nullable: true),
+                    start_time = table.Column<TimeOnly>(type: "TEXT", nullable: false),
+                    end_time = table.Column<TimeOnly>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -224,13 +219,13 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "behavioral_logs",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    date = table.Column<DateOnly>(type: "date", nullable: false),
-                    snooze_count = table.Column<int>(type: "integer", nullable: false),
-                    study_hours = table.Column<decimal>(type: "numeric(5,2)", nullable: false),
-                    avg_focus_rating = table.Column<decimal>(type: "numeric(3,2)", nullable: true),
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    date = table.Column<DateOnly>(type: "TEXT", nullable: false),
+                    snooze_count = table.Column<int>(type: "INTEGER", nullable: false),
+                    study_hours = table.Column<decimal>(type: "decimal(5,2)", nullable: false),
+                    avg_focus_rating = table.Column<decimal>(type: "decimal(3,2)", nullable: true),
                     last_focus_ratings_json = table.Column<string>(type: "jsonb", nullable: false)
                 },
                 constraints: table =>
@@ -248,15 +243,15 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "refresh_tokens",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    token_hash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    revoked_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    replaced_by_token_hash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    created_by_ip = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: true)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    token_hash = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
+                    expires_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    revoked_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    replaced_by_token_hash = table.Column<string>(type: "TEXT", maxLength: 128, nullable: true),
+                    created_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    created_by_ip = table.Column<string>(type: "TEXT", maxLength: 45, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -273,13 +268,13 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "subjects",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    name = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
-                    difficulty = table.Column<short>(type: "smallint", nullable: false),
-                    exam_date = table.Column<DateOnly>(type: "date", nullable: true),
-                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    name = table.Column<string>(type: "TEXT", maxLength: 120, nullable: false),
+                    difficulty = table.Column<short>(type: "INTEGER", nullable: false),
+                    exam_date = table.Column<DateOnly>(type: "TEXT", nullable: true),
+                    created_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -297,22 +292,22 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "study_tasks",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    subject_id = table.Column<int>(type: "integer", nullable: false),
-                    priority = table.Column<short>(type: "smallint", nullable: false),
-                    difficulty_rating = table.Column<short>(type: "smallint", nullable: false),
-                    estimated_minutes = table.Column<int>(type: "integer", nullable: false),
-                    actual_minutes = table.Column<int>(type: "integer", nullable: true),
-                    days_since_last_study = table.Column<int>(type: "integer", nullable: false),
-                    consecutive_days_studied = table.Column<int>(type: "integer", nullable: false),
-                    status = table.Column<short>(type: "smallint", nullable: false),
-                    deadline = table.Column<DateOnly>(type: "date", nullable: true),
-                    tag = table.Column<string>(type: "character varying(60)", maxLength: 60, nullable: true),
-                    completed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    subject_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    priority = table.Column<short>(type: "INTEGER", nullable: false),
+                    difficulty_rating = table.Column<short>(type: "INTEGER", nullable: false),
+                    estimated_minutes = table.Column<int>(type: "INTEGER", nullable: false),
+                    actual_minutes = table.Column<int>(type: "INTEGER", nullable: true),
+                    days_since_last_study = table.Column<int>(type: "INTEGER", nullable: false),
+                    consecutive_days_studied = table.Column<int>(type: "INTEGER", nullable: false),
+                    status = table.Column<short>(type: "INTEGER", nullable: false),
+                    deadline = table.Column<DateOnly>(type: "TEXT", nullable: true),
+                    tag = table.Column<string>(type: "TEXT", maxLength: 60, nullable: true),
+                    completed_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
+                    created_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    updated_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -336,17 +331,17 @@ namespace SmartStudyPlanner.Infrastructure.Persistence.Migrations
                 name: "focus_sessions",
                 columns: table => new
                 {
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    user_id = table.Column<int>(type: "integer", nullable: false),
-                    task_id = table.Column<int>(type: "integer", nullable: true),
-                    subject_id = table.Column<int>(type: "integer", nullable: false),
-                    mode = table.Column<short>(type: "smallint", nullable: false),
-                    duration_seconds = table.Column<int>(type: "integer", nullable: false),
-                    focus_rating = table.Column<short>(type: "smallint", nullable: true),
-                    snooze_reason = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    started_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    completed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                    id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    user_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    task_id = table.Column<int>(type: "INTEGER", nullable: true),
+                    subject_id = table.Column<int>(type: "INTEGER", nullable: false),
+                    mode = table.Column<short>(type: "INTEGER", nullable: false),
+                    duration_seconds = table.Column<int>(type: "INTEGER", nullable: false),
+                    focus_rating = table.Column<short>(type: "INTEGER", nullable: true),
+                    snooze_reason = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
+                    started_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    completed_at = table.Column<DateTimeOffset>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {

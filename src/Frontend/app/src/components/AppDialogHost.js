@@ -10,7 +10,10 @@ export const AppDialogHost = () => {
   const [pending, setPending] = useState(null);
 
   useEffect(() => subscribe(({ opts, resolve }) => {
-    setPending({ opts, resolve });
+    // Only handle blocking dialogs here. Toasts are handled by react-native-toast-message.
+    if (opts.kind !== 'toast') {
+      setPending({ opts, resolve });
+    }
   }), []);
 
   const close = (result) => {
@@ -37,7 +40,7 @@ export const AppDialogHost = () => {
           </View>
 
           <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>
-            {opts.title || (isConfirm ? 'Confirm' : 'Notice')}
+            {opts.title || (isConfirm ? 'Confirm' : (destructive ? 'Error' : 'Notice'))}
           </Text>
           {opts.message ? (
             <Text style={[styles.message, { color: colors.textLight, fontFamily: fonts.medium }]}>{opts.message}</Text>

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using SmartStudyPlanner.Application.Common;
@@ -26,6 +27,10 @@ public class ExceptionHandlingMiddleware
             await WriteProblem(context, StatusCodes.Status400BadRequest, "Validation failed",
                 ex.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
         }
+        catch (JsonException ex)
+        {
+            await WriteProblem(context, StatusCodes.Status400BadRequest, "Data format error", ex.Message);
+        }
         catch (NotFoundException ex)
         {
             await WriteProblem(context, StatusCodes.Status404NotFound, ex.Message);
@@ -41,7 +46,7 @@ public class ExceptionHandlingMiddleware
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
-            await WriteProblem(context, StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
+            await WriteProblem(context, StatusCodes.Status500InternalServerError, $"An unexpected error occurred: {ex.Message}", ex.ToString());
         }
     }
 

@@ -23,5 +23,18 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        if (Database.IsSqlite())
+        {
+            foreach (var entityType in builder.Model.GetEntityTypes())
+            {
+                var properties = entityType.GetProperties()
+                    .Where(p => p.ClrType == typeof(DateTimeOffset) || p.ClrType == typeof(DateTimeOffset?));
+                foreach (var property in properties)
+                {
+                    property.SetValueConverter(new Microsoft.EntityFrameworkCore.Storage.ValueConversion.DateTimeOffsetToStringConverter());
+                }
+            }
+        }
     }
 }

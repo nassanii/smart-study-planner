@@ -6,14 +6,14 @@ import { useAI } from '../context/ai_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showConfirm, showAlert } from '../services/dialogs';
-import { SubjectsManager } from '../components/SubjectsManager';
+import { useAppNavigation } from '../context/navigation_context';
 
 export const ProfileScreen = () => {
   const { colors, fonts, isDarkMode, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const { subjects } = useAI();
+  const { navigate } = useAppNavigation();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [subjectsOpen, setSubjectsOpen] = useState(false);
 
   const initial = (user?.name || 'U').slice(0, 1).toUpperCase();
   const fullName = user?.name || 'Student';
@@ -93,7 +93,7 @@ export const ProfileScreen = () => {
 
       <Text style={[styles.sectionTitle, { color: colors.textLight, fontFamily: fonts.bold }]}>STUDY</Text>
       <View style={[styles.menuGrp, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-         <TouchableOpacity style={styles.menuRow} onPress={() => setSubjectsOpen(true)}>
+         <TouchableOpacity style={styles.menuRow} onPress={() => navigate('subjects')}>
             <View style={[styles.iconBox, { backgroundColor: '#EDE9FE' }]}>
                <MaterialCommunityIcons name="book-multiple" size={18} color={colors.primary} />
             </View>
@@ -148,7 +148,6 @@ export const ProfileScreen = () => {
          <Text style={[styles.footerText, { color: colors.textLight, fontFamily: fonts.medium }]}>Made with <Ionicons name="heart" size={14} color="#FF6B8B" /> for students</Text>
       </View>
 
-      <SubjectsManager visible={subjectsOpen} onClose={() => setSubjectsOpen(false)} />
     </ScrollView>
   );
 };
@@ -156,7 +155,7 @@ export const ProfileScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 30 },
-  headerTitle: { fontSize: 28 },
+  headerTitle: { fontSize: 26 },
   profileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 22, borderRadius: 24, borderWidth: 1, marginBottom: 35, elevation: 4, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 15 },
   profileLeft: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   avatarGradient: { width: 64, height: 64, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },

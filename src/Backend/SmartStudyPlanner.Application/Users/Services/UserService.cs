@@ -56,9 +56,11 @@ public class UserService : IUserService
             .Select(s => s.Name)
             .ToListAsync(ct);
 
+        var addedSubjectNames = new HashSet<string>(existingSubjects, StringComparer.OrdinalIgnoreCase);
         foreach (var s in dto.Subjects)
         {
-            if (existingSubjects.Contains(s.Name)) continue;
+            if (addedSubjectNames.Contains(s.Name)) continue;
+            addedSubjectNames.Add(s.Name);
             var subject = new Subject
             {
                 UserId = userId,
@@ -75,9 +77,9 @@ public class UserService : IUserService
                 UserId = userId,
                 Subject = subject,
                 Status = SmartStudyPlanner.Domain.Enums.StudyTaskStatus.Upcoming,
-                Priority = SmartStudyPlanner.Domain.Enums.TaskPriority.Medium,
+                Priority = (SmartStudyPlanner.Domain.Enums.TaskPriority)s.Priority,
                 DifficultyRating = s.Difficulty,
-                EstimatedMinutes = 50,
+                EstimatedMinutes = s.EstimatedMinutes,
                 CreatedAt = _time.GetUtcNow(),
                 UpdatedAt = _time.GetUtcNow()
             });

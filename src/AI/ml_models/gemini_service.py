@@ -82,9 +82,10 @@ async def generate_intelligent_schedule(
     
     [STRICT SCHEDULING RULES - DO NOT DEVIATE]
     1. **Autonomous Session Estimation**:
-       - You are now responsible for deciding how much time each subject needs today.
-       - FOR EVERY SELECTED SUBJECT: Estimate the total study load needed today based on its `difficulty_rating` (1-10) and the `days_remaining` until the deadline.
-       - Adjust your estimate using the per-subject `difficulty_factor` from the ML CONTEXT above (Multiply the base time estimate by this factor).
+       - You are now responsible for deciding how much time each task/subject needs today.
+       - CRITICAL PROGRESS TRACKING: Look at the `estimated_minutes` and `actual_minutes` for each task in the Master List. The REMAINING time needed is roughly (estimated_minutes - actual_minutes).
+       - Schedule sessions to cover the remaining time needed for top priority tasks. Do not schedule time for tasks where actual_minutes >= estimated_minutes.
+       - Adjust your time estimate using the per-subject `difficulty_factor` from the ML CONTEXT above (Multiply the remaining time estimate by this factor).
        - SPLIT your total estimation into discrete sessions of MAXIMUM 50 minutes each.
     
     2. **The Balancing Rules (CRITICAL)**:

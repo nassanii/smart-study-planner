@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, ScrollView } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
+import { useAppNavigation } from '../context/navigation_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showAlert } from '../services/dialogs';
@@ -22,6 +23,7 @@ const MODE_NUMBER = {
 
 export const FocusScreen = () => {
   const { colors, fonts } = useTheme();
+  const { navigationParams, clearParams, setLastCompletedSession } = useAppNavigation();
   const { behavioralLogs, subjects, tasks, startFocusSession, completeFocusSession } = useAI();
 
   const [mode, setMode] = useState('Focus');
@@ -43,6 +45,37 @@ export const FocusScreen = () => {
       setSelectedSubjectId(subjects[0].id);
     }
   }, [subjects, selectedSubjectId]);
+
+  // Handle Auto-Start from Calendar
+  useEffect(() => {
+    if (navigationParams?.autoStart && navigationParams?.subjectId) {
+      const { subjectId, duration } = navigationParams;
+      
+      const initializeAutoSession = async () => {
+        if (isActive || activeSession) return;
+
+        setSelectedSubjectId(subjectId);
+        if (duration) setTimeLeft(duration * 60);
+
+        try {
+          const session = await startFocusSession({
+            taskId: navigationParams.taskId || null,
+            subjectId: subjectId,
+            mode: 0, 
+          });
+          setActiveSession(session);
+          if (navigationParams.taskId) setSelectedTaskId(navigationParams.taskId);
+          sessionStartTime.current = Date.now();
+          setIsActive(true);
+        } catch (err) {
+          console.warn('[Focus] Auto-start failed:', err.message);
+        }
+      };
+
+      initializeAutoSession();
+      clearParams();
+    }
+  }, [navigationParams]);
 
   useEffect(() => {
     let interval = null;
@@ -130,6 +163,7 @@ export const FocusScreen = () => {
     sessionStartTime.current = null;
     setShowRatingModal(false);
     setFocusRating(0);
+    setLastCompletedSession({ subjectId: selectedSubjectId, completedAt: Date.now() });
     resetTimer();
   };
 
@@ -161,21 +195,6 @@ export const FocusScreen = () => {
           </View>
         </View>
 
-        <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>SUBJECT</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 18 }}>
-          {subjects.map(s => (
-            <TouchableOpacity
-              key={s.id}
-              onPress={() => { setSelectedSubjectId(s.id); setSelectedTaskId(null); }}
-              style={[styles.chip, {
-                borderColor: selectedSubjectId === s.id ? colors.primary : colors.border,
-                backgroundColor: selectedSubjectId === s.id ? colors.primary + '15' : 'transparent'
-              }]}
-            >
-              <Text style={{ color: selectedSubjectId === s.id ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>{s.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         {upcomingTasksForSubject.length > 0 && (
           <>

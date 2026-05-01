@@ -31,6 +31,9 @@ export const LoginScreen = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -50,8 +53,13 @@ export const LoginScreen = () => {
       setErrorMsg('Please enter your display name.');
       return;
     }
-    if (password.length < 8) {
-      setErrorMsg('Password must be at least 8 characters with at least 1 digit.');
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (activeTab === 'signup' && !passwordRegex.test(password)) {
+      setErrorMsg('Password must be at least 8 characters long and include uppercase, lowercase, a number, and a special character.');
+      return;
+    }
+    if (activeTab === 'signup' && password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
       return;
     }
     setSubmitting(true);
@@ -175,14 +183,40 @@ export const LoginScreen = () => {
                  style={[styles.input, { color: colors.textDark, fontFamily: fonts.medium }]}
                  placeholder="••••••••"
                  placeholderTextColor={colors.textLight}
-                 secureTextEntry
+                 secureTextEntry={!showPassword}
                  value={password}
                  onChangeText={setPassword}
                  autoComplete="off"
                  autoCorrect={false}
                  textContentType="oneTimeCode"
               />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                 <Ionicons name={showPassword ? "eye-off" : "eye"} size={22} color={colors.textLight} />
+              </TouchableOpacity>
            </View>
+
+           {activeTab === 'signup' && (
+             <>
+               <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.semiBold }]}>Confirm Password</Text>
+               <View style={[styles.inputContainer, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                  <MaterialCommunityIcons name="lock-check" size={20} color={colors.primary} />
+                  <TextInput
+                     style={[styles.input, { color: colors.textDark, fontFamily: fonts.medium }]}
+                     placeholder="••••••••"
+                     placeholderTextColor={colors.textLight}
+                     secureTextEntry={!showConfirmPassword}
+                     value={confirmPassword}
+                     onChangeText={setConfirmPassword}
+                     autoComplete="off"
+                     autoCorrect={false}
+                     textContentType="oneTimeCode"
+                  />
+                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
+                     <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={22} color={colors.textLight} />
+                  </TouchableOpacity>
+               </View>
+             </>
+           )}
 
            {activeTab === 'login' && (
              <View style={styles.row}>
@@ -272,17 +306,17 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 25, paddingTop: 60, alignItems: 'center' },
   iconContainer: { width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  brand: { fontSize: 24, marginBottom: 45 },
+  brand: { fontSize: 28, marginBottom: 45 },
   topSection: { alignSelf: 'flex-start', marginBottom: 35, width: '100%' },
-  welcomeText: { fontSize: 32, marginBottom: 10 },
-  subtitle: { fontSize: 16, lineHeight: 24 },
+  welcomeText: { fontSize: 36, marginBottom: 10 },
+  subtitle: { fontSize: 18, lineHeight: 26 },
   tabContainer: { flexDirection: 'row', width: '100%', borderRadius: 20, padding: 6, marginBottom: 35 },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 16 },
-  tabText: { fontSize: 14 },
+  tabText: { fontSize: 16 },
   form: { width: '100%' },
-  label: { fontSize: 13, marginBottom: 12, marginLeft: 4, letterSpacing: 0.5 },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, height: 64, borderRadius: 20, borderWidth: 1, marginBottom: 25, gap: 15 },
-  input: { flex: 1, fontSize: 16 },
+  label: { fontSize: 15, marginBottom: 12, marginLeft: 4, letterSpacing: 0.5 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, height: 64, borderRadius: 20, borderWidth: 0, marginBottom: 25, gap: 15 },
+  input: { flex: 1, fontSize: 18, outlineStyle: 'none' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 35, paddingHorizontal: 4 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkbox: { width: 22, height: 22, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
@@ -300,5 +334,6 @@ const styles = StyleSheet.create({
   footer: { alignItems: 'center' },
   footerText: { fontSize: 15 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 18 },
-  errorText: { fontSize: 13, flex: 1, lineHeight: 18 }
+  errorText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  eyeIcon: { padding: 5 }
 });

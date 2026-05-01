@@ -9,6 +9,7 @@ import {
   Outfit_700Bold
 } from '@expo-google-fonts/outfit';
 
+import { NavigationProvider, useAppNavigation } from './src/context/navigation_context';
 import { ThemeProvider, useTheme } from './src/theme/theme';
 import { AuthProvider, useAuth } from './src/context/auth_context';
 import { AIProvider, useAI } from './src/context/ai_context';
@@ -16,19 +17,21 @@ import { SplashScreen } from './src/screens/SplashScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
-import { TasksScreen } from './src/screens/TasksScreen';
+import { SubjectsScreen } from './src/screens/TasksScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { FocusScreen } from './src/screens/FocusScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { BottomNavigation } from './src/components/BottomNavigation';
 import { AppDialogHost } from './src/components/AppDialogHost';
+import { GlobalLoader } from './src/components/GlobalLoader';
+import Toast from 'react-native-toast-message';
 
 const MainApp = () => {
   const { isSplashScreenVisible, setIsSplashScreenVisible, colors, isDarkMode } = useTheme();
   const { isAuthenticated, hydrating, user } = useAuth();
   const { userData } = useAI();
-  const [activeTab, setActiveTab] = useState('home');
+  const { activeTab, setActiveTab } = useAppNavigation();
 
   console.log('[MainApp] hydrating=', hydrating, 'isAuthenticated=', isAuthenticated, 'isOnboarded=', user?.isOnboarded ?? userData.isOnboarded);
 
@@ -48,7 +51,7 @@ const MainApp = () => {
     switch (activeTab) {
       case 'home': return <DashboardScreen />;
       case 'calendar': return <CalendarScreen />;
-      case 'tasks': return <TasksScreen />;
+      case 'subjects': return <SubjectsScreen />;
       case 'focus': return <FocusScreen />;
       case 'analytics': return <AnalyticsScreen />;
       case 'profile': return <ProfileScreen />;
@@ -88,14 +91,18 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AIProvider>
-          <MainApp />
-          <AppDialogHost />
-        </AIProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <NavigationProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AIProvider>
+            <MainApp />
+            <AppDialogHost />
+            <GlobalLoader />
+            <Toast />
+          </AIProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </NavigationProvider>
   );
 }
 

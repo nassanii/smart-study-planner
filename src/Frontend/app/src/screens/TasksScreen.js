@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
@@ -6,277 +6,274 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showAlert, showConfirm } from '../services/dialogs';
 
-const FILTERS = [
-  { label: 'All', value: 'all' },
-  { label: 'High', value: 'high' },
-  { label: 'Today', value: 'today' },
-  { label: 'Done', value: 'done' },
-];
 
-export const TasksScreen = () => {
+
+export const SubjectsScreen = () => {
   const { colors, fonts } = useTheme();
-  const { tasks, subjects, latestSchedule, addTask, updateTaskDifficulty, completeTask, snoozeTask, removeTask, reloadTasks } = useAI();
-  const [filter, setFilter] = useState('all');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTask, setNewTask] = useState({ subjectId: null, difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
+  const { tasks, subjects, addTask, removeTask, addSubject, updateSubject, removeSubject } = useAI();
+  
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingSubject, setEditingSubject] = useState(null);
+  const [targetSubjectId, setTargetSubjectId] = useState(null);
+
+  const [subjectForm, setSubjectForm] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
+  const [taskForm, setTaskForm] = useState({ difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    reloadTasks(filter).catch(() => {});
-  }, [filter, reloadTasks]);
-
-  useEffect(() => {
-    if (subjects.length && newTask.subjectId === null) {
-      setNewTask(t => ({ ...t, subjectId: subjects[0].id }));
-    }
-  }, [subjects, newTask.subjectId]);
-
-  const handleAddTask = async () => {
-    if (!newTask.subjectId) {
-      showAlert('Select a subject', 'Please add a subject in onboarding first or pick one.');
-      return;
-    }
+  const handleSaveSubject = async () => {
+    if (!subjectForm.name) return showAlert('Required', 'Please enter a subject name.');
     setBusy(true);
     try {
-      await addTask({
-        subjectId: newTask.subjectId,
-        priority: newTask.priority,
-        difficultyRating: newTask.difficulty_rating,
-        estimatedMinutes: newTask.estimatedMinutes,
-      });
-      setNewTask({ subjectId: subjects[0]?.id ?? null, difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
-      setShowAddModal(false);
+      if (editingSubject) {
+        await updateSubject(editingSubject.id, subjectForm);
+      } else {
+        await addSubject(subjectForm);
+      }
+      setShowSubjectModal(false);
+      setSubjectForm({ name: '', difficulty: 5, priority: 2, examDate: '' });
+      setEditingSubject(null);
     } catch (err) {
-      showAlert('Could not create task', err.response?.data?.title || err.message);
+      showAlert('Error', err.response?.data?.title || err.message);
     } finally {
       setBusy(false);
     }
   };
 
-  const handleComplete = (item) => {
+  const handleDeleteSubject = (s) => {
     showConfirm({
-      title: 'Complete task',
-      message: `Mark "${item.subject}" as done?`,
-      confirmText: 'Done',
-      onConfirm: async () => {
-        try { await completeTask(item.id, item.estimated_minutes || 50); }
-        catch (err) { showAlert('Failed', err.response?.data?.title || err.message); }
-      },
-    });
-  };
-
-  const handleSnooze = (item) => {
-    snoozeTask(item.id, 'manual snooze').catch(err =>
-      showAlert('Failed', err.response?.data?.title || err.message)
-    );
-  };
-
-  const handleDelete = (item) => {
-    showConfirm({
-      title: 'Delete task',
-      message: 'Are you sure?',
+      title: 'Delete Subject',
+      message: `Delete "${s.name}"? This will remove all associated tasks.`,
       confirmText: 'Delete',
       destructive: true,
-      onConfirm: async () => {
-        try { await removeTask(item.id); }
-        catch (err) { showAlert('Failed', err.response?.data?.title || err.message); }
-      },
+      onConfirm: () => removeSubject(s.id),
     });
   };
 
-  const getPrioColor = (p) => p === 1 ? colors.accent.exam : p === 2 ? '#FFD166' : colors.accent.science;
+  const handleAddTask = async () => {
+    setBusy(true);
+    try {
+      await addTask({
+        subjectId: targetSubjectId,
+        priority: taskForm.priority,
+        difficultyRating: taskForm.difficulty_rating,
+        estimatedMinutes: taskForm.estimatedMinutes,
+      });
+      setShowTaskModal(false);
+      setTaskForm({ difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
+    } catch (err) {
+      showAlert('Error', err.response?.data?.title || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteTask = (t) => {
+    showConfirm({
+      title: 'Remove Task',
+      message: 'Delete this study goal?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: () => removeTask(t.id),
+    });
+  };
+
+  const getPrioColor = (p) => p === 1 ? '#F43F5E' : p === 2 ? '#F59E0B' : '#10B981';
   const getPrioLabel = (p) => p === 1 ? 'High' : p === 2 ? 'Medium' : 'Low';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 100 }}>
         <View style={styles.header}>
-           <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Study Plan</Text>
-           <View style={[styles.activeBadge, { backgroundColor: 'rgba(107, 92, 231, 0.1)' }]}>
-              <Text style={[styles.activeBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>{tasks.length} {filter === 'done' ? 'Done' : 'Active'}</Text>
+           <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Subjects</Text>
+           <View style={[styles.activeBadge, { backgroundColor: colors.primary + '15' }]}>
+              <Text style={[styles.activeBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>{subjects.length} Active</Text>
            </View>
         </View>
 
-        <View style={[styles.filterRow, { backgroundColor: colors.cardAlt }]}>
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f.value}
-              style={[styles.filterBtn, filter === f.value && { backgroundColor: colors.surface }]}
-              onPress={() => setFilter(f.value)}
-            >
-              <Text style={[
-                styles.filterText,
-                {
-                  color: filter === f.value ? colors.primary : colors.textLight,
-                  fontFamily: filter === f.value ? fonts.bold : fonts.medium
-                }
-              ]}>{f.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         <View style={styles.taskList}>
-           {(() => {
-             const scheduledSlots = latestSchedule?.aiSchedule?.scheduled_slots || [];
-             const scheduledTaskIds = new Set(scheduledSlots.filter(s => s.task_id).map(s => s.task_id));
-             
-             let displayItems = [];
-             if (filter === 'today') {
-               displayItems = scheduledSlots;
-             } else if (filter === 'all') {
-               // Show scheduled slots first, then other non-scheduled tasks
-               const otherTasks = tasks.filter(t => !scheduledTaskIds.has(t.id));
-               displayItems = [...scheduledSlots, ...otherTasks];
-             } else {
-               displayItems = tasks;
-             }
-
-             if (displayItems.length === 0) {
-               return (
-                 <Text style={{ color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center', marginTop: 30 }}>
-                   No tasks for this filter.
-                 </Text>
-               );
-             }
-
-             return displayItems.map((item, idx) => {
-               const isAiSlot = item.time_slot !== undefined;
-               const isBreak = item.activity_type === 'break';
-               const id = isAiSlot ? `slot-${idx}` : item.id;
-               const title = isAiSlot ? item.subject : item.subject;
-               const priority = isAiSlot ? (isBreak ? 3 : 1) : item.priority;
-               
-               return (
-                 <View key={id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: isBreak ? 'transparent' : colors.border, opacity: isBreak ? 0.7 : 1 }]}>
-                    <View style={[styles.indicator, { backgroundColor: isBreak ? colors.border : getPrioColor(priority) }]} />
-                    <View style={styles.content}>
-                       <View style={styles.titleRow}>
-                          <Text style={[styles.taskTitle, { color: isBreak ? colors.textLight : colors.textDark, fontFamily: fonts.bold }]}>{title}</Text>
-                          {!isBreak && (
-                            <View style={[styles.prioTag, { backgroundColor: getPrioColor(priority) + '15' }]}>
-                               <Text style={[styles.prioTagText, { color: getPrioColor(priority), fontFamily: fonts.bold }]}>{isAiSlot ? 'Scheduled' : getPrioLabel(priority)}</Text>
+           {subjects.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Ionicons name="library-outline" size={32} color="#CBD5E1" style={{ marginBottom: 12 }} />
+                <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>No subjects yet. Tap + to add one.</Text>
+              </View>
+           ) : (
+             subjects.map((s) => {
+                const subTasks = tasks.filter(t => t.subject_id === s.id);
+                return (
+                  <View key={s.id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border, flexDirection: 'column', alignItems: 'stretch' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={[styles.indicator, { backgroundColor: getPrioColor(s.priority) }]} />
+                      <View style={styles.content}>
+                          <View style={styles.titleRow}>
+                            <Text style={[styles.taskTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
+                            <View style={[styles.prioTag, { backgroundColor: getPrioColor(s.priority) + '15' }]}>
+                                <Text style={[styles.prioTagText, { color: getPrioColor(s.priority), fontFamily: fonts.bold }]}>{getPrioLabel(s.priority)}</Text>
                             </View>
-                          )}
-                       </View>
-                       <View style={styles.metaRow}>
-                          <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                            {isAiSlot ? `${item.time_slot} · ${item.adjusted_duration_minutes}m` : (item.deadline ? `Exam: ${item.deadline}` : `Est: ${item.estimated_minutes}m`)}
-                          </Text>
-                          {!isAiSlot && (
-                            <>
-                              <View style={[styles.dot, { backgroundColor: colors.border }]} />
-                              <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>D: {item.difficulty_rating}/10</Text>
-                              <View style={[styles.dot, { backgroundColor: colors.border }]} />
-                              <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>{item.status}</Text>
-                            </>
-                          )}
-                       </View>
+                          </View>
+                          <View style={styles.metaRow}>
+                            <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                              {s.examDate ? `Exam: ${new Date(s.examDate).toLocaleDateString()}` : 'No exam date'}
+                            </Text>
+                            <View style={[styles.dot, { backgroundColor: colors.border }]} />
+                            <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>Diff: {s.difficulty}/10</Text>
+                          </View>
+                      </View>
+                      <View style={styles.controls}>
+                          <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => { setEditingSubject(s); setSubjectForm({ name: s.name, difficulty: s.difficulty, priority: s.priority, examDate: s.examDate || '' }); setShowSubjectModal(true); }}>
+                            <Ionicons name="pencil" size={16} color={colors.textDark} />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDeleteSubject(s)}>
+                            <Ionicons name="trash" size={16} color={colors.textDark} />
+                          </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.controls}>
-                       {!isAiSlot ? (
-                         item.status !== 'done' ? (
-                           <>
-                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => updateTaskDifficulty(item.id, Math.max(1, item.difficulty_rating - 1))}>
-                                <Ionicons name="remove" size={16} color={colors.textDark} />
-                             </TouchableOpacity>
-                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.primary }]} onPress={() => updateTaskDifficulty(item.id, Math.min(10, item.difficulty_rating + 1))}>
-                                <Ionicons name="add" size={16} color="#FFF" />
-                             </TouchableOpacity>
-                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleSnooze(item)}>
-                                <Ionicons name="moon" size={16} color={colors.textDark} />
-                             </TouchableOpacity>
-                             <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.accent.science || '#22C55E' }]} onPress={() => handleComplete(item)}>
-                                <Ionicons name="checkmark" size={16} color="#FFF" />
-                             </TouchableOpacity>
-                           </>
-                         ) : (
-                           <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDelete(item)}>
-                              <Ionicons name="trash" size={16} color={colors.textDark} />
-                           </TouchableOpacity>
-                         )
-                       ) : (
-                         !isBreak && (
-                           <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.accent.science || '#22C55E' }]} onPress={() => handleComplete({ id: item.task_id, subject: item.subject, estimated_minutes: item.adjusted_duration_minutes })}>
-                              <Ionicons name="checkmark" size={16} color="#FFF" />
-                           </TouchableOpacity>
-                         )
-                       )}
-                    </View>
-                 </View>
-               );
-             });
-           })()}
 
+                    {/* Mini Task List */}
+                    <View style={{ marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: colors.border }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <Text style={{ fontSize: 12, color: colors.textLight, fontFamily: fonts.bold }}>TASKS ({subTasks.length})</Text>
+                          <TouchableOpacity onPress={() => { setTargetSubjectId(s.id); setShowTaskModal(true); }}>
+                            <Text style={{ fontSize: 12, color: colors.primary, fontFamily: fonts.bold }}>+ Add Task</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {subTasks.map(t => {
+                          const progressPct = t.estimated_minutes > 0 
+                            ? Math.min(100, Math.round(((t.actual_minutes || 0) / t.estimated_minutes) * 100)) 
+                            : 0;
+                          return (
+                          <View key={t.id} style={{ marginBottom: 8, padding: 12, backgroundColor: colors.cardAlt, borderRadius: 10 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                               <Text style={{ fontSize: 13, color: colors.textDark, fontFamily: fonts.medium }}>Diff {t.difficulty_rating} • {t.actual_minutes || 0} / {t.estimated_minutes}m</Text>
+                               <TouchableOpacity onPress={() => handleDeleteTask(t)}>
+                                 <Ionicons name="close-circle" size={18} color={colors.textLight} />
+                               </TouchableOpacity>
+                            </View>
+                            <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
+                               <View style={{ height: 4, backgroundColor: colors.primary, borderRadius: 2, width: `${progressPct}%` }} />
+                            </View>
+                          </View>
+                        )})}
+                    </View>
+                  </View>
+                );
+             })
+           )}
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => setShowAddModal(true)}>
+      {/* FAB - Add Subject */}
+      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => { setEditingSubject(null); setSubjectForm({ name: '', difficulty: 5, priority: 2, examDate: '' }); setShowSubjectModal(true); }}>
         <LinearGradient colors={[colors.primary, '#9F8FFF']} style={styles.fabInner}>
            <Ionicons name="add" size={32} color="#FFF" />
         </LinearGradient>
       </TouchableOpacity>
 
-      <Modal visible={showAddModal} transparent animationType="slide">
+      {/* Subject Modal */}
+      <Modal visible={showSubjectModal} transparent animationType="slide">
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-               <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>New AI Task</Text>
+               <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{editingSubject ? 'Edit Subject' : 'New Subject'}</Text>
+               
+               <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={styles.inputHeader}>
+                     <Ionicons name="book-outline" size={20} color={colors.primary} />
+                     <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>SUBJECT NAME</Text>
+                  </View>
+                  <TextInput 
+                     style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]} 
+                     value={subjectForm.name}
+                     onChangeText={v => setSubjectForm({...subjectForm, name: v})}
+                     placeholder="e.g. Advanced Calculus"
+                     placeholderTextColor={colors.textLight}
+                  />
+               </View>
 
-               <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>SUBJECT</Text>
-               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
-                 {subjects.map(s => (
-                   <TouchableOpacity
-                     key={s.id}
-                     onPress={() => setNewTask({ ...newTask, subjectId: s.id })}
-                     style={[styles.subjectChip, {
-                       borderColor: newTask.subjectId === s.id ? colors.primary : colors.border,
-                       backgroundColor: newTask.subjectId === s.id ? colors.primary + '15' : 'transparent'
-                     }]}
-                   >
-                     <Text style={[{ color: newTask.subjectId === s.id ? colors.primary : colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
-                   </TouchableOpacity>
-                 ))}
-               </ScrollView>
+               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 20 }]}>PRIORITY</Text>
+               <View style={styles.prioGrid}>
+                  {[1, 2, 3].map(p => (
+                      <TouchableOpacity
+                         key={p}
+                         style={[styles.prioSelect, { borderColor: subjectForm.priority === p ? colors.primary : colors.border }]}
+                         onPress={() => setSubjectForm({...subjectForm, priority: p})}
+                      >
+                         <Text style={{ color: subjectForm.priority === p ? colors.textDark : colors.textLight, fontFamily: fonts.bold }}>{p === 1 ? 'High' : p === 2 ? 'Med' : 'Low'}</Text>
+                      </TouchableOpacity>
+                  ))}
+               </View>
 
-               <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>ESTIMATED MINUTES</Text>
-               <TextInput
-                 style={[styles.modalInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.medium }]}
-                 keyboardType="numeric"
-                 value={String(newTask.estimatedMinutes)}
-                 onChangeText={v => setNewTask({ ...newTask, estimatedMinutes: Math.max(5, parseInt(v || '0', 10) || 0) })}
-               />
-
-               <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>INITIAL DIFFICULTY</Text>
-               <View style={styles.difficultyRow}>
+               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 25 }]}>DIFFICULTY: {subjectForm.difficulty}/10</Text>
+               <View style={styles.diffBarRow}>
                   {[...Array(10)].map((_, i) => (
                     <TouchableOpacity
                       key={i}
-                      style={[styles.diffBox, { backgroundColor: newTask.difficulty_rating > i ? colors.primary : colors.cardAlt }]}
-                      onPress={() => setNewTask({...newTask, difficulty_rating: i + 1})}
+                      style={[styles.diffBit, { backgroundColor: subjectForm.difficulty > i ? colors.primary : colors.cardAlt }]}
+                      onPress={() => setSubjectForm({...subjectForm, difficulty: i + 1})}
                     />
-                  ))}
-                  <Text style={[styles.diffVal, { color: colors.textDark, fontFamily: fonts.bold }]}>{newTask.difficulty_rating}</Text>
-               </View>
-
-               <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>PRIORITY LEVEL</Text>
-               <View style={styles.prioGrid}>
-                  {[1, 2, 3].map(p => (
-                     <TouchableOpacity
-                        key={p}
-                        style={[styles.prioSelect, { borderColor: newTask.priority === p ? colors.primary : colors.border }]}
-                        onPress={() => setNewTask({...newTask, priority: p})}
-                     >
-                        <View style={[styles.prioDot, { backgroundColor: getPrioColor(p) }]} />
-                        <Text style={[styles.prioSelectText, { color: newTask.priority === p ? colors.textDark : colors.textLight, fontFamily: fonts.bold }]}>{getPrioLabel(p)}</Text>
-                     </TouchableOpacity>
                   ))}
                </View>
 
                <View style={styles.modalFooter}>
-                  <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border, borderWidth: 1 }]} onPress={() => setShowAddModal(false)}>
+                  <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border, borderWidth: 1 }]} onPress={() => setShowSubjectModal(false)}>
+                     <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleSaveSubject} disabled={busy}>
+                     {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Save Subject</Text>}
+                  </TouchableOpacity>
+               </View>
+            </View>
+         </View>
+      </Modal>
+
+      {/* Task Modal (Add task to subject) */}
+      <Modal visible={showTaskModal} transparent animationType="slide">
+         <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+               <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>New Study Task</Text>
+
+               <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={styles.inputHeader}>
+                     <Ionicons name="time-outline" size={20} color={colors.primary} />
+                     <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>ESTIMATED MINUTES</Text>
+                  </View>
+                  <TextInput
+                    style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
+                    keyboardType="numeric"
+                    value={String(taskForm.estimatedMinutes)}
+                    onChangeText={v => setTaskForm({ ...taskForm, estimatedMinutes: Math.max(5, parseInt(v || '0', 10) || 0) })}
+                  />
+               </View>
+
+               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 20 }]}>PRIORITY</Text>
+               <View style={styles.prioGrid}>
+                  {[1, 2, 3].map(p => (
+                      <TouchableOpacity
+                         key={p}
+                         style={[styles.prioSelect, { borderColor: taskForm.priority === p ? colors.primary : colors.border }]}
+                         onPress={() => setTaskForm({...taskForm, priority: p})}
+                      >
+                         <Text style={{ color: taskForm.priority === p ? colors.textDark : colors.textLight, fontFamily: fonts.bold }}>{p === 1 ? 'High' : p === 2 ? 'Med' : 'Low'}</Text>
+                      </TouchableOpacity>
+                  ))}
+               </View>
+
+               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 25 }]}>TASK DIFFICULTY: {taskForm.difficulty_rating}/10</Text>
+               <View style={styles.diffBarRow}>
+                  {[...Array(10)].map((_, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[styles.diffBit, { backgroundColor: taskForm.difficulty_rating > i ? colors.primary : colors.cardAlt }]}
+                      onPress={() => setTaskForm({...taskForm, difficulty_rating: i + 1})}
+                    />
+                  ))}
+               </View>
+
+               <View style={styles.modalFooter}>
+                  <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border, borderWidth: 1 }]} onPress={() => setShowTaskModal(false)}>
                      <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleAddTask} disabled={busy}>
-                     {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Create AI Task</Text>}
+                     {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Add Task</Text>}
                   </TouchableOpacity>
                </View>
             </View>
@@ -292,11 +289,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 26 },
   activeBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   activeBadgeText: { fontSize: 12 },
-  filterRow: { flexDirection: 'row', padding: 5, borderRadius: 16, marginBottom: 30 },
-  filterBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12 },
-  filterText: { fontSize: 13 },
   taskList: { gap: 16 },
-  taskCard: { flexDirection: 'row', padding: 18, borderRadius: 24, borderWidth: 1, alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10 },
+  taskCard: { padding: 18, borderRadius: 24, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10 },
   indicator: { width: 4, height: 40, borderRadius: 2, marginRight: 18 },
   content: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 5 },
@@ -313,17 +307,17 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { padding: 30, borderTopLeftRadius: 40, borderTopRightRadius: 40, elevation: 20 },
   modalTitle: { fontSize: 24, marginBottom: 25 },
-  modalInput: { height: 60, borderRadius: 18, paddingHorizontal: 20, marginBottom: 25, fontSize: 16 },
-  fieldLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 12, opacity: 0.6 },
-  subjectChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, marginRight: 10 },
-  difficultyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 30 },
-  diffBox: { height: 10, flex: 1, borderRadius: 5 },
-  diffVal: { fontSize: 18, marginLeft: 10, width: 25, textAlign: 'right' },
-  prioGrid: { flexDirection: 'row', gap: 12, marginBottom: 35 },
-  prioSelect: { flex: 1, height: 54, borderRadius: 16, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  prioDot: { width: 8, height: 8, borderRadius: 4 },
-  prioSelectText: { fontSize: 13 },
-  modalFooter: { flexDirection: 'row', gap: 15, paddingBottom: 20 },
-  actionBtn: { flex: 1, height: 58, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  actionBtnText: { fontSize: 16 }
+  inputGroup: { padding: 15, borderRadius: 16, borderWidth: 1, marginBottom: 15 },
+  inputHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  inputBoxText: { fontSize: 18, paddingLeft: 30, outlineStyle: 'none' },
+  miniLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 10, opacity: 0.7 },
+  prioGrid: { flexDirection: 'row', gap: 12, marginBottom: 5 },
+  prioSelect: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
+  diffBarRow: { flexDirection: 'row', gap: 5, marginTop: 5, marginBottom: 25 },
+  diffBit: { flex: 1, height: 8, borderRadius: 4 },
+  modalFooter: { flexDirection: 'row', gap: 15, paddingBottom: 20, paddingTop: 10 },
+  actionBtn: { flex: 1, height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  actionBtnText: { fontSize: 16 },
+  emptyCard: { padding: 40, alignItems: 'center' },
+  emptyText: { fontSize: 14 }
 });

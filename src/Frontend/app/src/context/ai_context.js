@@ -125,14 +125,33 @@ export const AIProvider = ({ children }) => {
     setTasks(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  const addSubject = useCallback(async (payload) => {
+    const created = await subjectsApi.create(payload);
+    setSubjects(prev => [...prev, created]);
+    return created;
+  }, []);
+
+  const updateSubject = useCallback(async (id, payload) => {
+    const updated = await subjectsApi.update(id, payload);
+    setSubjects(prev => prev.map(s => s.id === id ? updated : s));
+    return updated;
+  }, []);
+
+  const removeSubject = useCallback(async (id) => {
+    await subjectsApi.remove(id);
+    setSubjects(prev => prev.filter(s => s.id !== id));
+  }, []);
+
   const completeOnboarding = useCallback(async (form) => {
     const subjectsPayload = (form.subjects || []).map(s => ({
       name: s.name,
       difficulty: Number(s.difficulty) || 5,
       examDate: s.examDate || null,
+      priority: Number(s.priority) || 2,
+      estimatedMinutes: Number(s.estimatedMinutes) || 50,
     }));
     const slotsPayload = (form.slots || []).map(s => ({
-      dayOfWeek: Number(s.dayOfWeek),
+      dayOfWeek: s.dayOfWeek != null ? Number(s.dayOfWeek) : null,
       startTime: s.startTime,
       endTime: s.endTime,
     }));
@@ -191,6 +210,9 @@ export const AIProvider = ({ children }) => {
       completeOnboarding,
       startFocusSession,
       completeFocusSession,
+      removeSubject,
+      addSubject,
+      updateSubject,
       generateSchedule,
     }}>
       {children}

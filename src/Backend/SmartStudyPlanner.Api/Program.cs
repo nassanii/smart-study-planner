@@ -12,6 +12,8 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new FlexibleTimeOnlyConverter());
     options.JsonSerializerOptions.Converters.Add(new FlexibleNullableTimeOnlyConverter());
+    options.JsonSerializerOptions.Converters.Add(new FlexibleDateOnlyConverter());
+    options.JsonSerializerOptions.Converters.Add(new FlexibleNullableDateOnlyConverter());
 });
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddHttpContextAccessor();
@@ -31,7 +33,7 @@ builder.Services.AddCors(options => options.AddPolicy("ExpoDev", p => p
 var dbConnection = builder.Configuration.GetConnectionString("AppDb")
     ?? throw new InvalidOperationException("ConnectionStrings:AppDb missing");
 builder.Services.AddHealthChecks()
-    .AddNpgSql(dbConnection, name: "database")
+    .AddSqlite(dbConnection, name: "database")
     .AddCheck<AiServiceHealthCheck>("aiService");
 
 var app = builder.Build();

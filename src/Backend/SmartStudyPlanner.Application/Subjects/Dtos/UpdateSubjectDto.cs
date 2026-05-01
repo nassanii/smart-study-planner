@@ -4,5 +4,6 @@ public class UpdateSubjectDto
 {
     public string? Name { get; set; }
     public short? Difficulty { get; set; }
+    public short? Priority { get; set; }
     public DateOnly? ExamDate { get; set; }
 }

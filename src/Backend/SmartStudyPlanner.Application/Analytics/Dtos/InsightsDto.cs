@@ -11,4 +11,5 @@ public class InsightsDto
     public bool LatestIsExhausted { get; set; }
     public List<int> PeakHourBuckets { get; set; } = new();
     public decimal StudyHoursToday { get; set; }
+    public List<string> Badges { get; set; } = new();
 }

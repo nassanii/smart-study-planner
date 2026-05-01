@@ -16,7 +16,7 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("ConnectionStrings:AppDb is not configured.");
 
         services.AddDbContext<AppDbContext>(options => options
-            .UseNpgsql(connectionString, npg => npg.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
+            .UseSqlite(connectionString, sqlite => sqlite.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention());
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
@@ -26,8 +26,8 @@ public static class DependencyInjection
                 options.Password.RequiredLength = 8;
                 options.Password.RequireDigit = true;
                 options.Password.RequireLowercase = true;
-                options.Password.RequireUppercase = false;
-                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = true;
                 options.User.RequireUniqueEmail = true;
                 options.SignIn.RequireConfirmedEmail = false;
                 options.Lockout.MaxFailedAccessAttempts = 10;

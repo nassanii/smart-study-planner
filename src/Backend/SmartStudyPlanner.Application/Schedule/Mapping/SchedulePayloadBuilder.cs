@@ -64,7 +64,9 @@ public class SchedulePayloadBuilder
                 Priority = (int)t.Priority,
                 DifficultyRating = t.DifficultyRating,
                 DaysSinceLastStudy = t.DaysSinceLastStudy,
-                ConsecutiveDaysStudied = t.ConsecutiveDaysStudied
+                ConsecutiveDaysStudied = t.ConsecutiveDaysStudied,
+                EstimatedMinutes = t.EstimatedMinutes,
+                ActualMinutes = t.ActualMinutes ?? 0
             })
             .ToListAsync(ct);
 
