@@ -12,4 +12,6 @@ public class AiTaskDto
     [JsonPropertyName("consecutive_days_studied")] public int ConsecutiveDaysStudied { get; set; }
     [JsonPropertyName("estimated_minutes")] public int EstimatedMinutes { get; set; }
     [JsonPropertyName("actual_minutes")] public int ActualMinutes { get; set; }
+    [JsonPropertyName("deadline")] public DateOnly? Deadline { get; set; }
+    [JsonPropertyName("tag")] public string? Tag { get; set; }
 }

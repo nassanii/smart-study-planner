@@ -88,13 +88,13 @@ public class FocusSessionService : IFocusSessionService
 
         if (session.TaskId.HasValue)
         {
-            await UpdateTaskStreakAsync(userId, session.TaskId.Value, dto.DurationSeconds, ct);
+            await UpdateTaskStreakAsync(userId, session.TaskId.Value, dto.DurationSeconds, dto.IsTaskFinished, ct);
         }
 
         return Map(session);
     }
 
-    private async Task UpdateTaskStreakAsync(int userId, int taskId, int durationSeconds, CancellationToken ct)
+    private async Task UpdateTaskStreakAsync(int userId, int taskId, int durationSeconds, bool isExplicitlyFinished, CancellationToken ct)
     {
         var task = await _db.StudyTasks.FirstOrDefaultAsync(t => t.UserId == userId && t.Id == taskId, ct);
         if (task is null) return;
@@ -105,7 +105,8 @@ public class FocusSessionService : IFocusSessionService
         var minutes = (int)Math.Round(durationSeconds / 60.0);
         task.ActualMinutes = (task.ActualMinutes ?? 0) + minutes;
         
-        if (task.ActualMinutes >= task.EstimatedMinutes && task.Status != StudyTaskStatus.Done)
+        // Mark as Done if time is up OR if the user explicitly finished the task
+        if ((isExplicitlyFinished || task.ActualMinutes >= task.EstimatedMinutes) && task.Status != StudyTaskStatus.Done)
         {
             task.Status = StudyTaskStatus.Done;
             task.CompletedAt = _time.GetUtcNow();

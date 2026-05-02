@@ -123,7 +123,7 @@ export const FocusProvider = ({ children }) => {
     setIsActive(true);
   }, [startFocusSession, activeSlotIndex, scheduleSlots]);
 
-  const completeSession = useCallback(async (rating, snoozeReason = null) => {
+  const completeSession = useCallback(async (rating, snoozeReason = null, isTaskFinished = false) => {
     const idx = currentSlotIndex !== null ? currentSlotIndex : activeSlotIndex;
     
     // 1. Handle actual API completion if session was started
@@ -133,6 +133,7 @@ export const FocusProvider = ({ children }) => {
         durationSeconds: elapsedSeconds,
         focusRating: rating || 1,
         snoozeReason: snoozeReason,
+        isTaskFinished: isTaskFinished
       });
 
       if (!snoozeReason) {

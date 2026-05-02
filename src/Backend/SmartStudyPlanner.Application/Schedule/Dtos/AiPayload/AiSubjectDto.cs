@@ -8,4 +8,5 @@ public class AiSubjectDto
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
     [JsonPropertyName("difficulty")] public int Difficulty { get; set; }
     [JsonPropertyName("priority")] public int Priority { get; set; }
+    [JsonPropertyName("exam_date")] public DateOnly? ExamDate { get; set; }
 }

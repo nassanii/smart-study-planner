@@ -153,6 +153,21 @@ export const FocusScreen = () => {
     }
   };
 
+  const [rating, setRating] = useState(3);
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const [isTaskFinished, setIsTaskFinished] = useState(false);
+
+  const handleFinish = async () => {
+    try {
+      await completeSession(rating, null, isTaskFinished);
+      setShowFinishModal(false);
+      setIsTaskFinished(false);
+      setShowUpNextModal(true);
+    } catch (err) {
+      showAlert('Error completing session', err.message);
+    }
+  };
+
   const startNextSlot = async () => {
     if (!nextSlotPreview) return;
     setShowUpNextModal(false);
@@ -380,6 +395,46 @@ export const FocusScreen = () => {
             </View>
          </View>
       </Modal>
+
+      <Modal visible={showFinishModal} transparent animationType="slide">
+         <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Finish Session</Text>
+            <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium }]}>How was your focus during this block?</Text>
+            
+            <View style={styles.ratingContainer}>
+              {[1, 2, 3, 4, 5].map((num) => (
+                <TouchableOpacity 
+                  key={num} 
+                  style={[styles.ratingBtn, rating === num && { backgroundColor: colors.primary }]}
+                  onPress={() => setRating(num)}
+                >
+                  <Text style={[styles.ratingText, { color: rating === num ? '#FFF' : colors.textLight }]}>{num}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.checkboxContainer, { marginTop: 20 }]} 
+              onPress={() => setIsTaskFinished(!isTaskFinished)}
+            >
+              <View style={[styles.checkbox, isTaskFinished && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                {isTaskFinished && <Ionicons name="checkmark" size={16} color="#FFF" />}
+              </View>
+              <Text style={[styles.checkboxLabel, { color: colors.textDark, fontFamily: fonts.medium }]}>Mark entire task as completed</Text>
+            </TouchableOpacity>
+
+            <View style={styles.modalActions}>
+               <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.primary }]} onPress={handleFinish}>
+                  <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>Complete Session</Text>
+               </TouchableOpacity>
+               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowFinishModal(false)}>
+                  <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
+               </TouchableOpacity>
+            </View>
+          </View>
+         </View>
+      </Modal>
     </View>
   );
 };
@@ -399,6 +454,41 @@ const styles = StyleSheet.create({
   circleInner: { width: '100%', height: '100%', borderRadius: (SCREEN_WIDTH * 0.7) / 2, justifyContent: 'center', alignItems: 'center' },
   timerText: { fontSize: 70, letterSpacing: -2, marginBottom: 4 },
   timerSubtitle: { fontSize: 16, opacity: 0.6 },
+  ratingBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
+  },
+  ratingText: {
+    fontSize: 18,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxLabel: {
+    fontSize: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    marginTop: 24,
+  },
   controls: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 30, marginBottom: 35 },
   finishBtn: { 
     flexDirection: 'row', 

@@ -66,7 +66,9 @@ public class SchedulePayloadBuilder
                 DaysSinceLastStudy = t.DaysSinceLastStudy,
                 ConsecutiveDaysStudied = t.ConsecutiveDaysStudied,
                 EstimatedMinutes = t.EstimatedMinutes,
-                ActualMinutes = t.ActualMinutes ?? 0
+                ActualMinutes = t.ActualMinutes ?? 0,
+                Deadline = t.Deadline,
+                Tag = t.Tag
             })
             .ToListAsync(ct);
 
@@ -77,7 +79,8 @@ public class SchedulePayloadBuilder
                 Id = s.Id,
                 Name = s.Name,
                 Difficulty = s.Difficulty,
-                Priority = s.Priority
+                Priority = s.Priority,
+                ExamDate = s.ExamDate
             })
             .ToListAsync(ct);
 
