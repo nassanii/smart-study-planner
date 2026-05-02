@@ -33,6 +33,8 @@
   "private": true,
   "devDependencies": {
     "@babel/core": "^7.29.0",
-    "babel-preset-expo": "~54.0.10"
+    "babel-preset-expo": "~54.0.10",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~10.0.0"
   }
 }

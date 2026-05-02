@@ -13,6 +13,7 @@ import { NavigationProvider, useAppNavigation } from './src/context/navigation_c
 import { ThemeProvider, useTheme } from './src/theme/theme';
 import { AuthProvider, useAuth } from './src/context/auth_context';
 import { AIProvider, useAI } from './src/context/ai_context';
+import { FocusProvider } from './src/context/focus_context';
 import { SplashScreen } from './src/screens/SplashScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -95,10 +96,12 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <AIProvider>
-            <MainApp />
-            <AppDialogHost />
-            <GlobalLoader />
-            <Toast />
+            <FocusProvider>
+              <MainApp />
+              <AppDialogHost />
+              <GlobalLoader />
+              <Toast />
+            </FocusProvider>
           </AIProvider>
         </AuthProvider>
       </ThemeProvider>

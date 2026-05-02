@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { focusApi, scheduleApi } from '../services/api';
 
+import { useFocus } from '../context/focus_context';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const CalendarScreen = () => {
@@ -23,9 +25,8 @@ export const CalendarScreen = () => {
   const [snoozeReason, setSnoozeReason] = useState('');
   const [customReason, setCustomReason] = useState('');
 
-  const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral, scheduleProgress, setScheduleProgress } = useAI();
-  const slotStatus = scheduleProgress;
-  const setSlotStatus = setScheduleProgress;
+  const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral } = useAI();
+  const { slotStatuses: slotStatus, setSlotStatuses: setSlotStatus, activeSlotIndex } = useFocus();
   
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -60,7 +61,7 @@ export const CalendarScreen = () => {
 
   // Fetch schedule for selected day
   useEffect(() => {
-    const dStr = new Date(year, month, selectedDay).toISOString().split('T')[0];
+    const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
     scheduleApi.byDate(dStr).then(setSelectedDaySchedule).catch(() => setSelectedDaySchedule(null));
   }, [selectedDay, year, month]);
 
@@ -109,42 +110,13 @@ export const CalendarScreen = () => {
     setCurrentDate(next);
   };
 
-  const { navigate, lastCompletedSession } = useAppNavigation();
-
-  // Observe focus session completions to update slot status
-  useEffect(() => {
-    if (!lastCompletedSession) return;
-    const inProgressIdx = Object.keys(slotStatus).find(
-      k => slotStatus[k]?.status === 'in_progress'
-    );
-    if (inProgressIdx !== undefined) {
-      setSlotStatus(prev => ({ ...prev, [inProgressIdx]: { status: 'completed' } }));
-    } else {
-      // Manual session completion: find the next pending slot for this subject and mark it
-      const subject = subjects.find(s => s.id === lastCompletedSession.subjectId);
-      if (subject) {
-        const slots = selectedDaySchedule?.aiSchedule?.scheduled_slots || (isTrulyToday ? (latestSchedule?.aiSchedule?.scheduled_slots || []) : []);
-        const targetIdx = slots.findIndex((slot, idx) => {
-          const status = slotStatus[idx] || { status: 'pending' };
-          return status.status === 'pending' && slot.subject === subject.name;
-        });
-        
-        if (targetIdx !== -1) {
-          setSlotStatus(prev => ({ ...prev, [targetIdx]: { status: 'completed' } }));
-        }
-      }
-    }
-  }, [lastCompletedSession, subjects, selectedDaySchedule, latestSchedule, isTrulyToday]);
+  const { navigate } = useAppNavigation();
 
   const handleStart = (idx, item) => {
-    if (idx > 0) {
-      const prev = slotStatus[idx - 1];
-      if (!prev || (prev.status !== 'completed' && prev.status !== 'snoozed' && prev.status !== 'in_progress')) {
-        Alert.alert("Sequence Required", "Please complete or snooze the previous session first!");
-        return;
-      }
+    if (idx !== activeSlotIndex) {
+      Alert.alert("Sequence Required", "Please complete your current task first!");
+      return;
     }
-    setSlotStatus(prev => ({ ...prev, [idx]: { status: 'in_progress' } }));
     
     // Resolve subjectId because AI schedule only provides the subject name
     const matchingSubject = subjects.find(s => s.name === item.subject);
@@ -157,6 +129,7 @@ export const CalendarScreen = () => {
       taskId: item.task_id,
       subjectName: item.subject,
       duration: item.adjusted_duration_minutes,
+      index: idx,
       scheduleContext: {
         slots: currentSlots,
         startIndex: idx
@@ -316,12 +289,20 @@ export const CalendarScreen = () => {
             <View style={styles.progressInfo}>
                <Text style={[styles.progressTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Daily Progress</Text>
                <Text style={[styles.progressSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                 {Object.values(slotStatus).filter(s => s.status === 'completed').length} / {currentSlots.filter(s => s.activity_type !== 'break').length} tasks finished
+                 {Object.keys(slotStatus).filter(idx => {
+                   const s = slotStatus[idx];
+                   const item = currentSlots[idx];
+                   return s.status === 'completed' && item?.activity_type !== 'break';
+                 }).length} / {currentSlots.filter(s => s.activity_type !== 'break').length} tasks finished
                </Text>
             </View>
             <View style={[styles.progressBadge, { backgroundColor: colors.primary }]}>
                <Text style={[styles.progressBadgeText, { fontFamily: fonts.bold }]}>
-                 {((Object.values(slotStatus).filter(s => s.status === 'completed').length / (currentSlots.filter(s => s.activity_type !== 'break').length || 1)) * 100).toFixed(0)}%
+                 {((Object.keys(slotStatus).filter(idx => {
+                   const s = slotStatus[idx];
+                   const item = currentSlots[idx];
+                   return s.status === 'completed' && item?.activity_type !== 'break';
+                 }).length / (currentSlots.filter(s => s.activity_type !== 'break').length || 1)) * 100).toFixed(0)}%
                </Text>
             </View>
           </View>
@@ -343,16 +324,24 @@ export const CalendarScreen = () => {
                 const isBreak = item.activity_type === 'break';
                 const subColor = isBreak ? colors.textLight : getEventColor({ subject_id: item.subject_id });
                 const status = slotStatus[idx] || { status: 'pending' };
-                const isLocked = idx > 0 && !(slotStatus[idx-1]?.status === 'completed' || slotStatus[idx-1]?.status === 'snoozed' || slotStatus[idx-1]?.status === 'in_progress');
+                
+                const isLocked = idx > activeSlotIndex && isTrulyToday;
+                const isActiveTask = idx === activeSlotIndex && isTrulyToday;
 
                 return (
-                  <View key={idx} style={[styles.scheduleItem, isLocked && { opacity: 0.5 }]}>
+                  <View key={idx} style={[
+                    styles.scheduleItem, 
+                    isLocked && { opacity: 0.5 },
+                    isActiveTask && { transform: [{ scale: 1.02 }] }
+                  ]}>
                      <Text style={[styles.timeText, { color: colors.textLight, fontFamily: fonts.bold }]}>{item.time_slot}</Text>
                      <View style={[
                        styles.taskBlock, 
                        { 
                          backgroundColor: isBreak ? colors.cardAlt : subColor + '10',
-                         borderLeftColor: subColor
+                         borderLeftColor: subColor,
+                         borderWidth: isActiveTask ? 2 : 0,
+                         borderColor: subColor + '40'
                        }
                      ]}>
                         <View style={styles.taskHeader}>
@@ -367,20 +356,22 @@ export const CalendarScreen = () => {
                            {status.status === 'snoozed' && <Ionicons name="time" size={24} color="#F59E0B" />}
                         </View>
 
-                        {isTrulyToday && !isBreak && status.status === 'pending' && (
+                        {isTrulyToday && status.status === 'pending' && !isLocked && (
                           <View style={styles.actionRow}>
                              <TouchableOpacity 
                                style={[styles.actionBtn, { backgroundColor: subColor }]} 
                                onPress={() => handleStart(idx, item)}
                              >
-                               <Text style={[styles.actionBtnText, { fontFamily: fonts.bold }]}>Start</Text>
+                               <Text style={[styles.actionBtnText, { fontFamily: fonts.bold }]}>Start {isBreak ? 'Break' : 'Session'}</Text>
                              </TouchableOpacity>
-                             <TouchableOpacity 
-                               style={[styles.actionBtn, styles.snoozeBtn, { backgroundColor: colors.cardAlt, borderColor: colors.border }]} 
-                               onPress={() => handleSnooze(idx, item)}
-                             >
-                               <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Snooze</Text>
-                             </TouchableOpacity>
+                             {!isBreak && (
+                               <TouchableOpacity 
+                                 style={[styles.actionBtn, styles.snoozeBtn, { backgroundColor: colors.cardAlt, borderColor: colors.border }]} 
+                                 onPress={() => handleSnooze(idx, item)}
+                               >
+                                 <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Snooze</Text>
+                               </TouchableOpacity>
+                             )}
                           </View>
                         )}
                         {status.status === 'snoozed' && (

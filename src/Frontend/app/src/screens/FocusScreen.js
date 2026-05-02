@@ -7,124 +7,56 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showAlert } from '../services/dialogs';
 
+import { useFocus } from '../context/focus_context';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const MODE_DURATIONS = {
-  Focus: 25 * 60,
-  Short: 5 * 60,
-  Long: 15 * 60,
-};
-
-const MODE_NUMBER = {
-  Focus: 0,
-  Short: 1,
-  Long: 2,
-};
 
 export const FocusScreen = () => {
   const { colors, fonts } = useTheme();
-  const { navigationParams, clearParams, setLastCompletedSession } = useAppNavigation();
-  const { behavioralLogs, subjects, tasks, startFocusSession, completeFocusSession } = useAI();
-
-  const [mode, setMode] = useState('Focus');
-  const [timeLeft, setTimeLeft] = useState(MODE_DURATIONS.Focus);
-  const [initialDuration, setInitialDuration] = useState(MODE_DURATIONS.Focus);
-  const [isActive, setIsActive] = useState(false);
-  const [activeSession, setActiveSession] = useState(null);
-  const sessionStartTime = useRef(null);
-
-  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const { navigationParams, clearParams, activeTab } = useAppNavigation();
+  const { subjects, tasks, startFocusSession } = useAI();
+  const {
+    mode, setMode,
+    timeLeft, setTimeLeft,
+    initialDuration, setInitialDuration,
+    isActive, setIsActive,
+    activeSession, setActiveSession,
+    selectedSubjectId, setSelectedSubjectId,
+    selectedTaskId, setSelectedTaskId,
+    plannedSubjectName, setPlannedSubjectName,
+    scheduleSlots, setScheduleSlots,
+    currentSlotIndex, setCurrentSlotIndex,
+    startSession,
+    completeSession,
+    resetTimer,
+    MODE_DURATIONS
+  } = useFocus();
 
   const [showSnoozeModal, setShowSnoozeModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [focusRating, setFocusRating] = useState(0);
-  const [snoozeReason, setSnoozeReason] = useState(null);
 
-  const [scheduleSlots, setScheduleSlots] = useState(null);
-  const [currentSlotIndex, setCurrentSlotIndex] = useState(null);
   const [showUpNextModal, setShowUpNextModal] = useState(false);
   const [nextSlotPreview, setNextSlotPreview] = useState(null);
 
-  const [plannedSubjectName, setPlannedSubjectName] = useState(null);
-
+  // Auto-pause when leaving the focus tab
   useEffect(() => {
-    if (subjects.length && selectedSubjectId === null && !plannedSubjectName) {
-      setSelectedSubjectId(subjects[0].id);
+    if (activeTab !== 'focus' && isActive) {
+      setIsActive(false);
     }
-  }, [subjects, selectedSubjectId, plannedSubjectName]);
+  }, [activeTab, isActive, setIsActive]);
 
   // Handle Auto-Start from Calendar or Up Next
   useEffect(() => {
     if (navigationParams?.autoStart) {
-      const { subjectId, duration, scheduleContext, subjectName } = navigationParams;
-      
-      const initializeAutoSession = async () => {
-        if (isActive) return;
-
-        if (scheduleContext) {
-          setScheduleSlots(scheduleContext.slots);
-          setCurrentSlotIndex(scheduleContext.startIndex);
-        }
-
-        const isBreak = subjectName === 'Break' || !subjectId;
-        setMode(isBreak ? 'Short' : 'Focus');
-        setPlannedSubjectName(subjectName || (isBreak ? 'Break' : null));
-
-        if (!isBreak) {
-          setSelectedSubjectId(subjectId);
-        } else {
-          setSelectedSubjectId(null);
-          setSelectedTaskId(null);
-        }
-        
-        if (duration) {
-          setTimeLeft(duration * 60);
-          setInitialDuration(duration * 60);
-        }
-
-        try {
-          if (!isBreak) {
-            const session = await startFocusSession({
-              taskId: navigationParams.taskId || null,
-              subjectId: subjectId,
-              mode: 0, 
-            });
-            setActiveSession(session);
-            if (navigationParams.taskId) setSelectedTaskId(navigationParams.taskId);
-          } else {
-            setActiveSession(null);
-          }
-          sessionStartTime.current = Date.now();
-          setIsActive(true);
-        } catch (err) {
-          console.warn('[Focus] Auto-start failed:', err.message);
-        }
-      };
-
-      initializeAutoSession();
+      startSession(navigationParams);
       clearParams();
     }
-  }, [navigationParams]);
+  }, [navigationParams, startSession, clearParams]);
 
-  useEffect(() => {
-    let interval = null;
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    } else if (timeLeft === 0 && isActive) {
-      setIsActive(false);
-      if (interval) clearInterval(interval);
-      
-      if (activeSession) {
-        setShowRatingModal(true);
-      } else {
-        triggerUpNextFlow();
-      }
-    } else if (interval) {
-      clearInterval(interval);
-    }
-    return () => { if (interval) clearInterval(interval); };
-  }, [isActive, timeLeft, activeSession]);
+  // UI Local effect: we no longer auto-close at zero
+  // instead we show an "Overtime" indicator
+  const isOvertime = timeLeft < 0;
 
   const triggerUpNextFlow = () => {
     if (scheduleSlots && currentSlotIndex !== null && currentSlotIndex + 1 < scheduleSlots.length) {
@@ -141,25 +73,54 @@ export const FocusScreen = () => {
       setIsActive(false);
       return;
     }
+    
     if (!activeSession) {
+      // If we have a schedule, ensure we start the active slot
+      if (scheduleSlots && activeSlotIndex !== null && activeSlotIndex < scheduleSlots.length) {
+        const currentSlot = scheduleSlots[activeSlotIndex];
+        const matchingSubject = subjects.find(s => s.name === currentSlot.subject);
+        const resolvedSubjectId = currentSlot.subject_id || matchingSubject?.id;
+
+        try {
+          await startSession({
+            taskId: currentSlot.task_id,
+            subjectId: resolvedSubjectId,
+            mode: currentSlot.activity_type === 'break' ? 'Short' : 'Focus',
+            subjectName: currentSlot.subject,
+            duration: currentSlot.adjusted_duration_minutes,
+            index: activeSlotIndex
+          });
+        } catch (err) {
+          showAlert('Could not start session', err.message);
+        }
+        return;
+      }
+
       if (mode === 'Focus' && !selectedSubjectId) {
         showAlert('Pick a subject', 'Please complete onboarding to add subjects first.');
         return;
       }
+      
       try {
-        const session = await startFocusSession({
+        await startSession({
           taskId: selectedTaskId,
           subjectId: selectedSubjectId,
-          mode: MODE_NUMBER[mode],
+          mode: mode,
         });
-        setActiveSession(session);
-        sessionStartTime.current = Date.now();
-        setIsActive(true);
       } catch (err) {
         showAlert('Could not start session', err.response?.data?.title || err.message);
       }
     } else {
       setIsActive(true);
+    }
+  };
+
+  const handleFinishManual = () => {
+    setIsActive(false);
+    if (activeSession) {
+      setShowRatingModal(true);
+    } else {
+      triggerUpNextFlow();
     }
   };
 
@@ -169,107 +130,61 @@ export const FocusScreen = () => {
   };
 
   const selectSnoozeReason = async (reason) => {
-    setSnoozeReason(reason);
     setShowSnoozeModal(false);
-    if (activeSession) {
-      const elapsedSeconds = Math.max(1, Math.floor((Date.now() - (sessionStartTime.current || Date.now())) / 1000));
-      try {
-        await completeFocusSession(activeSession.id, {
-          durationSeconds: elapsedSeconds,
-          focusRating: 1,
-          snoozeReason: reason,
-        });
-      } catch (err) {
-        showAlert('Failed', err.response?.data?.title || err.message);
-      }
-      setActiveSession(null);
-      sessionStartTime.current = null;
-      resetTimer();
+    try {
+      await completeSession(1, reason);
+      triggerUpNextFlow();
+    } catch (err) {
+      showAlert('Failed', err.response?.data?.title || err.message);
     }
   };
 
   const submitRating = async (rating) => {
-    if (!activeSession) {
-      setShowRatingModal(false);
-      resetTimer();
-      return;
-    }
     setFocusRating(rating);
-    const elapsedSeconds = Math.max(1, Math.floor((Date.now() - (sessionStartTime.current || Date.now())) / 1000));
     try {
-      await completeFocusSession(activeSession.id, {
-        durationSeconds: elapsedSeconds,
-        focusRating: rating,
-      });
+      await completeSession(rating);
+      setShowRatingModal(false);
+      setFocusRating(0);
+      triggerUpNextFlow();
     } catch (err) {
       showAlert('Failed', err.response?.data?.title || err.message);
     }
-    setActiveSession(null);
-    sessionStartTime.current = null;
-    setShowRatingModal(false);
-    setFocusRating(0);
-    setLastCompletedSession({ subjectId: selectedSubjectId, completedAt: Date.now() });
-    triggerUpNextFlow();
   };
 
   const startNextSlot = async () => {
     if (!nextSlotPreview) return;
-    
-    const nextIdx = currentSlotIndex + 1;
-    const item = nextSlotPreview;
-    
     setShowUpNextModal(false);
-    setCurrentSlotIndex(nextIdx);
-    
-    const isBreak = item.activity_type === 'break';
-    setMode(isBreak ? 'Short' : 'Focus');
-    setPlannedSubjectName(item.subject);
-    
-    if (!isBreak) {
-      setSelectedSubjectId(item.subject_id);
-    } else {
-      setSelectedSubjectId(null);
-      setSelectedTaskId(null);
-    }
-    
-    const dur = item.adjusted_duration_minutes || 25;
-    setTimeLeft(dur * 60);
-    setInitialDuration(dur * 60);
-    
     try {
-      if (!isBreak) {
-        const session = await startFocusSession({
-          taskId: item.task_id || null,
-          subjectId: item.subject_id,
-          mode: 0,
-        });
-        setActiveSession(session);
-        if (item.task_id) setSelectedTaskId(item.task_id);
-      } else {
-        setActiveSession(null);
-      }
-      sessionStartTime.current = Date.now();
-      setIsActive(true);
+      await startSession({
+        taskId: nextSlotPreview.task_id,
+        subjectId: nextSlotPreview.subject_id,
+        duration: nextSlotPreview.adjusted_duration_minutes,
+        subjectName: nextSlotPreview.subject,
+        scheduleContext: {
+          slots: scheduleSlots,
+          startIndex: currentSlotIndex + 1
+        },
+        index: currentSlotIndex + 1
+      });
     } catch (err) {
       showAlert('Auto-start failed', err.message);
     }
   };
 
-  const resetTimer = () => {
-    setIsActive(false);
-    setTimeLeft(initialDuration);
-  };
-
   const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    const absSeconds = Math.abs(seconds);
+    const mins = Math.floor(absSeconds / 60);
+    const secs = absSeconds % 60;
+    const timeStr = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    return seconds < 0 ? `+${timeStr}` : timeStr;
   };
 
   const upcomingTasksForSubject = tasks.filter(t => t.subject_id === selectedSubjectId && t.status !== 'done');
-  const selectedSubjectName = (mode === 'Short' || mode === 'Long') 
+  const selectedSubjectName = mode === 'Break' 
     ? 'Break' 
     : (plannedSubjectName || subjects.find(s => s.id === selectedSubjectId)?.name || '—');
+
+  const { behavioralLogs } = useAI();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -284,7 +199,6 @@ export const FocusScreen = () => {
              <Text style={[styles.sessionBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>{mode}</Text>
           </View>
         </View>
-
 
         {upcomingTasksForSubject.length > 0 && (
           <>
@@ -315,13 +229,14 @@ export const FocusScreen = () => {
           </>
         )}
 
-        <View style={[styles.modeSelector, { backgroundColor: colors.cardAlt }]}>
+        <View style={[styles.modeSelector, { backgroundColor: colors.cardAlt, justifyContent: 'center' }]}>
            {Object.keys(MODE_DURATIONS).map(m => {
              const isSel = mode === m;
+             if (!isSel) return null; // Only show current mode
              return (
-               <TouchableOpacity key={m} style={[styles.modeBtn, isSel && { backgroundColor: colors.surface }]} onPress={() => { setMode(m); setTimeLeft(MODE_DURATIONS[m]); setInitialDuration(MODE_DURATIONS[m]); }}>
-                  <Text style={[styles.modeText, { color: isSel ? colors.primary : colors.textLight, fontFamily: isSel ? fonts.bold : fonts.medium }]}>{m}</Text>
-               </TouchableOpacity>
+               <View key={m} style={[styles.modeBtn, { backgroundColor: colors.surface, width: '100%' }]}>
+                  <Text style={[styles.modeText, { color: colors.primary, fontFamily: fonts.bold }]}>{m === 'Focus' ? '🎯 Focus Session' : '☕ Rest Break'}</Text>
+               </View>
              );
            })}
         </View>
@@ -331,15 +246,27 @@ export const FocusScreen = () => {
              <Text style={{ color: colors.textLight, fontFamily: fonts.semiBold, fontSize: 14, marginBottom: -10, letterSpacing: 1, textTransform: 'uppercase' }}>
                {mode === 'Focus' ? 'Studied' : 'Rested'}: {formatTime(initialDuration - timeLeft)}
              </Text>
-             <Text style={[styles.timerText, { color: colors.textDark, fontFamily: fonts.bold }]}>{formatTime(timeLeft)}</Text>
-             <Text style={[styles.timerSubtitle, { color: colors.textLight, fontFamily: fonts.medium, marginTop: -15 }]}>
-               {mode === 'Focus' ? 'Until Break' : 'Until Study'}
+             <Text style={[styles.timerText, { color: isOvertime ? '#F43F5E' : colors.textDark, fontFamily: fonts.bold }]}>{formatTime(timeLeft)}</Text>
+             <Text style={[styles.timerSubtitle, { color: isOvertime ? '#F43F5E' : colors.textLight, fontFamily: fonts.medium, marginTop: -15 }]}>
+               {isOvertime ? 'Overtime' : (mode === 'Focus' ? 'Until Break' : 'Until Study')}
              </Text>
              <Text style={[styles.timerSubtitle, { color: colors.primary, fontFamily: fonts.bold, marginTop: 10, fontSize: 16 }]}>
                {selectedSubjectName}
              </Text>
           </LinearGradient>
         </View>
+
+        {isActive && (
+          <TouchableOpacity 
+            style={[styles.finishBtn, { backgroundColor: colors.surface, borderColor: isOvertime ? '#F43F5E' : colors.primary }]} 
+            onPress={handleFinishManual}
+          >
+            <Ionicons name="stop-circle" size={20} color={isOvertime ? '#F43F5E' : colors.primary} />
+            <Text style={[styles.finishBtnText, { color: isOvertime ? '#F43F5E' : colors.primary, fontFamily: fonts.bold }]}>
+              Finish {mode === 'Focus' ? 'Study' : 'Break'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.controls}>
           <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={resetTimer}>
@@ -445,7 +372,7 @@ export const FocusScreen = () => {
                   <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>Start Next Block</Text>
                </TouchableOpacity>
                
-               <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowUpNextModal(false); resetTimer(); }}>
+               <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowUpNextModal(false); }}>
                   <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>I'll start later</Text>
                </TouchableOpacity>
             </View>
@@ -471,6 +398,22 @@ const styles = StyleSheet.create({
   timerText: { fontSize: 70, letterSpacing: -2, marginBottom: 4 },
   timerSubtitle: { fontSize: 16, opacity: 0.6 },
   controls: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 30, marginBottom: 35 },
+  finishBtn: { 
+    flexDirection: 'row', 
+    alignSelf: 'center', 
+    alignItems: 'center', 
+    paddingHorizontal: 24, 
+    paddingVertical: 12, 
+    borderRadius: 20, 
+    borderWidth: 1.5, 
+    marginBottom: 20,
+    gap: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5
+  },
+  finishBtnText: { fontSize: 14 },
   playButton: { width: 88, height: 88, borderRadius: 44, elevation: 10, shadowColor: '#6B5CE7', shadowOpacity: 0.35, shadowRadius: 15, shadowOffset: { width: 0, height: 10 } },
   playGradient: { flex: 1, borderRadius: 44, justifyContent: 'center', alignItems: 'center' },
   smallBtn: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 1, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 },
