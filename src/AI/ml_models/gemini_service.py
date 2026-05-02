@@ -104,6 +104,9 @@ async def generate_intelligent_schedule(
     
     7. **Sequential Subject Blocking**:
        - Once you start a subject, complete all its daily sessions sequentially before moving to the next subject.
+
+    8. **No Trailing Breaks**:
+       - The LAST item in the 'scheduled_slots' list MUST be a study session, NOT a break.
     
     [OUTPUT FORMAT]
     Return ONLY a JSON object:
@@ -139,10 +142,74 @@ async def generate_intelligent_schedule(
                 response_mime_type="application/json"
             ),
         )
-        return json.loads(response.text)
+        data = json.loads(response.text)
+        
+        # Post-process: Remove trailing break if present
+        if data.get("scheduled_slots") and data["scheduled_slots"][-1].get("activity_type") == "break":
+            data["scheduled_slots"].pop()
+            
+        return data
     except Exception as e:
         print(f"Gemini API Error: {e}")
-        return {
-            "error": "Failed to generate schedule from AI.",
-            "details": str(e),
-        }
+        return generate_heuristic_fallback(tasks_to_plan, subjects, available_slots)
+
+
+def generate_heuristic_fallback(tasks, subjects, slots) -> Dict[str, Any]:
+    """
+    Generates a simple 50/10 schedule based on heuristics when the AI fails.
+    """
+    scheduled = []
+    
+    # 1. Simple task prioritization
+    pending_tasks = sorted(tasks, key=lambda x: x.get("priority", 2), reverse=True)
+    
+    # 2. Fill slots
+    for slot in slots:
+        start_time_str = slot.get("startTime", "08:00")
+        try:
+            h, m = map(int, start_time_str.split(':'))
+            current_time = h * 60 + m
+        except:
+            current_time = 480 # 08:00
+            
+        for task in pending_tasks:
+            if task.get("_done"): continue
+            
+            # Study Session (50m)
+            h_str = f"{current_time // 60:02d}:{current_time % 60:02d}"
+            scheduled.append({
+                "time_slot": h_str,
+                "subject": task.get("subject", "Study"),
+                "adjusted_duration_minutes": 50,
+                "activity_type": "study",
+                "task_id": task.get("id"),
+                "subject_id": task.get("subject_id")
+            })
+            
+            # Break (10m)
+            current_time += 50
+            h_str = f"{current_time // 60:02d}:{current_time % 60:02d}"
+            scheduled.append({
+                "time_slot": h_str,
+                "subject": "Break",
+                "adjusted_duration_minutes": 10,
+                "activity_type": "break",
+                "task_id": None,
+                "subject_id": None
+            })
+            
+            current_time += 10
+            task["_done"] = True
+            
+            # Simple limit: 4 tasks per slot to avoid overflow
+            if len(scheduled) > 8: break
+            
+    # Post-process: Remove trailing break
+    if scheduled and scheduled[-1].get("activity_type") == "break":
+        scheduled.pop()
+
+    return {
+        "scheduled_slots": scheduled,
+        "postponed_tasks": [],
+        "ai_message": "Heuristic Mode: I've prepared a basic 50/10 schedule for you while the AI is warming up!"
+    }

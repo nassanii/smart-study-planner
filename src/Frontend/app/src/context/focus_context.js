@@ -56,7 +56,23 @@ export const FocusProvider = ({ children }) => {
   const resetTimer = useCallback(() => {
     setIsActive(false);
     setTimeLeft(initialDuration);
-  }, [initialDuration]);
+    
+    // Reset the current slot status to pending if it was in_progress
+    if (currentSlotIndex !== null) {
+      setSlotStatuses(prev => {
+        const currentStatus = prev[currentSlotIndex]?.status;
+        if (currentStatus === 'in_progress') {
+          const newStatuses = { ...prev };
+          delete newStatuses[currentSlotIndex];
+          return newStatuses;
+        }
+        return prev;
+      });
+    }
+    
+    // We don't necessarily cancel the backend session here to avoid data loss,
+    // but we allow the user to start over.
+  }, [initialDuration, currentSlotIndex]);
 
   const startSession = useCallback(async (params) => {
     const { taskId, subjectId, mode: sessionMode, subjectName, scheduleContext, index } = params;

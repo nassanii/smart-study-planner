@@ -115,11 +115,13 @@ export const FocusScreen = () => {
     }
   };
 
-  const handleFinishManual = () => {
+  const handleFinishManual = async () => {
     setIsActive(false);
     if (activeSession) {
       setShowRatingModal(true);
     } else {
+      // It's a break session (or manual session without task)
+      await completeSession(); 
       triggerUpNextFlow();
     }
   };
