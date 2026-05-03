@@ -54,6 +54,7 @@ export const scheduleApi = {
   today: () => apiClient.get('/schedule/today').then(r => r.data).catch(err => { if (err.response?.status === 404) return null; throw err; }),
   byDate: (date) => apiClient.get(`/schedule/day/${date}`).then(r => r.data).catch(err => { if (err.response?.status === 404) return null; throw err; }),
   history: (limit = 10) => apiClient.get('/schedule/history', { params: { limit } }).then(r => r.data),
+  updateSlotStatus: (scheduleId, index, payload) => apiClient.patch(`/schedule/${scheduleId}/slots/${index}/status`, payload).then(r => r.data),
 };
 
 export const analyticsApi = {

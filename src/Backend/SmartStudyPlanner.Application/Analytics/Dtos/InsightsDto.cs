@@ -12,4 +12,5 @@ public class InsightsDto
     public List<int> PeakHourBuckets { get; set; } = new();
     public decimal StudyHoursToday { get; set; }
     public List<string> Badges { get; set; } = new();
+    public Dictionary<string, decimal> WeeklyStudyData { get; set; } = new();
 }

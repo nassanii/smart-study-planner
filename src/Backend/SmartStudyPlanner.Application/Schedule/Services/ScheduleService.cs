@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SmartStudyPlanner.Application.Ai;
+using SmartStudyPlanner.Application.Common;
 using SmartStudyPlanner.Application.Persistence;
 using SmartStudyPlanner.Application.Schedule.Dtos;
 using SmartStudyPlanner.Application.Schedule.Dtos.AiPayload;
@@ -86,8 +87,23 @@ public class ScheduleService : IScheduleService
             ErrorMessage = response.AiSchedule.Error,
             ErrorDetails = response.AiSchedule.Details,
             AnalysisResults = response.AnalysisResults,
-            AiSchedule = response.AiSchedule
+            AiSchedule = response.AiSchedule,
+            SlotStatuses = new()
         };
+    }
+
+    public async Task UpdateSlotStatusAsync(int userId, int scheduleId, int slotIndex, SlotStatusDto status, CancellationToken ct)
+    {
+        var entity = await _db.AiSchedules.FirstOrDefaultAsync(a => a.UserId == userId && a.Id == scheduleId, ct)
+            ?? throw new NotFoundException("AiSchedule", scheduleId);
+
+        var statuses = JsonSerializer.Deserialize<Dictionary<int, SlotStatusDto>>(entity.SlotStatusesJson, JsonOptions) 
+            ?? new Dictionary<int, SlotStatusDto>();
+            
+        statuses[slotIndex] = status;
+        entity.SlotStatusesJson = JsonSerializer.Serialize(statuses, JsonOptions);
+        
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<GenerateScheduleResponse?> GetTodayAsync(int userId, CancellationToken ct)
@@ -120,7 +136,8 @@ public class ScheduleService : IScheduleService
             ErrorMessage = response.AiSchedule.Error,
             ErrorDetails = response.AiSchedule.Details,
             AnalysisResults = response.AnalysisResults,
-            AiSchedule = response.AiSchedule
+            AiSchedule = response.AiSchedule,
+            SlotStatuses = JsonSerializer.Deserialize<Dictionary<int, SlotStatusDto>>(entity.SlotStatusesJson, JsonOptions) ?? new()
         };
     }
 

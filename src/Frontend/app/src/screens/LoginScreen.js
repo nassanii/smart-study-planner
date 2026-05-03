@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '../services/errors';
 import React, { useState } from 'react';
 import {
   View,
@@ -77,7 +78,7 @@ export const LoginScreen = () => {
       else if (status === 401) detail = 'Invalid email or password.';
       else if (!err.response) detail = `Cannot reach the server. Check your network. (${err.message})`;
       console.warn('[auth-error]', status, detail);
-      setErrorMsg(detail);
+      setErrorMsg(extractErrorMessage(err));
     } finally {
       setSubmitting(false);
     }

@@ -14,7 +14,8 @@ public class AiScheduleConfiguration : IEntityTypeConfiguration<AiSchedule>
         builder.Property(a => a.BurnoutScore).HasColumnType("decimal(4,3)");
         builder.Property(a => a.AiMessage).HasColumnType("text");
         builder.Property(a => a.RequestPayload).HasColumnType("jsonb").IsRequired();
-        builder.Property(a => a.ResponsePayload).HasColumnType("jsonb").IsRequired();
+        builder.Property(a => a.ResponsePayload).HasColumnType("text").IsRequired();
+        builder.Property(a => a.SlotStatusesJson).HasColumnType("text").IsRequired();
 
         builder.HasOne<ApplicationUser>()
             .WithMany(u => u.AiSchedules)

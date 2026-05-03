@@ -59,30 +59,46 @@ public class UserService : IUserService
         var addedSubjectNames = new HashSet<string>(existingSubjects, StringComparer.OrdinalIgnoreCase);
         foreach (var s in dto.Subjects)
         {
-            if (addedSubjectNames.Contains(s.Name)) continue;
-            addedSubjectNames.Add(s.Name);
-            var subject = new Subject
+            Subject? subject;
+            if (addedSubjectNames.Contains(s.Name))
             {
-                UserId = userId,
-                Name = s.Name,
-                Difficulty = s.Difficulty,
-                ExamDate = s.ExamDate,
-                CreatedAt = _time.GetUtcNow()
-            };
-            _db.Subjects.Add(subject);
+                subject = await _db.Subjects.FirstOrDefaultAsync(sub => sub.UserId == userId && sub.Name == s.Name, ct);
+            }
+            else
+            {
+                addedSubjectNames.Add(s.Name);
+                subject = new Subject
+                {
+                    UserId = userId,
+                    Name = s.Name,
+                    Difficulty = s.Difficulty,
+                    ExamDate = s.ExamDate,
+                    Priority = s.Priority,
+                    CreatedAt = _time.GetUtcNow()
+                };
+                _db.Subjects.Add(subject);
+            }
 
-            // Create an initial task so the AI has something to plan immediately
-            _db.StudyTasks.Add(new StudyTask
+            if (subject != null)
             {
-                UserId = userId,
-                Subject = subject,
-                Status = SmartStudyPlanner.Domain.Enums.StudyTaskStatus.Upcoming,
-                Priority = (SmartStudyPlanner.Domain.Enums.TaskPriority)s.Priority,
-                DifficultyRating = s.Difficulty,
-                EstimatedMinutes = s.EstimatedMinutes,
-                CreatedAt = _time.GetUtcNow(),
-                UpdatedAt = _time.GetUtcNow()
-            });
+                // Ensure the subject has at least one upcoming task
+                var hasTasks = await _db.StudyTasks.AnyAsync(t => t.UserId == userId && t.SubjectId == subject.Id, ct);
+                if (!hasTasks)
+                {
+                    _db.StudyTasks.Add(new StudyTask
+                    {
+                        UserId = userId,
+                        Subject = subject,
+                        Title = string.IsNullOrWhiteSpace(s.InitialTaskTitle) ? $"{s.Name} Introduction" : s.InitialTaskTitle,
+                        Status = SmartStudyPlanner.Domain.Enums.StudyTaskStatus.Upcoming,
+                        Priority = (SmartStudyPlanner.Domain.Enums.TaskPriority)s.Priority,
+                        DifficultyRating = s.Difficulty,
+                        EstimatedMinutes = s.EstimatedMinutes,
+                        CreatedAt = _time.GetUtcNow(),
+                        UpdatedAt = _time.GetUtcNow()
+                    });
+                }
+            }
         }
 
         var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
@@ -100,10 +116,6 @@ public class UserService : IUserService
 
         await _users.UpdateAsync(user);
         await _db.SaveChangesAsync(ct);
-
-        // Automatically trigger AI schedule generation so it's ready when they hit the dashboard
-        await _schedule.GenerateAsync(userId, today, ct);
-
         return Map(user);
     }
 

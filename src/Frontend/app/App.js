@@ -30,13 +30,13 @@ import Toast from 'react-native-toast-message';
 
 const MainApp = () => {
   const { isSplashScreenVisible, setIsSplashScreenVisible, colors, isDarkMode } = useTheme();
-  const { isAuthenticated, hydrating, user } = useAuth();
+  const { isAuthenticated, hydrating: authHydrating, user } = useAuth();
   const { userData } = useAI();
-  const { activeTab, setActiveTab } = useAppNavigation();
+  const { activeTab, setActiveTab, navHydrating } = useAppNavigation();
 
-  console.log('[MainApp] hydrating=', hydrating, 'isAuthenticated=', isAuthenticated, 'isOnboarded=', user?.isOnboarded ?? userData.isOnboarded);
+  console.log('[MainApp] authHydrating=', authHydrating, 'navHydrating=', navHydrating, 'isAuthenticated=', isAuthenticated);
 
-  if (isSplashScreenVisible || hydrating) {
+  if (isSplashScreenVisible || authHydrating || navHydrating) {
     return <SplashScreen onFinish={() => setIsSplashScreenVisible(false)} />;
   }
 

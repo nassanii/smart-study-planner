@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '../services/errors';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, ScrollView } from 'react-native';
 import { useTheme } from '../theme/theme';
@@ -26,6 +27,9 @@ export const FocusScreen = () => {
     plannedSubjectName, setPlannedSubjectName,
     scheduleSlots, setScheduleSlots,
     currentSlotIndex, setCurrentSlotIndex,
+    slotStatuses, setSlotStatuses,
+    activeSlotIndex,
+    sessionElapsedSeconds,
     startSession,
     completeSession,
     resetTimer,
@@ -91,7 +95,7 @@ export const FocusScreen = () => {
             index: activeSlotIndex
           });
         } catch (err) {
-          showAlert('Could not start session', err.message);
+          showAlert('Could not start session', extractErrorMessage(err));
         }
         return;
       }
@@ -203,6 +207,14 @@ export const FocusScreen = () => {
 
   const { behavioralLogs } = useAI();
 
+  const formatDurationLong = (totalHours) => {
+    const totalSeconds = Math.floor(totalHours * 3600);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: 30 }} showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
@@ -239,7 +251,9 @@ export const FocusScreen = () => {
                     backgroundColor: selectedTaskId === t.id ? colors.primary + '15' : 'transparent'
                   }]}
                 >
-                  <Text style={{ color: selectedTaskId === t.id ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>#{t.id} · D{t.difficulty_rating}</Text>
+                  <Text style={{ color: selectedTaskId === t.id ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>
+                    {t.title ? (t.title.length > 15 ? t.title.slice(0, 12) + '...' : t.title) : `#${t.id}`} · D{t.difficulty_rating}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -301,11 +315,13 @@ export const FocusScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.statsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-           <View style={styles.statCol}>
-              <Text style={[styles.statBig, { color: colors.primary, fontFamily: fonts.bold }]}>{behavioralLogs.study_hours_today.toFixed(1)}h</Text>
-              <Text style={[styles.statSmall, { color: colors.textLight, fontFamily: fonts.bold }]}>Study Today</Text>
-           </View>
+         <View style={[styles.statsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.statCol}>
+               <Text style={[styles.statBig, { color: colors.primary, fontFamily: fonts.bold }]}>
+                  {formatDurationLong(behavioralLogs.study_hours_today + (sessionElapsedSeconds / 3600))}
+               </Text>
+               <Text style={[styles.statSmall, { color: colors.textLight, fontFamily: fonts.bold }]}>Study Today</Text>
+            </View>
            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
            <View style={styles.statCol}>
               <Text style={[styles.statBig, { color: colors.accent.science || '#22C55E', fontFamily: fonts.bold }]}>{behavioralLogs.last_focus_ratings.length}</Text>

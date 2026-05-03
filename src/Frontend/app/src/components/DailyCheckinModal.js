@@ -1,15 +1,18 @@
+import { extractErrorMessage } from '../services/errors';
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
-import { Ionicons } from '@expo/vector-icons';
+import { useAppNavigation } from '../context/navigation_context';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { slotsApi } from '../services/api';
 import { showAlert } from '../services/dialogs';
+import { LinearGradient } from 'expo-linear-gradient';
 
-export const DailyCheckinModal = ({ visible, onClose }) => {
+export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
   const { colors, fonts } = useTheme();
-  const { subjects, addSubject, generateSchedule, userData } = useAI();
-  const [newSubject, setNewSubject] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
+  const { subjects, tasks, generateSchedule, userData } = useAI();
+  const { navigate } = useAppNavigation();
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState([]);
   const [newSlot, setNewSlot] = useState({ start: '08:00', end: '10:00' });
@@ -20,19 +23,25 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
 
   useEffect(() => {
     if (visible) {
-      const todayDate = new Date().toISOString().split('T')[0];
-      slotsApi.list(todayDate).then(setSlots).catch(console.warn);
-      // Pre-fill examDate with user's global deadline if available
-      if (userData?.deadline && !newSubject.examDate) {
-        setNewSubject(prev => ({ ...prev, examDate: userData.deadline }));
-      }
+      const dateToUse = selectedDate || new Date().toISOString().split('T')[0];
+      slotsApi.list(dateToUse).then(setSlots).catch(console.warn);
     }
-  }, [visible]);
+  }, [visible, selectedDate]);
 
   const handleAddSlot = async () => {
     try {
-      const dayOfWeek = new Date().getDay();
-      const created = await slotsApi.create({ dayOfWeek, startTime: newSlot.start + ':00', endTime: newSlot.end + ':00' });
+      const payload = {
+        startTime: newSlot.start + ':00', 
+        endTime: newSlot.end + ':00',
+      };
+
+      if (selectedDate) {
+        payload.date = selectedDate;
+      } else {
+        payload.dayOfWeek = new Date().getDay();
+      }
+
+      const created = await slotsApi.create(payload);
       setSlots(prev => [...prev, created].sort((a, b) => a.startTime.localeCompare(b.startTime)));
     } catch (err) {
       showAlert('Error', err.response?.data?.title || err.message);
@@ -48,45 +57,19 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
     }
   };
 
-  const handleAddSubject = async () => {
-    const trimmedName = newSubject.name.trim();
-    if (!trimmedName) return;
-    
-    // Client-side duplicate check
-    if (subjects.some(s => s.name.toLowerCase() === trimmedName.toLowerCase())) {
-      showAlert('Duplicate Subject', 'You have already added a subject with this name.');
-      return;
-    }
-
-    if (!newSubject.examDate) {
-      showAlert('Missing Date', 'Please set an exam/deadline date for this subject.');
-      return;
-    }
-
-    try {
-      await addSubject({ 
-        name: trimmedName, 
-        difficulty: newSubject.difficulty, 
-        priority: newSubject.priority,
-        examDate: newSubject.examDate
-      });
-      setNewSubject({ name: '', difficulty: 5, priority: 2, examDate: userData?.deadline || '' });
-    } catch (err) {
-      showAlert('Error', err.response?.data?.title || err.message);
-    }
-  };
-
   const handleGenerate = async () => {
     if (subjects.length === 0) {
-      showAlert('No Subjects', 'Please add at least one subject to generate your study plan for today.');
+      showAlert('No Subjects', 'Add a subject first.');
       return;
     }
     setLoading(true);
     try {
-      await generateSchedule();
+      const dateToUse = selectedDate || new Date().toISOString().split('T')[0];
+      await generateSchedule(dateToUse);
       onClose();
     } catch (err) {
-      console.warn(err);
+      const detail = extractErrorMessage(err);
+      showAlert("Optimization Failed", detail);
     } finally {
       setLoading(false);
     }
@@ -97,177 +80,111 @@ export const DailyCheckinModal = ({ visible, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
-        <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
-          <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Good Morning!</Text>
-          <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-            Let's plan your day. Set your available time blocks, add any new subjects, then generate your AI study plan.
-          </Text>
-
-          {/* ── SECTION 1: TIME BLOCKS ── */}
-          <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold }]}>Today's Study Blocks</Text>
-          <ScrollView style={styles.slotsList} horizontal showsHorizontalScrollIndicator={false}>
-            {slots.length === 0 && (
-              <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 13, paddingVertical: 8 }}>No time blocks yet — add one below</Text>
-            )}
-            {slots.map(s => (
-              <View key={s.id} style={[styles.slotChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={{ color: colors.textDark, fontFamily: fonts.medium, fontSize: 13 }}>{s.startTime.slice(0,5)} - {s.endTime.slice(0,5)}</Text>
-                <TouchableOpacity onPress={() => handleRemoveSlot(s.id)} style={{ marginLeft: 8 }}>
-                  <Ionicons name="close-circle" size={16} color={colors.textLight} />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-
-          <View style={styles.formContainer}>
-            <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold, marginBottom: 15 }]}>ADD TIME BLOCK</Text>
-            <View style={styles.modalRow}>
-              <View style={{ flex: 1, marginRight: 10 }}>
-                 <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>START TIME</Text>
-                 <TouchableOpacity 
-                    style={[styles.modalInputBox, { backgroundColor: colors.surface }]}
-                    onPress={() => { setActiveSlotField('start'); setShowHourPicker(true); }}
-                 >
-                    <Text style={{ color: colors.textDark, fontFamily: fonts.bold }}>{newSlot.start}</Text>
-                 </TouchableOpacity>
-              </View>
-              <View style={{ flex: 1, marginRight: 10 }}>
-                 <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>END TIME</Text>
-                 <TouchableOpacity 
-                    style={[styles.modalInputBox, { backgroundColor: colors.surface }]}
-                    onPress={() => { setActiveSlotField('end'); setShowHourPicker(true); }}
-                 >
-                    <Text style={{ color: colors.textDark, fontFamily: fonts.bold }}>{newSlot.end}</Text>
-                 </TouchableOpacity>
-              </View>
-              <TouchableOpacity 
-                style={[styles.addBtn, { backgroundColor: colors.primary, alignSelf: 'flex-end', marginBottom: 20 }]}
-                onPress={handleAddSlot}
-              >
-                <Ionicons name="add" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+             <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Plan Optimizer</Text>
+             <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={24} color={colors.textLight} />
+             </TouchableOpacity>
           </View>
 
-          {/* ── SECTION 2: SUBJECTS ── */}
-          <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold, marginTop: 10 }]}>Your Subjects</Text>
-          <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginBottom: 12 }}>
-            {subjects.length === 0 ? 'No subjects yet — add your first one below!' : 'Want to add a new subject before generating the plan?'}
-          </Text>
-          <ScrollView style={styles.subjectsList} horizontal showsHorizontalScrollIndicator={false}>
-            {subjects.map(s => (
-              <View key={s.id} style={[styles.chip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={{ color: colors.textDark, fontFamily: fonts.medium }}>{s.name}</Text>
-              </View>
-            ))}
-          </ScrollView>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+            <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
+              Configure your day. Set time blocks and verify your upcoming tasks for the AI to organize.
+            </Text>
 
-          <View style={styles.formContainer}>
-            <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>ADD NEW SUBJECT</Text>
-            
-            {/* Subject Name */}
-            <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-               <View style={styles.inputHeader}>
-                  <Ionicons name="book-outline" size={20} color={colors.primary} />
-                  <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>SUBJECT NAME</Text>
-               </View>
-               <TextInput 
-                  style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]} 
-                  value={newSubject.name}
-                  onChangeText={(v) => setNewSubject({ ...newSubject, name: v })}
-                  placeholder="e.g. Advanced Calculus"
-                  placeholderTextColor={colors.textLight}
-               />
+            {/* SECTION 1: TIME BLOCKS */}
+            <View style={styles.sectionRow}>
+               <Ionicons name="time-outline" size={20} color={colors.primary} />
+               <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold }]}>Study Blocks</Text>
+            </View>
+            <ScrollView style={styles.slotsList} horizontal showsHorizontalScrollIndicator={false}>
+              {slots.map(s => (
+                <View key={s.id} style={[styles.slotChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.textDark, fontFamily: fonts.medium, fontSize: 13 }}>{s.startTime.slice(0,5)} - {s.endTime.slice(0,5)}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveSlot(s.id)} style={{ marginLeft: 8 }}>
+                    <Ionicons name="close-circle" size={16} color={colors.textLight} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.inlineForm}>
+               <TouchableOpacity 
+                  style={[styles.miniTimeBtn, { backgroundColor: colors.cardAlt }]}
+                  onPress={() => { setActiveSlotField('start'); setShowHourPicker(true); }}
+               >
+                  <Text style={{ color: colors.textDark, fontSize: 12 }}>{newSlot.start}</Text>
+               </TouchableOpacity>
+               <Text style={{ color: colors.textLight }}>to</Text>
+               <TouchableOpacity 
+                  style={[styles.miniTimeBtn, { backgroundColor: colors.cardAlt }]}
+                  onPress={() => { setActiveSlotField('end'); setShowHourPicker(true); }}
+               >
+                  <Text style={{ color: colors.textDark, fontSize: 12 }}>{newSlot.end}</Text>
+               </TouchableOpacity>
+               <TouchableOpacity style={[styles.addBtnSmall, { backgroundColor: colors.primary }]} onPress={handleAddSlot}>
+                  <Ionicons name="add" size={20} color="#FFF" />
+               </TouchableOpacity>
             </View>
 
-            {/* Exam Date */}
-            <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-               <View style={styles.inputHeader}>
-                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                  <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>EXAM / DEADLINE DATE</Text>
-               </View>
-               {Platform.OS === 'web' ? (
-                 <input
-                    type="date"
-                    value={newSubject.examDate}
-                    onChange={(e) => setNewSubject({ ...newSubject, examDate: e.target.value })}
-                    style={{
-                       fontSize: 16,
-                       fontFamily: 'Outfit_700Bold',
-                       color: colors.textDark,
-                       backgroundColor: 'transparent',
-                       border: 'none',
-                       outline: 'none',
-                       width: '100%',
-                       paddingLeft: 30,
-                       height: 30
-                    }}
-                 />
-               ) : (
-                 <TextInput 
-                    style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]} 
-                    value={newSubject.examDate}
-                    onChangeText={(v) => setNewSubject({ ...newSubject, examDate: v })}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.textLight}
-                 />
-               )}
-            </View>
-            
-            {/* Priority */}
-            <View style={{ marginTop: 10 }}>
-               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PRIORITY</Text>
-               <View style={styles.priorityGrid}>
-                  {[
-                     { v: 1, l: 'High', c: '#F43F5E' },
-                     { v: 2, l: 'Med', c: '#F59E0B' },
-                     { v: 3, l: 'Low', c: '#10B981' }
-                  ].map(p => (
-                     <TouchableOpacity
-                        key={p.v}
-                        onPress={() => setNewSubject({ ...newSubject, priority: p.v })}
-                        style={[styles.prioSelect, { 
-                           borderColor: newSubject.priority === p.v ? p.c : colors.border,
-                           backgroundColor: newSubject.priority === p.v ? p.c + '15' : colors.surface 
-                        }]}
-                     >
-                        <Text style={{ color: newSubject.priority === p.v ? p.c : colors.textLight, fontFamily: fonts.bold }}>{p.l}</Text>
-                     </TouchableOpacity>
-                  ))}
-               </View>
+            {/* SUBJECTS & TASKS SECTION */}
+            <View style={[styles.sectionRow, { marginTop: 20 }]}>
+               <Ionicons name="book-outline" size={20} color={colors.primary} />
+               <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold }]}>Subjects & Tasks</Text>
             </View>
 
-            {/* Difficulty */}
-            <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 25 }]}>DIFFICULTY: {newSubject.difficulty}/10</Text>
-            <View style={styles.diffBarRow}>
-               {[...Array(10)].map((_, i) => (
-                 <TouchableOpacity 
-                   key={i} 
-                   style={[styles.diffBit, { backgroundColor: newSubject.difficulty > i ? colors.primary : colors.surface }]} 
-                   onPress={() => setNewSubject({ ...newSubject, difficulty: i + 1 })}
-                 />
+            <View style={styles.subjectsReview}>
+               {subjects.map(sub => (
+                  <View key={sub.id} style={[styles.subjectReviewItem, { backgroundColor: colors.cardAlt }]}>
+                     <View style={styles.subjectReviewHeader}>
+                        <Text style={[styles.subjectName, { color: colors.textDark, fontFamily: fonts.bold }]}>{sub.name}</Text>
+                        <Text style={[styles.subjectMeta, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                           {tasks.filter(t => t.subject_id === sub.id).length} tasks
+                        </Text>
+                     </View>
+                     <View style={styles.taskListMini}>
+                        {tasks.filter(t => t.subject_id === sub.id).slice(0, 2).map(task => (
+                           <Text key={task.id} style={[styles.taskMiniText, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
+                              • {task.title}
+                           </Text>
+                        ))}
+                        {tasks.filter(t => t.subject_id === sub.id).length > 2 && (
+                           <Text style={[styles.taskMiniText, { color: colors.primary, fontFamily: fonts.bold, fontSize: 10 }]}>
+                              + {tasks.filter(t => t.subject_id === sub.id).length - 2} more
+                           </Text>
+                        )}
+                     </View>
+                  </View>
                ))}
             </View>
-            
-            <TouchableOpacity 
-              style={[styles.mainBtn, { marginTop: 30, backgroundColor: colors.primary }]}
-              onPress={handleAddSubject}
-            >
-              <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>ADD SUBJECT</Text>
-            </TouchableOpacity>
-          </View>
 
-          {/* ── GENERATE BUTTON ── */}
-          <TouchableOpacity 
-            style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
-            onPress={handleGenerate}
-            disabled={loading}
-          >
-            <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>
-              {loading ? 'Generating AI Plan...' : "Generate Today's Plan"}
+            <TouchableOpacity 
+               style={[styles.modifyBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+               onPress={() => { navigate('subjects'); onClose(); }}
+            >
+               <Ionicons name="create-outline" size={18} color={colors.primary} />
+               <Text style={[styles.modifyBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>Modify Subjects & Tasks</Text>
+            </TouchableOpacity>
+
+            <Text style={{ fontSize: 11, color: colors.textLight, textAlign: 'center', marginBottom: 25, fontFamily: fonts.medium, marginTop: 10 }}>
+               The AI will prioritize these subjects based on your progress and exam dates.
             </Text>
-          </TouchableOpacity>
-        </ScrollView>
+
+            {/* GENERATE BUTTON */}
+            <TouchableOpacity 
+              style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
+              onPress={handleGenerate}
+              disabled={loading}
+            >
+              <LinearGradient colors={['rgba(255,255,255,0.2)', 'transparent']} style={styles.btnGradient} />
+              <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>
+                {loading ? 'Consulting AI...' : "Generate AI Plan"}
+              </Text>
+              <MaterialCommunityIcons name="brain" size={18} color="#FFF" style={{ marginLeft: 10 }} />
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       </View>
 
       <Modal visible={showHourPicker} transparent animationType="fade">
@@ -360,11 +277,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  generateBtn: {
-    padding: 16,
-    borderRadius: 16,
+  subjectsReview: {
+    gap: 10,
+    marginBottom: 15,
+  },
+  subjectReviewItem: {
+    padding: 12,
+    borderRadius: 12,
+  },
+  subjectReviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
+    marginBottom: 4,
+  },
+  subjectName: {
+    fontSize: 14,
+  },
+  subjectMeta: {
+    fontSize: 11,
+  },
+  taskListMini: {
+    marginLeft: 4,
+  },
+  taskMiniText: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  modifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  modifyBtnText: {
+    fontSize: 13,
+  },
+  generateBtn: {
+    flexDirection: 'row',
+    padding: 18,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   generateText: {
     color: '#fff',
@@ -389,5 +352,21 @@ const styles = StyleSheet.create({
   prioSelect: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
   diffBarRow: { flexDirection: 'row', gap: 5, marginTop: 5 },
   diffBit: { flex: 1, height: 8, borderRadius: 4 },
-  mainBtn: { height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }
+  mainBtn: { height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 15 },
+  inlineForm: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
+  miniTimeBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  addBtnSmall: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  subjectSection: { marginBottom: 15, padding: 15, borderRadius: 16, borderLeftWidth: 4, backgroundColor: 'rgba(0,0,0,0.02)', borderStyle: 'solid' },
+  subjectHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  subjectName: { fontSize: 15 },
+  taskItem: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, paddingLeft: 10 },
+  taskText: { flex: 1, fontSize: 13 },
+  inlineTaskForm: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 10 },
+  taskInput: { flex: 1, fontSize: 12, borderBottomWidth: 1, paddingVertical: 5 },
+  addSubjectBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 15, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', justifyContent: 'center', marginBottom: 25 },
+  btnGradient: { ...StyleSheet.absoluteFillObject, borderRadius: 16 },
+  modifyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18, borderRadius: 20, borderWidth: 1, marginBottom: 12 },
+  modifyBtnText: { fontSize: 15 },
 });

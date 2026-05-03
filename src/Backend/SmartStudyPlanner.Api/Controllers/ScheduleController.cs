@@ -41,4 +41,11 @@ public class ScheduleController : ControllerBase
     [HttpGet("history")]
     public async Task<ActionResult<IReadOnlyList<ScheduleSummaryDto>>> History([FromQuery] int limit = 10, CancellationToken ct = default)
         => Ok(await _schedule.GetHistoryAsync(_currentUser.RequireUserId(), limit, ct));
+
+    [HttpPatch("{id:int}/slots/{index:int}/status")]
+    public async Task<IActionResult> UpdateSlotStatus(int id, int index, [FromBody] SlotStatusDto status, CancellationToken ct)
+    {
+        await _schedule.UpdateSlotStatusAsync(_currentUser.RequireUserId(), id, index, status, ct);
+        return NoContent();
+    }
 }

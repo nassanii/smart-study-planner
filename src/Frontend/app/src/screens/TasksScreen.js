@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '../services/errors';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/theme';
@@ -18,7 +19,7 @@ export const SubjectsScreen = () => {
   const [targetSubjectId, setTargetSubjectId] = useState(null);
 
   const [subjectForm, setSubjectForm] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
-  const [taskForm, setTaskForm] = useState({ difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
+  const [taskForm, setTaskForm] = useState({ title: '', difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
   const [busy, setBusy] = useState(false);
 
   const handleSaveSubject = async () => {
@@ -34,7 +35,7 @@ export const SubjectsScreen = () => {
       setSubjectForm({ name: '', difficulty: 5, priority: 2, examDate: '' });
       setEditingSubject(null);
     } catch (err) {
-      showAlert('Error', err.response?.data?.title || err.message);
+      showAlert('Error', extractErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -55,14 +56,15 @@ export const SubjectsScreen = () => {
     try {
       await addTask({
         subjectId: targetSubjectId,
+        title: taskForm.title,
         priority: taskForm.priority,
         difficultyRating: taskForm.difficulty_rating,
         estimatedMinutes: taskForm.estimatedMinutes,
       });
       setShowTaskModal(false);
-      setTaskForm({ difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
+      setTaskForm({ title: '', difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
     } catch (err) {
-      showAlert('Error', err.response?.data?.title || err.message);
+      showAlert('Error', extractErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -143,11 +145,14 @@ export const SubjectsScreen = () => {
                             : 0;
                           return (
                           <View key={t.id} style={{ marginBottom: 8, padding: 12, backgroundColor: colors.cardAlt, borderRadius: 10 }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                               <Text style={{ fontSize: 13, color: colors.textDark, fontFamily: fonts.medium }}>Diff {t.difficulty_rating} • {t.actual_minutes || 0} / {t.estimated_minutes}m</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                               <Text style={{ fontSize: 14, color: colors.textDark, fontFamily: fonts.bold }}>{t.title || 'Study Session'}</Text>
                                <TouchableOpacity onPress={() => handleDeleteTask(t)}>
                                  <Ionicons name="close-circle" size={18} color={colors.textLight} />
                                </TouchableOpacity>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                               <Text style={{ fontSize: 11, color: colors.textLight, fontFamily: fonts.medium }}>Diff {t.difficulty_rating} • {t.actual_minutes || 0} / {t.estimated_minutes}m</Text>
                             </View>
                             <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
                                <View style={{ height: 4, backgroundColor: colors.primary, borderRadius: 2, width: `${progressPct}%` }} />
@@ -233,14 +238,28 @@ export const SubjectsScreen = () => {
 
                <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.inputHeader}>
+                     <Ionicons name="bookmark-outline" size={20} color={colors.primary} />
+                     <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>TASK TITLE</Text>
+                  </View>
+                  <TextInput
+                    style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
+                    placeholder="e.g. Chapter 1 Review"
+                    placeholderTextColor={colors.textLight}
+                    value={taskForm.title}
+                    onChangeText={v => setTaskForm({ ...taskForm, title: v })}
+                  />
+               </View>
+
+               <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={styles.inputHeader}>
                      <Ionicons name="time-outline" size={20} color={colors.primary} />
                      <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>ESTIMATED MINUTES</Text>
                   </View>
                   <TextInput
                     style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
                     keyboardType="numeric"
-                    value={String(taskForm.estimatedMinutes)}
-                    onChangeText={v => setTaskForm({ ...taskForm, estimatedMinutes: Math.max(5, parseInt(v || '0', 10) || 0) })}
+                    value={taskForm.estimatedMinutes ? String(taskForm.estimatedMinutes) : ''}
+                    onChangeText={v => setTaskForm({ ...taskForm, estimatedMinutes: v.replace(/[^0-9]/g, '') })}
                   />
                </View>
 

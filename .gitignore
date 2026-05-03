@@ -33,3 +33,10 @@ Thumbs.db
 # Local logs
 logs/
 *.tsbuildinfo
+
+# AI
+src/AI/venv/
+
+# Database
+*.db
+*.db-journal

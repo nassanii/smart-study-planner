@@ -7,6 +7,7 @@ public class StudyTask
     public int Id { get; set; }
     public int UserId { get; set; }
     public int SubjectId { get; set; }
+    public string Title { get; set; } = string.Empty;
     public TaskPriority Priority { get; set; }
     public short DifficultyRating { get; set; }
     public int EstimatedMinutes { get; set; }

@@ -13,5 +13,6 @@ public class AiSchedule
     public string AiMessage { get; set; } = string.Empty;
     public string RequestPayload { get; set; } = "{}";
     public string ResponsePayload { get; set; } = "{}";
+    public string SlotStatusesJson { get; set; } = "{}";
     public bool HasError { get; set; }
 }

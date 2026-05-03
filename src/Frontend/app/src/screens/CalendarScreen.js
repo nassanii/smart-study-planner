@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { useAppNavigation } from '../context/navigation_context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { focusApi, scheduleApi } from '../services/api';
+import { DailyCheckinModal } from '../components/DailyCheckinModal';
 
 import { useFocus } from '../context/focus_context';
 
@@ -24,6 +25,7 @@ export const CalendarScreen = () => {
   const [snoozeTarget, setSnoozeTarget] = useState(null); 
   const [snoozeReason, setSnoozeReason] = useState('');
   const [customReason, setCustomReason] = useState('');
+  const [showPlanWizard, setShowPlanWizard] = useState(false);
 
   const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral } = useAI();
   const { slotStatuses: slotStatus, setSlotStatuses: setSlotStatus, activeSlotIndex } = useFocus();
@@ -289,8 +291,8 @@ export const CalendarScreen = () => {
             <View style={styles.progressInfo}>
                <Text style={[styles.progressTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Daily Progress</Text>
                <Text style={[styles.progressSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                 {Object.keys(slotStatus).filter(idx => {
-                   const s = slotStatus[idx];
+                 {Object.keys(selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus).filter(idx => {
+                   const s = (selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus)[idx];
                    const item = currentSlots[idx];
                    return s.status === 'completed' && item?.activity_type !== 'break';
                  }).length} / {currentSlots.filter(s => s.activity_type !== 'break').length} tasks finished
@@ -323,7 +325,8 @@ export const CalendarScreen = () => {
              currentSlots.map((item, idx) => {
                 const isBreak = item.activity_type === 'break';
                 const subColor = isBreak ? colors.textLight : getEventColor({ subject_id: item.subject_id });
-                const status = slotStatus[idx] || { status: 'pending' };
+                const dayStatuses = selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || (isTrulyToday ? slotStatus : {});
+                const status = dayStatuses[idx] || { status: 'pending' };
                 
                 const isLocked = idx > activeSlotIndex && isTrulyToday;
                 const isActiveTask = idx === activeSlotIndex && isTrulyToday;
@@ -425,6 +428,24 @@ export const CalendarScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <DailyCheckinModal 
+        visible={showPlanWizard} 
+        onClose={() => setShowPlanWizard(false)} 
+        selectedDate={new Date(year, month, selectedDay).toISOString().split('T')[0]}
+      />
+
+      {/* Floating Action Button for Plan Generation */}
+      {isTrulyToday && (
+        <TouchableOpacity 
+          style={styles.magicFab} 
+          onPress={() => setShowPlanWizard(true)}
+        >
+          <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.magicFabInner}>
+            <MaterialCommunityIcons name="brain" size={28} color="#FFF" />
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -494,5 +515,23 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: '#FFF', fontSize: 15 },
 
   emptyCard: { padding: 40, alignItems: 'center' },
-  emptyText: { fontSize: 14 }
+  emptyText: { fontSize: 14 },
+  magicFab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    elevation: 10,
+    shadowColor: '#6366F1',
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+  },
+  magicFabInner: {
+    flex: 1,
+    borderRadius: 33,
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });

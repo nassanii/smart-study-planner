@@ -75,6 +75,14 @@ public class AnalyticsService : IAnalyticsService
         if (logs.Where(l => l.Date == today).Sum(l => l.StudyHours) >= 4m) badges.Add("Hard Worker");
         if (completed >= 10) badges.Add("Achiever");
 
+        var weeklyData = new Dictionary<string, decimal>();
+        for (int i = 6; i >= 0; i--)
+        {
+            var date = today.AddDays(-i);
+            var hours = (decimal)logs.Where(l => l.Date == date).Sum(l => (double)l.StudyHours);
+            weeklyData[date.ToString("ddd")] = hours;
+        }
+
         return new InsightsDto
         {
             DayStreak = streak,
@@ -86,7 +94,8 @@ public class AnalyticsService : IAnalyticsService
             LatestIsExhausted = latestSchedule?.IsExhausted ?? false,
             PeakHourBuckets = peakHours.Select(p => p.Hour).ToList(),
             StudyHoursToday = (decimal)logs.Where(l => l.Date == today).Sum(l => l.StudyHours),
-            Badges = badges
+            Badges = badges,
+            WeeklyStudyData = weeklyData
         };
     }
 

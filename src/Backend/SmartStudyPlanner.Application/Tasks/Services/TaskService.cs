@@ -54,6 +54,7 @@ public class TaskService : ITaskService
         {
             UserId = userId,
             SubjectId = dto.SubjectId,
+            Title = string.IsNullOrWhiteSpace(dto.Title) ? "Study Session" : dto.Title,
             Priority = dto.Priority,
             DifficultyRating = dto.DifficultyRating,
             EstimatedMinutes = dto.EstimatedMinutes,
@@ -145,6 +146,7 @@ public class TaskService : ITaskService
         Id = t.Id,
         SubjectId = t.SubjectId,
         Subject = t.Subject?.Name ?? string.Empty,
+        Title = t.Title,
         Priority = t.Priority,
         DifficultyRating = t.DifficultyRating,
         EstimatedMinutes = t.EstimatedMinutes,

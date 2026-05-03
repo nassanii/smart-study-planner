@@ -80,7 +80,7 @@ async def generate_intelligent_schedule(
        - You MUST use the REAL names of the subjects from the "All Available Subjects" list. 
        - DO NOT use generic names like "Subject 1" or "Study Block".
        - If a subject has pending tasks in the "Pending Tasks" list, prioritize those tasks and use their IDs.
-       - If a subject has NO pending tasks, but you determine it needs study time to stay on track for the deadline, you can still schedule general study sessions for it. Use its Subject ID in those cases.
+       - If a subject has NO pending tasks, ONLY schedule ONE session (max 50m) for 'General Review' if it needs study time. DO NOT schedule multiple sessions for task-less subjects unless their exam is in < 7 days.
     
     2. **Autonomous Session Estimation**:
        - Decided how much time each task/subject needs today.

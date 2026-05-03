@@ -54,7 +54,7 @@ public class SchedulePayloadBuilder
         var upcoming = await _db.StudyTasks
             .Include(t => t.Subject)
             .Where(t => t.UserId == userId
-                && t.Status == StudyTaskStatus.Upcoming
+                && (t.Status == StudyTaskStatus.Upcoming || t.Status == StudyTaskStatus.InProgress || t.Status == StudyTaskStatus.Postponed || t.Status == StudyTaskStatus.Snoozed)
                 && (t.Deadline == null || t.Deadline >= date))
             .OrderBy(t => t.Priority).ThenBy(t => t.Deadline)
             .Select(t => new AiTaskDto

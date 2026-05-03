@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class Task(BaseModel):
     id: int
@@ -9,3 +10,5 @@ class Task(BaseModel):
     consecutive_days_studied: int # To prevent "Subject Burnout"
     estimated_minutes: int
     actual_minutes: int
+    deadline: Optional[str] = None
+    tag: Optional[str] = None

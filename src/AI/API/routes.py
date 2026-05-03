@@ -45,6 +45,11 @@ async def process_student_data(payload: IncomingPayload):
         mode=mode,
     )
 
+    # Ensure native types for JSON serialization
+    burnout_score = float(burnout_score)
+    is_exhausted = bool(is_exhausted)
+    difficulty_factors = {int(k): float(v) for k, v in difficulty_factors.items()}
+
     return {
         "status": "success",
         "analysis_results": {
