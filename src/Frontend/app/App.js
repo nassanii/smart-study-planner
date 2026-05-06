@@ -23,6 +23,8 @@ import { CalendarScreen } from './src/screens/CalendarScreen';
 import { FocusScreen } from './src/screens/FocusScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { EditProfileScreen } from './src/screens/EditProfileScreen';
+import { ChangePasswordScreen } from './src/screens/ChangePasswordScreen';
 import { BottomNavigation } from './src/components/BottomNavigation';
 import { AppDialogHost } from './src/components/AppDialogHost';
 import { GlobalLoader } from './src/components/GlobalLoader';
@@ -56,6 +58,8 @@ const MainApp = () => {
       case 'focus': return <FocusScreen />;
       case 'analytics': return <AnalyticsScreen />;
       case 'profile': return <ProfileScreen />;
+      case 'edit_profile': return <EditProfileScreen />;
+      case 'change_password': return <ChangePasswordScreen />;
       default: return <DashboardScreen />;
     }
   };

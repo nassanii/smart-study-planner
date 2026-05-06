@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAuth } from '../context/auth_context';
-import { useAI } from '../context/ai_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showConfirm, showAlert } from '../services/dialogs';
@@ -11,7 +10,6 @@ import { useAppNavigation } from '../context/navigation_context';
 export const ProfileScreen = () => {
   const { colors, fonts, isDarkMode, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { subjects } = useAI();
   const { navigate } = useAppNavigation();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -62,7 +60,10 @@ export const ProfileScreen = () => {
               <Text style={[styles.emailText, { color: colors.textLight, fontFamily: fonts.medium }]}>{email}</Text>
            </View>
         </View>
-        <TouchableOpacity style={[styles.editBtn, { backgroundColor: colors.cardAlt }]}>
+        <TouchableOpacity 
+           style={[styles.editBtn, { backgroundColor: colors.cardAlt }]}
+           onPress={() => navigate('edit_profile')}
+         >
            <Ionicons name="pencil" size={16} color={colors.textDark} />
         </TouchableOpacity>
       </View>
@@ -70,13 +71,15 @@ export const ProfileScreen = () => {
       <Text style={[styles.sectionTitle, { color: colors.textLight, fontFamily: fonts.bold }]}>ACCOUNT</Text>
       <View style={[styles.menuGrp, { backgroundColor: colors.surface, borderColor: colors.border }]}>
          {[
-           { icon: 'person-outline', title: 'Edit Profile', sub: 'Name, email, photo', val: null },
-           { icon: 'lock-closed-outline', title: 'Change Password', sub: null, val: null },
-           { icon: 'link-outline', title: 'Connected Accounts', sub: 'Google, Apple', val: '2' }
+           { icon: 'person-outline', title: 'Edit Profile', sub: 'Name, email, photo', val: null, action: () => navigate('edit_profile') },
+           { icon: 'calendar-outline', title: 'Final Exam', sub: 'Your study target date', val: user?.deadline || 'Not set', action: () => navigate('edit_profile') },
+           { icon: 'lock-closed-outline', title: 'Change Password', sub: 'Update your security', val: null, action: () => navigate('change_password') },
+           { icon: 'link-outline', title: 'Connected Accounts', sub: 'Google, Apple', val: '2', action: () => {} }
          ].map((item, idx) => (
            <TouchableOpacity
              key={idx}
-             style={[styles.menuRow, idx < 2 && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+             onPress={item.action}
+             style={[styles.menuRow, idx < 3 && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
            >
               <View style={[styles.iconBox, { backgroundColor: colors.cardAlt }]}>
                  <Ionicons name={item.icon} size={18} color={colors.textDark} />
@@ -89,21 +92,6 @@ export const ProfileScreen = () => {
               <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
            </TouchableOpacity>
          ))}
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: colors.textLight, fontFamily: fonts.bold }]}>STUDY</Text>
-      <View style={[styles.menuGrp, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-         <TouchableOpacity style={styles.menuRow} onPress={() => navigate('subjects')}>
-            <View style={[styles.iconBox, { backgroundColor: '#EDE9FE' }]}>
-               <MaterialCommunityIcons name="book-multiple" size={18} color={colors.primary} />
-            </View>
-            <View style={{flex: 1}}>
-               <Text style={[styles.menuText, { color: colors.textDark, fontFamily: fonts.semiBold }]}>Manage Subjects</Text>
-               <Text style={[styles.menuSubText, { color: colors.textLight, fontFamily: fonts.medium }]}>Add, edit or remove subjects</Text>
-            </View>
-            <Text style={[styles.menuValue, { color: colors.textLight, fontFamily: fonts.bold }]}>{subjects.length}  </Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
-         </TouchableOpacity>
       </View>
 
       <Text style={[styles.sectionTitle, { color: colors.textLight, fontFamily: fonts.bold }]}>APPEARANCE</Text>

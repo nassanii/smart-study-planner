@@ -27,7 +27,7 @@ export const CalendarScreen = () => {
   const [customReason, setCustomReason] = useState('');
   const [showPlanWizard, setShowPlanWizard] = useState(false);
 
-  const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral } = useAI();
+  const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral, reloadAll } = useAI();
   const { slotStatuses: slotStatus, setSlotStatuses: setSlotStatus, activeSlotIndex } = useFocus();
   
   const year = currentDate.getFullYear();
@@ -64,7 +64,19 @@ export const CalendarScreen = () => {
   // Fetch schedule for selected day
   useEffect(() => {
     const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-    scheduleApi.byDate(dStr).then(setSelectedDaySchedule).catch(() => setSelectedDaySchedule(null));
+    scheduleApi.byDate(dStr)
+      .then(res => {
+        // Map snake_case to camelCase for consistency with AIContext state
+        setSelectedDaySchedule({
+          ...res,
+          generatedAt: res.generated_at,
+          analysisResults: res.analysis_results,
+          aiSchedule: res.ai_schedule,
+          hasError: res.has_error,
+          slotStatuses: res.slot_statuses,
+        });
+      })
+      .catch(() => setSelectedDaySchedule(null));
   }, [selectedDay, year, month]);
 
   const firstDayOfMonth = new Date(year, month, 1).getDay();
@@ -152,12 +164,29 @@ export const CalendarScreen = () => {
       return;
     }
     setSlotStatus(prev => ({ ...prev, [snoozeTarget.idx]: { status: 'snoozed', reason } }));
-    // Persist snooze to backend if slot has a linked task
+    
+    // Update local selectedDaySchedule if it's today for immediate feedback
+    if (isTrulyToday) {
+      setSelectedDaySchedule(prev => {
+        if (!prev) return prev;
+        const newStatuses = { ...(prev.slotStatuses || prev.slot_statuses || {}), [snoozeTarget.idx]: { status: 'snoozed', reason } };
+        return { ...prev, slotStatuses: newStatuses };
+      });
+    }
+
     const slots = currentSlots;
     const slot = slots?.[snoozeTarget.idx];
+    
+    // Persist to backend
+    if (latestSchedule?.id && isTrulyToday) {
+      scheduleApi.updateSlotStatus(latestSchedule.id, snoozeTarget.idx, { status: 'snoozed', reason })
+        .catch(err => console.error("Failed to persist slot snooze:", err));
+    }
+
     if (slot?.task_id) {
       snoozeTask(slot.task_id, reason).catch(() => {});
     }
+    reloadAll().catch(() => {});
     reloadBehavioral().catch(() => {});
     setSnoozeTarget(null);
   };

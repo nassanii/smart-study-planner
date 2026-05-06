@@ -16,6 +16,7 @@ import { useTheme } from '../theme/theme';
 import { useAuth } from '../context/auth_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAppNavigation } from '../context/navigation_context';
 
 const showAlert = (title, message) => {
   if (Platform.OS === 'web') {
@@ -28,7 +29,8 @@ const showAlert = (title, message) => {
 export const LoginScreen = () => {
   const { colors, fonts } = useTheme();
   const { login, register } = useAuth();
-  const [activeTab, setActiveTab] = useState('login');
+  const { setActiveTab } = useAppNavigation();
+  const [loginMode, setLoginMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,26 +52,27 @@ export const LoginScreen = () => {
       setErrorMsg('Email and password are required.');
       return;
     }
-    if (activeTab === 'signup' && !name.trim()) {
+    if (loginMode === 'signup' && !name.trim()) {
       setErrorMsg('Please enter your display name.');
       return;
     }
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (activeTab === 'signup' && !passwordRegex.test(password)) {
-      setErrorMsg('Password must be at least 8 characters long and include uppercase, lowercase, a number, and a special character.');
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (loginMode === 'signup' && !passwordRegex.test(password)) {
+      setErrorMsg('Password must be at least 8 characters long and include uppercase, lowercase, a number, and a special character (e.g. ! @ # . _).');
       return;
     }
-    if (activeTab === 'signup' && password !== confirmPassword) {
+    if (loginMode === 'signup' && password !== confirmPassword) {
       setErrorMsg('Passwords do not match.');
       return;
     }
     setSubmitting(true);
     try {
-      if (activeTab === 'login') {
+      if (loginMode === 'login') {
         await login(email.trim(), password);
       } else {
         await register(name.trim(), email.trim(), password);
       }
+      setActiveTab('home');
     } catch (err) {
       const status = err.response?.status;
       const data = err.response?.data;
@@ -106,10 +109,10 @@ export const LoginScreen = () => {
 
         <View style={styles.topSection}>
           <Text style={[styles.welcomeText, { color: colors.textDark, fontFamily: fonts.bold }]}>
-            {activeTab === 'login' ? 'Welcome back 👋' : 'Create Account ✨'}
+            {loginMode === 'login' ? 'Welcome back 👋' : 'Create Account ✨'}
           </Text>
           <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-            {activeTab === 'login'
+            {loginMode === 'login'
               ? 'Sign in to continue your personalized study plan'
               : 'Join thousands of students optimizing their grades'}
           </Text>
@@ -117,33 +120,33 @@ export const LoginScreen = () => {
 
         <View style={[styles.tabContainer, { backgroundColor: colors.cardAlt }]}>
            <TouchableOpacity
-             style={[styles.tab, activeTab === 'login' && { backgroundColor: colors.surface }]}
-             onPress={() => setActiveTab('login')}
+             style={[styles.tab, loginMode === 'login' && { backgroundColor: colors.surface }]}
+             onPress={() => setLoginMode('login')}
            >
               <Text style={[
                 styles.tabText,
                 {
-                  color: activeTab === 'login' ? colors.primary : colors.textLight,
-                  fontFamily: activeTab === 'login' ? fonts.bold : fonts.medium
+                  color: loginMode === 'login' ? colors.primary : colors.textLight,
+                  fontFamily: loginMode === 'login' ? fonts.bold : fonts.medium
                 }
               ]}>Log in</Text>
            </TouchableOpacity>
            <TouchableOpacity
-             style={[styles.tab, activeTab === 'signup' && { backgroundColor: colors.surface }]}
-             onPress={() => setActiveTab('signup')}
+             style={[styles.tab, loginMode === 'signup' && { backgroundColor: colors.surface }]}
+             onPress={() => setLoginMode('signup')}
            >
               <Text style={[
                 styles.tabText,
                 {
-                  color: activeTab === 'signup' ? colors.primary : colors.textLight,
-                  fontFamily: activeTab === 'signup' ? fonts.bold : fonts.medium
+                  color: loginMode === 'signup' ? colors.primary : colors.textLight,
+                  fontFamily: loginMode === 'signup' ? fonts.bold : fonts.medium
                 }
               ]}>Sign up</Text>
            </TouchableOpacity>
         </View>
 
         <View style={styles.form}>
-           {activeTab === 'signup' && (
+           {loginMode === 'signup' && (
              <>
                <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.semiBold }]}>Display Name</Text>
                <View style={[styles.inputContainer, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
@@ -196,7 +199,7 @@ export const LoginScreen = () => {
               </TouchableOpacity>
            </View>
 
-           {activeTab === 'signup' && (
+           {loginMode === 'signup' && (
              <>
                <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.semiBold }]}>Confirm Password</Text>
                <View style={[styles.inputContainer, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
@@ -219,7 +222,7 @@ export const LoginScreen = () => {
              </>
            )}
 
-           {activeTab === 'login' && (
+           {loginMode === 'login' && (
              <View style={styles.row}>
                 <TouchableOpacity
                    style={styles.checkRow}
@@ -261,7 +264,7 @@ export const LoginScreen = () => {
                 ) : (
                   <>
                     <Text style={[styles.loginBtnText, { fontFamily: fonts.bold }]}>
-                       {activeTab === 'login' ? 'Log in' : 'Create Account'}
+                       {loginMode === 'login' ? 'Log in' : 'Create Account'}
                     </Text>
                     <Ionicons name="arrow-forward" size={18} color="#FFF" style={{ marginLeft: 10 }} />
                   </>
@@ -288,12 +291,12 @@ export const LoginScreen = () => {
 
            <View style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                {activeTab === 'login' ? "New here? " : "Joined already? "}
+                {loginMode === 'login' ? "New here? " : "Joined already? "}
                 <Text
                   style={{ color: colors.primary, fontFamily: fonts.bold }}
-                  onPress={() => setActiveTab(activeTab === 'login' ? 'signup' : 'login')}
+                  onPress={() => setLoginMode(loginMode === 'login' ? 'signup' : 'login')}
                 >
-                  {activeTab === 'login' ? 'Create an account' : 'Sign in here'}
+                  {loginMode === 'login' ? 'Create an account' : 'Sign in here'}
                 </Text>
               </Text>
            </View>

@@ -11,7 +11,7 @@ const MODE_DURATIONS = {
 };
 
 export const FocusProvider = ({ children }) => {
-  const { startFocusSession, completeFocusSession, latestSchedule } = useAI();
+  const { startFocusSession, completeFocusSession, latestSchedule, snoozeTask } = useAI();
   const { setLastCompletedSession } = useAppNavigation();
 
   const [mode, setMode] = useState('Focus');
@@ -29,13 +29,18 @@ export const FocusProvider = ({ children }) => {
   const [currentSlotIndex, setCurrentSlotIndex] = useState(null);
   const [slotStatuses, setSlotStatuses] = useState({});
 
-  // SYNC FROM DB: Sync slot statuses when latestSchedule changes
+  // SYNC FROM DB: Sync slot statuses and slots when latestSchedule changes
   useEffect(() => {
     const remoteStatuses = latestSchedule?.slot_statuses || latestSchedule?.slotStatuses;
     if (remoteStatuses) {
       setSlotStatuses(remoteStatuses);
     }
-  }, [latestSchedule]);
+    
+    // Also sync the slots themselves if we don't have them yet
+    if (latestSchedule?.aiSchedule?.scheduled_slots && !scheduleSlots) {
+       setScheduleSlots(latestSchedule.aiSchedule.scheduled_slots);
+    }
+  }, [latestSchedule, scheduleSlots]);
 
   // Derive active slot index (first unresolved slot)
   const activeSlotIndex = useMemo(() => {
@@ -166,6 +171,11 @@ export const FocusProvider = ({ children }) => {
 
       if (!snoozeReason) {
         setLastCompletedSession({ subjectId: selectedSubjectId, completedAt: Date.now() });
+      } else {
+        // If it was a snooze, ensure the task status is also updated
+        if (selectedTaskId) {
+          snoozeTask(selectedTaskId, snoozeReason).catch(console.warn);
+        }
       }
       setActiveSession(null);
     }
@@ -179,6 +189,8 @@ export const FocusProvider = ({ children }) => {
       if (latestSchedule?.id) {
          try {
            await scheduleApi.updateSlotStatus(latestSchedule.id, idx, { status: newStatus, reason: snoozeReason });
+           // Update local slots state if we have it to reflect the change immediately
+           setSlotStatuses(prev => ({ ...prev, [idx]: { status: newStatus, reason: snoozeReason } }));
          } catch (err) {
            console.error("Failed to persist slot status:", err);
          }

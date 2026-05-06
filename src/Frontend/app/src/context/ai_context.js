@@ -2,6 +2,65 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useAuth } from "./auth_context";
 import { tasksApi, behavioralLogsApi, subjectsApi, usersApi, focusApi, scheduleApi } from "../services/api";
 
+// --- Data Mappers (placed at top for hoisting & safety) ---
+
+function mapStatus(numeric) {
+   switch (numeric) {
+      case 0: return "upcoming";
+      case 1: return "in_progress";
+      case 2: return "done";
+      case 3: return "postponed";
+      case 4: return "snoozed";
+      default: return "upcoming";
+   }
+}
+
+function mapTaskFromApi(t) {
+   if (!t) return null;
+   return {
+      id: t.id,
+      subject_id: t.subject_id || t.subjectId,
+      subject: t.subject,
+      title: t.title,
+      priority: t.priority,
+      difficulty_rating: t.difficulty_rating || t.difficultyRating,
+      estimated_minutes: t.estimated_minutes || t.estimatedMinutes,
+      actual_minutes: t.actual_minutes || t.actualMinutes,
+      days_since_last_study: t.days_since_last_study || t.daysSinceLastStudy,
+      consecutive_days_studied: t.consecutive_days_studied || t.consecutiveDaysStudied,
+      status: mapStatus(t.status),
+      deadline: t.deadline,
+      tag: t.tag,
+      completed_at: t.completed_at || t.completedAt,
+   };
+}
+
+function mapSubjectFromApi(s) {
+   if (!s) return null;
+   return {
+      ...s,
+      id: s.id !== undefined ? s.id : s.Id,
+      name: s.name || s.Name,
+      difficulty: s.difficulty || s.Difficulty,
+      priority: s.priority || s.Priority,
+      examDate: s.examDate || s.exam_date || s.ExamDate,
+   };
+}
+
+function mapScheduleFromApi(s) {
+   if (!s) return null;
+   return {
+      ...s,
+      generatedAt: s.generated_at || s.generatedAt,
+      analysisResults: s.analysis_results || s.analysisResults,
+      aiSchedule: s.ai_schedule || s.aiSchedule,
+      hasError: s.has_error || s.hasError,
+      slotStatuses: s.slot_statuses || s.slotStatuses,
+   };
+}
+
+// --- Provider ---
+
 const AIContext = createContext(null);
 
 const emptyBehavioral = {
@@ -50,7 +109,7 @@ export const AIProvider = ({ children }) => {
 
    const reloadSubjects = useCallback(async () => {
       const remote = await subjectsApi.list();
-      setSubjects(remote);
+      setSubjects(remote.map(mapSubjectFromApi));
    }, []);
 
    const reloadAll = useCallback(async () => {
@@ -70,8 +129,8 @@ export const AIProvider = ({ children }) => {
             last_focus_ratings: b.lastFocusRatings,
             study_hours_today: Number(b.studyHours),
          });
-         setSubjects(s);
-         setLatestSchedule(sched);
+         setSubjects(s.map(mapSubjectFromApi));
+         setLatestSchedule(sched ? mapScheduleFromApi(sched) : null);
       } catch (err) {
          setError(err.response?.data?.title || err.message);
       } finally {
@@ -130,13 +189,13 @@ export const AIProvider = ({ children }) => {
 
    const addSubject = useCallback(async (payload) => {
       const created = await subjectsApi.create(payload);
-      setSubjects((prev) => [...prev, created]);
+      setSubjects((prev) => [...prev, mapSubjectFromApi(created)]);
       return created;
    }, []);
 
    const updateSubject = useCallback(async (id, payload) => {
       const updated = await subjectsApi.update(id, payload);
-      setSubjects((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      setSubjects((prev) => prev.map((s) => (s.id === id ? mapSubjectFromApi(updated) : s)));
       return updated;
    }, []);
 
@@ -188,15 +247,9 @@ export const AIProvider = ({ children }) => {
 
    const generateSchedule = useCallback(async (date) => {
       const result = await scheduleApi.generate(date);
-      setLatestSchedule({
-         ...result,
-         generatedAt: result.generated_at,
-         analysisResults: result.analysis_results,
-         aiSchedule: result.ai_schedule,
-         hasError: result.has_error,
-         slotStatuses: result.slot_statuses,
-      });
-      return result;
+      const mapped = mapScheduleFromApi(result);
+      setLatestSchedule(mapped);
+      return mapped;
    }, []);
 
    return (
@@ -232,44 +285,10 @@ export const AIProvider = ({ children }) => {
    );
 };
 
+// --- Hook ---
+
 export const useAI = () => {
    const ctx = useContext(AIContext);
    if (!ctx) throw new Error("useAI must be used inside <AIProvider>");
    return ctx;
 };
-
-function mapTaskFromApi(t) {
-   return {
-      id: t.id,
-      subject_id: t.subjectId,
-      subject: t.subject,
-      title: t.title,
-      priority: t.priority,
-      difficulty_rating: t.difficultyRating,
-      estimated_minutes: t.estimatedMinutes,
-      actual_minutes: t.actualMinutes,
-      days_since_last_study: t.daysSinceLastStudy,
-      consecutive_days_studied: t.consecutiveDaysStudied,
-      status: mapStatus(t.status),
-      deadline: t.deadline,
-      tag: t.tag,
-      completed_at: t.completedAt,
-   };
-}
-
-function mapStatus(numeric) {
-   switch (numeric) {
-      case 0:
-         return "upcoming";
-      case 1:
-         return "in_progress";
-      case 2:
-         return "done";
-      case 3:
-         return "postponed";
-      case 4:
-         return "snoozed";
-      default:
-         return "upcoming";
-   }
-}

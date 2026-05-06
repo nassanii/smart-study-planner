@@ -11,15 +11,12 @@ import { showAlert, showConfirm } from '../services/dialogs';
 
 export const SubjectsScreen = () => {
   const { colors, fonts } = useTheme();
-  const { tasks, subjects, addTask, removeTask, addSubject, updateSubject, removeSubject } = useAI();
+  const { subjects, addSubject, updateSubject, removeSubject } = useAI();
   
   const [showSubjectModal, setShowSubjectModal] = useState(false);
-  const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
-  const [targetSubjectId, setTargetSubjectId] = useState(null);
 
   const [subjectForm, setSubjectForm] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
-  const [taskForm, setTaskForm] = useState({ title: '', difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
   const [busy, setBusy] = useState(false);
 
   const handleSaveSubject = async () => {
@@ -44,39 +41,10 @@ export const SubjectsScreen = () => {
   const handleDeleteSubject = (s) => {
     showConfirm({
       title: 'Delete Subject',
-      message: `Delete "${s.name}"? This will remove all associated tasks.`,
+      message: `Delete "${s.name}"? This will remove all associated study history.`,
       confirmText: 'Delete',
       destructive: true,
       onConfirm: () => removeSubject(s.id),
-    });
-  };
-
-  const handleAddTask = async () => {
-    setBusy(true);
-    try {
-      await addTask({
-        subjectId: targetSubjectId,
-        title: taskForm.title,
-        priority: taskForm.priority,
-        difficultyRating: taskForm.difficulty_rating,
-        estimatedMinutes: taskForm.estimatedMinutes,
-      });
-      setShowTaskModal(false);
-      setTaskForm({ title: '', difficulty_rating: 5, priority: 2, estimatedMinutes: 60 });
-    } catch (err) {
-      showAlert('Error', extractErrorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDeleteTask = (t) => {
-    showConfirm({
-      title: 'Remove Task',
-      message: 'Delete this study goal?',
-      confirmText: 'Delete',
-      destructive: true,
-      onConfirm: () => removeTask(t.id),
     });
   };
 
@@ -100,69 +68,34 @@ export const SubjectsScreen = () => {
                 <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>No subjects yet. Tap + to add one.</Text>
               </View>
            ) : (
-             subjects.map((s) => {
-                const subTasks = tasks.filter(t => t.subject_id === s.id);
-                return (
-                  <View key={s.id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border, flexDirection: 'column', alignItems: 'stretch' }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={[styles.indicator, { backgroundColor: getPrioColor(s.priority) }]} />
-                      <View style={styles.content}>
-                          <View style={styles.titleRow}>
-                            <Text style={[styles.taskTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
-                            <View style={[styles.prioTag, { backgroundColor: getPrioColor(s.priority) + '15' }]}>
-                                <Text style={[styles.prioTagText, { color: getPrioColor(s.priority), fontFamily: fonts.bold }]}>{getPrioLabel(s.priority)}</Text>
-                            </View>
-                          </View>
-                          <View style={styles.metaRow}>
-                            <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                              {s.examDate ? `Exam: ${new Date(s.examDate).toLocaleDateString()}` : 'No exam date'}
-                            </Text>
-                            <View style={[styles.dot, { backgroundColor: colors.border }]} />
-                            <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>Diff: {s.difficulty}/10</Text>
-                          </View>
-                      </View>
-                      <View style={styles.controls}>
-                          <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => { setEditingSubject(s); setSubjectForm({ name: s.name, difficulty: s.difficulty, priority: s.priority, examDate: s.examDate || '' }); setShowSubjectModal(true); }}>
-                            <Ionicons name="pencil" size={16} color={colors.textDark} />
-                          </TouchableOpacity>
-                          <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDeleteSubject(s)}>
-                            <Ionicons name="trash" size={16} color={colors.textDark} />
-                          </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    {/* Mini Task List */}
-                    <View style={{ marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: colors.border }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                          <Text style={{ fontSize: 12, color: colors.textLight, fontFamily: fonts.bold }}>TASKS ({subTasks.length})</Text>
-                          <TouchableOpacity onPress={() => { setTargetSubjectId(s.id); setShowTaskModal(true); }}>
-                            <Text style={{ fontSize: 12, color: colors.primary, fontFamily: fonts.bold }}>+ Add Task</Text>
-                          </TouchableOpacity>
+             subjects.map((s) => (
+                <View key={s.id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}>
+                  <View style={[styles.indicator, { backgroundColor: getPrioColor(s.priority) }]} />
+                  <View style={styles.content}>
+                      <View style={styles.titleRow}>
+                        <Text style={[styles.taskTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
+                        <View style={[styles.prioTag, { backgroundColor: getPrioColor(s.priority) + '15' }]}>
+                            <Text style={[styles.prioTagText, { color: getPrioColor(s.priority), fontFamily: fonts.bold }]}>{getPrioLabel(s.priority)}</Text>
                         </View>
-                        {subTasks.map(t => {
-                          const progressPct = t.estimated_minutes > 0 
-                            ? Math.min(100, Math.round(((t.actual_minutes || 0) / t.estimated_minutes) * 100)) 
-                            : 0;
-                          return (
-                          <View key={t.id} style={{ marginBottom: 8, padding: 12, backgroundColor: colors.cardAlt, borderRadius: 10 }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                               <Text style={{ fontSize: 14, color: colors.textDark, fontFamily: fonts.bold }}>{t.title || 'Study Session'}</Text>
-                               <TouchableOpacity onPress={() => handleDeleteTask(t)}>
-                                 <Ionicons name="close-circle" size={18} color={colors.textLight} />
-                               </TouchableOpacity>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                               <Text style={{ fontSize: 11, color: colors.textLight, fontFamily: fonts.medium }}>Diff {t.difficulty_rating} • {t.actual_minutes || 0} / {t.estimated_minutes}m</Text>
-                            </View>
-                            <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
-                               <View style={{ height: 4, backgroundColor: colors.primary, borderRadius: 2, width: `${progressPct}%` }} />
-                            </View>
-                          </View>
-                        )})}
-                    </View>
+                      </View>
+                      <View style={styles.metaRow}>
+                        <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                          {s.examDate ? `Exam: ${new Date(s.examDate).toLocaleDateString()}` : 'No exam date'}
+                        </Text>
+                        <View style={[styles.dot, { backgroundColor: colors.border }]} />
+                        <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>Diff: {s.difficulty}/10</Text>
+                      </View>
                   </View>
-                );
-             })
+                  <View style={styles.controls}>
+                      <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => { setEditingSubject(s); setSubjectForm({ name: s.name, difficulty: s.difficulty, priority: s.priority, examDate: s.examDate || '' }); setShowSubjectModal(true); }}>
+                        <Ionicons name="pencil" size={16} color={colors.textDark} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDeleteSubject(s)}>
+                        <Ionicons name="trash" size={16} color={colors.textDark} />
+                      </TouchableOpacity>
+                  </View>
+                </View>
+             ))
            )}
         </View>
       </ScrollView>
@@ -224,75 +157,6 @@ export const SubjectsScreen = () => {
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleSaveSubject} disabled={busy}>
                      {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Save Subject</Text>}
-                  </TouchableOpacity>
-               </View>
-            </View>
-         </View>
-      </Modal>
-
-      {/* Task Modal (Add task to subject) */}
-      <Modal visible={showTaskModal} transparent animationType="slide">
-         <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-               <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>New Study Task</Text>
-
-               <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={styles.inputHeader}>
-                     <Ionicons name="bookmark-outline" size={20} color={colors.primary} />
-                     <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>TASK TITLE</Text>
-                  </View>
-                  <TextInput
-                    style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
-                    placeholder="e.g. Chapter 1 Review"
-                    placeholderTextColor={colors.textLight}
-                    value={taskForm.title}
-                    onChangeText={v => setTaskForm({ ...taskForm, title: v })}
-                  />
-               </View>
-
-               <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={styles.inputHeader}>
-                     <Ionicons name="time-outline" size={20} color={colors.primary} />
-                     <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>ESTIMATED MINUTES</Text>
-                  </View>
-                  <TextInput
-                    style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
-                    keyboardType="numeric"
-                    value={taskForm.estimatedMinutes ? String(taskForm.estimatedMinutes) : ''}
-                    onChangeText={v => setTaskForm({ ...taskForm, estimatedMinutes: v.replace(/[^0-9]/g, '') })}
-                  />
-               </View>
-
-               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 20 }]}>PRIORITY</Text>
-               <View style={styles.prioGrid}>
-                  {[1, 2, 3].map(p => (
-                      <TouchableOpacity
-                         key={p}
-                         style={[styles.prioSelect, { borderColor: taskForm.priority === p ? colors.primary : colors.border }]}
-                         onPress={() => setTaskForm({...taskForm, priority: p})}
-                      >
-                         <Text style={{ color: taskForm.priority === p ? colors.textDark : colors.textLight, fontFamily: fonts.bold }}>{p === 1 ? 'High' : p === 2 ? 'Med' : 'Low'}</Text>
-                      </TouchableOpacity>
-                  ))}
-               </View>
-
-               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 25 }]}>TASK DIFFICULTY: {taskForm.difficulty_rating}/10</Text>
-               <View style={styles.diffBarRow}>
-                  {[...Array(10)].map((_, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={[styles.diffBit, { backgroundColor: taskForm.difficulty_rating > i ? colors.primary : colors.cardAlt }]}
-                      onPress={() => setTaskForm({...taskForm, difficulty_rating: i + 1})}
-                    />
-                  ))}
-               </View>
-
-               <View style={styles.modalFooter}>
-                  <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border, borderWidth: 1 }]} onPress={() => setShowTaskModal(false)}>
-                     <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleAddTask} disabled={busy}>
-                     {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Add Task</Text>}
                   </TouchableOpacity>
                </View>
             </View>
