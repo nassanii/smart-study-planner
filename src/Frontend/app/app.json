@@ -29,7 +29,11 @@
       "expo-font"
     ],
     "extra": {
+<<<<<<< Updated upstream
       "apiBaseUrl": "http://localhost:5080/api/v1"
+=======
+      "apiBaseUrl": "http://10.100.13.224:5080/api/v1"
+>>>>>>> Stashed changes
     }
   }
 }
