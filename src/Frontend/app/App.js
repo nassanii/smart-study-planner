@@ -31,14 +31,9 @@ import { GlobalLoader } from './src/components/GlobalLoader';
 import Toast from 'react-native-toast-message';
 
 const MainApp = () => {
-<<<<<<< Updated upstream
-  const { isSplashScreenVisible, setIsSplashScreenVisible, colors, isDarkMode } = useTheme();
-  const { isAuthenticated, hydrating: authHydrating, user } = useAuth();
-=======
   const { colors, isDarkMode } = useTheme();
   const [isSplashScreenVisible, setIsSplashScreenVisible] = useState(true);
-  const { isAuthenticated, hydrating, user } = useAuth();
->>>>>>> Stashed changes
+  const { isAuthenticated, hydrating: authHydrating, user } = useAuth();
   const { userData } = useAI();
   const { activeTab, setActiveTab, navHydrating } = useAppNavigation();
 

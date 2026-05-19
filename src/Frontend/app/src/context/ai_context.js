@@ -83,14 +83,14 @@ export const AIProvider = ({ children }) => {
 
    const userData = user
       ? {
-           user_id: user.userId,
-           name: user.name,
-           email: user.email,
-           target_gpa: user.targetGpa,
-           max_hours_per_day: user.maxHoursPerDay,
-           deadline: user.deadline,
-           isOnboarded: user.isOnboarded,
-        }
+         user_id: user.userId,
+         name: user.name,
+         email: user.email,
+         target_gpa: user.targetGpa,
+         max_hours_per_day: user.maxHoursPerDay,
+         deadline: user.deadline,
+         isOnboarded: user.isOnboarded,
+      }
       : { user_id: null, deadline: null, isOnboarded: false };
 
    const reloadTasks = useCallback(async (filter = "all") => {
@@ -216,8 +216,9 @@ export const AIProvider = ({ children }) => {
          }));
          const slotsPayload = (form.slots || []).map((s) => ({
             dayOfWeek: s.dayOfWeek != null ? Number(s.dayOfWeek) : null,
-            startTime: s.startTime,
-            endTime: s.endTime,
+            date: s.date || null,
+            startTime: (s.startTime || '').split(':').length === 2 ? s.startTime + ':00' : s.startTime,
+            endTime: (s.endTime || '').split(':').length === 2 ? s.endTime + ':00' : s.endTime,
          }));
          await usersApi.onboard({
             name: form.name,

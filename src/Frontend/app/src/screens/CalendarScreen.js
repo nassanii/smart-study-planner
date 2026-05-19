@@ -27,7 +27,7 @@ export const CalendarScreen = () => {
   const [customReason, setCustomReason] = useState('');
   const [showPlanWizard, setShowPlanWizard] = useState(false);
 
-  const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral, reloadAll } = useAI();
+  const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral, reloadAll, generateSchedule } = useAI();
   const { slotStatuses: slotStatus, setSlotStatuses: setSlotStatus, activeSlotIndex } = useFocus();
   
   const year = currentDate.getFullYear();
@@ -248,7 +248,7 @@ export const CalendarScreen = () => {
             <View style={styles.daysContainer}>
                 {viewMode === 'Month' && prevMonthDays.map((d, i) => (
                   <View key={`prev-${i}`} style={styles.dayCell}>
-                    <Text style={[styles.dayTextOff, { color: colors.border, fontFamily: fonts.medium }]}>{d}</Text>
+                    <Text style={[styles.dayTextOff, { color: colors.border, fontFamily: fonts.medium }]}></Text>
                   </View>
                 ))}
                 
@@ -260,13 +260,16 @@ export const CalendarScreen = () => {
 
                   if (viewMode === 'Week' && !isCurrentWeek) return null;
 
+                  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                  const isPast = dateOfD < todayStart;
+
                   return (
                       <TouchableOpacity 
                         key={d} 
                         style={[styles.dayCell, isSel && [styles.selectedDayCell, { backgroundColor: colors.primary }]]}
                         onPress={() => setSelectedDay(d)}
                       >
-                        <Text style={[styles.dayText, { color: isSel ? '#FFF' : colors.textDark, fontFamily: fonts.bold }]}>{d}</Text>
+                        <Text style={[styles.dayText, { color: isSel ? '#FFF' : (isPast ? '#CBD5E1' : colors.textDark), fontFamily: fonts.bold }]}>{d}</Text>
                         <View style={styles.dotsRow}>
                           {events.slice(0, 3).map((item, idx) => (
                             <View key={idx} style={[
@@ -282,7 +285,7 @@ export const CalendarScreen = () => {
 
                 {viewMode === 'Month' && nextMonthDays.map((d, i) => (
                    <View key={`next-${i}`} style={styles.dayCell}>
-                      <Text style={[styles.dayTextOff, { color: colors.border, fontFamily: fonts.medium }]}>{d}</Text>
+                      <Text style={[styles.dayTextOff, { color: colors.border, fontFamily: fonts.medium }]}></Text>
                    </View>
                 ))}
             </View>
@@ -329,8 +332,8 @@ export const CalendarScreen = () => {
             </View>
             <View style={[styles.progressBadge, { backgroundColor: colors.primary }]}>
                <Text style={[styles.progressBadgeText, { fontFamily: fonts.bold }]}>
-                 {((Object.keys(slotStatus).filter(idx => {
-                   const s = slotStatus[idx];
+                 {((Object.keys(selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus).filter(idx => {
+                   const s = (selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus)[idx];
                    const item = currentSlots[idx];
                    return s.status === 'completed' && item?.activity_type !== 'break';
                  }).length / (currentSlots.filter(s => s.activity_type !== 'break').length || 1)) * 100).toFixed(0)}%
@@ -348,7 +351,37 @@ export const CalendarScreen = () => {
            ) : currentSlots.length === 0 ? (
              <View style={styles.emptyCard}>
                 <Ionicons name="calendar-outline" size={32} color="#CBD5E1" style={{ marginBottom: 12 }} />
-                <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>No program found for this day.</Text>
+                <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium, marginBottom: 20 }]}>No program found for this day.</Text>
+                {isTrulyToday && (
+                  <TouchableOpacity 
+                     style={{ width: '100%', height: 56, borderRadius: 16, overflow: 'hidden', elevation: 6, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }} 
+                     onPress={() => {
+                       const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+                       generateSchedule(dStr)
+                         .then(res => {
+                           setSelectedDaySchedule({
+                             ...res,
+                             generatedAt: res.generated_at,
+                             analysisResults: res.analysis_results,
+                             aiSchedule: res.ai_schedule,
+                             hasError: res.has_error,
+                             slotStatuses: res.slot_statuses,
+                           });
+                         })
+                         .catch(err => Alert.alert('Generation Failed', err.message));
+                     }}
+                  >
+                     <LinearGradient
+                       colors={['#6366F1', '#8B5CF6']}
+                       style={{ flex: 1, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 10 }}
+                       start={{ x: 0, y: 0 }}
+                       end={{ x: 1, y: 0 }}
+                     >
+                       <MaterialCommunityIcons name="brain" size={24} color="#FFF" />
+                       <Text style={{ color: '#FFF', fontFamily: fonts.bold, fontSize: 16, letterSpacing: 0.5 }}>Generate AI Plan</Text>
+                     </LinearGradient>
+                  </TouchableOpacity>
+                )}
              </View>
            ) : (
              currentSlots.map((item, idx) => {
@@ -492,9 +525,9 @@ const styles = StyleSheet.create({
   
   calendarGrid: { marginBottom: 30 },
   weekHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  weekDayText: { width: (SCREEN_WIDTH - 44) / 7, textAlign: 'center', fontSize: 13 },
+  weekDayText: { width: '14.28%', textAlign: 'center', fontSize: 13 },
   daysContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' },
-  dayCell: { width: (SCREEN_WIDTH - 44) / 7, height: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
+  dayCell: { width: '14.28%', height: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
   selectedDayCell: { borderRadius: 14 },
   dayText: { fontSize: 16 },
   dayTextOff: { fontSize: 16 },

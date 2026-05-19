@@ -6,7 +6,6 @@ import { useAI } from '../context/ai_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showError, showToast } from '../services/dialogs';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -14,28 +13,48 @@ export const OnboardingScreen = () => {
   const { colors, fonts } = useTheme();
   const { completeOnboarding, userData } = useAI();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState(1);
   
-  // Basic setup only
   const [name, setName] = useState(userData?.name || '');
   const [deadline, setDeadline] = useState(userData?.deadline || '');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [slots, setSlots] = useState([]);
 
   useEffect(() => {
     if (userData?.name && !name) setName(userData.name);
     if (userData?.deadline && !deadline) setDeadline(userData.deadline);
   }, [userData]);
 
-  const handleComplete = async () => {
+  const handleNext = () => {
     if (!name.trim()) return showToast("Please enter your name", true);
     if (!deadline) return showToast("Please select your final exam deadline", true);
+    setStep(2);
+  };
 
+  const handleAddSlot = () => {
+    setSlots([...slots, { date: selectedDate, startTime: '17:00', endTime: '19:00' }]);
+  };
+
+  const handleUpdateSlot = (index, field, value) => {
+    const newSlots = [...slots];
+    newSlots[index][field] = value;
+    setSlots(newSlots);
+  };
+
+  const handleRemoveSlot = (index) => {
+    setSlots(slots.filter((_, i) => i !== index));
+  };
+
+  const handleComplete = async () => {
     setIsSubmitting(true);
     try {
-      // Send empty subjects and slots as per user request to move them post-onboarding
       await completeOnboarding({ 
         name, 
         deadline, 
         subjects: [], 
-        slots: [] 
+        slots 
       });
     } catch (err) {
       setIsSubmitting(false);
@@ -44,83 +63,180 @@ export const OnboardingScreen = () => {
     }
   };
 
+  const renderStep1 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Welcome! 🎓</Text>
+      <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
+        Let's start with the basics. You can add your subjects later in the app.
+      </Text>
+      
+      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
+        <View style={styles.inputHeader}>
+           <Ionicons name="person-circle-outline" size={20} color={colors.primary} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>DISPLAY NAME</Text>
+        </View>
+        <TextInput 
+          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]} 
+          value={name}
+          onChangeText={setName}
+          placeholder="Enter your name"
+          placeholderTextColor={colors.textLight}
+        />
+      </View>
+
+      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
+        <View style={styles.inputHeader}>
+           <Ionicons name="calendar-outline" size={20} color={colors.accent.exam} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL EXAM DEADLINE</Text>
+        </View>
+        {Platform.OS === 'web' ? (
+          <input
+            type="date"
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+            style={{
+              fontSize: 20,
+              fontFamily: 'Outfit_700Bold',
+              color: colors.textDark,
+              backgroundColor: 'transparent',
+              border: 'none',
+              outline: 'none',
+              width: '100%',
+              paddingLeft: 10,
+              marginTop: 5,
+              cursor: 'pointer'
+            }}
+          />
+        ) : (
+          <TextInput 
+            style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]} 
+            value={deadline}
+            onChangeText={setDeadline}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={colors.textLight}
+          />
+        )}
+      </View>
+    </View>
+  );
+
+  const renderStep2 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Study Availability 🕒</Text>
+      <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
+        Choose dates and add your available study times. The AI will build schedules for these dates.
+      </Text>
+
+      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
+        <View style={styles.inputHeader}>
+           <Ionicons name="calendar" size={20} color={colors.primary} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>SELECT DATE</Text>
+        </View>
+        {Platform.OS === 'web' ? (
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            style={{
+              fontSize: 20,
+              fontFamily: 'Outfit_700Bold',
+              color: colors.textDark,
+              backgroundColor: 'transparent',
+              border: 'none',
+              outline: 'none',
+              width: '100%',
+              paddingLeft: 10,
+              marginTop: 5,
+              cursor: 'pointer'
+            }}
+          />
+        ) : (
+          <TextInput 
+            style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]} 
+            value={selectedDate}
+            onChangeText={setSelectedDate}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={colors.textLight}
+          />
+        )}
+      </View>
+
+      <View style={styles.slotsHeader}>
+        <Text style={[styles.slotsTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Time Slots for {selectedDate}</Text>
+        <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={handleAddSlot}>
+          <Ionicons name="add" size={18} color="#FFF" />
+          <Text style={{ color: '#FFF', fontFamily: fonts.bold, fontSize: 12 }}>ADD SLOT</Text>
+        </TouchableOpacity>
+      </View>
+
+      {slots.filter(s => s.date === selectedDate).length === 0 && (
+        <Text style={{ color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center', marginTop: 20 }}>No slots added for this date yet.</Text>
+      )}
+
+      {slots.map((s, i) => {
+        if (s.date !== selectedDate) return null;
+        return (
+          <View key={i} style={[styles.slotItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={{ flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <TextInput 
+                style={[styles.timeInput, { color: colors.textDark, fontFamily: fonts.bold, backgroundColor: colors.cardAlt, outlineStyle: 'none' }]}
+                value={s.startTime}
+                onChangeText={(v) => handleUpdateSlot(i, 'startTime', v)}
+                placeholder="00:00"
+              />
+              <Text style={{ color: colors.textLight, fontFamily: fonts.medium }}>to</Text>
+              <TextInput 
+                style={[styles.timeInput, { color: colors.textDark, fontFamily: fonts.bold, backgroundColor: colors.cardAlt, outlineStyle: 'none' }]}
+                value={s.endTime}
+                onChangeText={(v) => handleUpdateSlot(i, 'endTime', v)}
+                placeholder="23:59"
+              />
+            </View>
+            <TouchableOpacity onPress={() => handleRemoveSlot(i)} style={styles.removeSlotBtn}>
+              <Ionicons name="trash-outline" size={20} color="#FF7675" />
+            </TouchableOpacity>
+          </View>
+        );
+      })}
+
+      {slots.length > 0 && (
+        <View style={{ marginTop: 30 }}>
+            <Text style={{ color: colors.textDark, fontFamily: fonts.bold, marginBottom: 10 }}>All Configured Dates:</Text>
+            {Array.from(new Set(slots.map(s => s.date))).map(d => (
+                <View key={d} style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 10, backgroundColor: colors.surface, borderRadius: 10, marginBottom: 5 }}>
+                    <Text style={{ color: colors.textDark, fontFamily: fonts.medium }}>{d}</Text>
+                    <Text style={{ color: colors.textLight, fontFamily: fonts.medium }}>{slots.filter(s => s.date === d).length} slots</Text>
+                </View>
+            ))}
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
          <View style={styles.progLineBg}>
-            <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: '100%' }]} />
+            <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: step === 1 ? '50%' : '100%' }]} />
          </View>
-         <Text style={[styles.stepLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PROFILE SETUP</Text>
+         <Text style={[styles.stepLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>
+            {step === 1 ? 'PROFILE SETUP' : 'AVAILABILITY SETUP'}
+         </Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.stepContainer}>
-          <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Welcome! 🎓</Text>
-          <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-            Let's start with the basics. You can add your subjects and study times later in the app.
-          </Text>
-          
-          <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
-            <View style={styles.inputHeader}>
-               <Ionicons name="person-circle-outline" size={20} color={colors.primary} />
-               <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>DISPLAY NAME</Text>
-            </View>
-            <TextInput 
-              style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]} 
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter your name"
-              placeholderTextColor={colors.textLight}
-            />
-          </View>
-
-          <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
-            <View style={styles.inputHeader}>
-               <Ionicons name="calendar-outline" size={20} color={colors.accent.exam} />
-               <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL EXAM DEADLINE</Text>
-            </View>
-            {Platform.OS === 'web' ? (
-              <input
-                type="date"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                style={{
-                  fontSize: 20,
-                  fontFamily: 'Outfit_700Bold',
-                  color: colors.textDark,
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  width: '100%',
-                  paddingLeft: 10,
-                  marginTop: 5,
-                  cursor: 'pointer'
-                }}
-              />
-            ) : (
-              <TextInput 
-                style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]} 
-                value={deadline}
-                onChangeText={setDeadline}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.textLight}
-              />
-            )}
-          </View>
-
-          <View style={[styles.metaInfo, { backgroundColor: 'rgba(107, 92, 231, 0.05)', borderColor: colors.primaryLight, borderWidth: 1, marginTop: 20 }]}>
-             <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
-             <Text style={[styles.metaInfoText, { color: colors.textDark, fontFamily: fonts.medium }]}>
-               After this, you can go to the "Subjects" tab to add what you're studying.
-             </Text>
-          </View>
-        </View>
+        {step === 1 ? renderStep1() : renderStep2()}
       </ScrollView>
 
       <View style={styles.bottomActions}>
-         <TouchableOpacity style={[styles.mainBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={handleComplete} disabled={isSubmitting}>
+         {step === 2 && (
+            <TouchableOpacity style={[styles.secondaryBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setStep(1)} disabled={isSubmitting}>
+               <Text style={[styles.secondaryBtnText, { color: colors.textDark, fontFamily: fonts.bold }]}>BACK</Text>
+            </TouchableOpacity>
+         )}
+         <TouchableOpacity style={[styles.mainBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={step === 1 ? handleNext : handleComplete} disabled={isSubmitting}>
             <Text style={[styles.mainBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>
-               {isSubmitting ? 'SETTING UP...' : 'ENTER APP'}
+               {step === 1 ? 'CONTINUE' : (isSubmitting ? 'SETTING UP...' : 'ENTER APP')}
             </Text>
             {!isSubmitting && <Ionicons name="chevron-forward" size={20} color="#FFF" />}
          </TouchableOpacity>
@@ -145,17 +261,23 @@ const styles = StyleSheet.create({
   progLineBg: { height: 4, width: '100%', backgroundColor: '#F0F0FF', borderRadius: 2, marginBottom: 15 },
   progLineFill: { height: '100%', borderRadius: 2 },
   stepLabel: { fontSize: 11, letterSpacing: 2 },
-  stepContainer: { flex: 1 },
+  stepContainer: { flex: 1, paddingBottom: 40 },
   title: { fontSize: 30, marginBottom: 12 },
   subtitle: { fontSize: 16, lineHeight: 24, marginBottom: 40, opacity: 0.8 },
   inputGroup: { padding: 20, borderRadius: 24, marginBottom: 20 },
   inputHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   label: { fontSize: 12, letterSpacing: 1 },
   input: { fontSize: 20, paddingLeft: 10 },
+  slotsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, marginTop: 10 },
+  slotsTitle: { fontSize: 16 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  slotItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 20, borderWidth: 1, marginBottom: 12, gap: 15 },
+  timeInput: { flex: 1, fontSize: 16, padding: 12, borderRadius: 12, textAlign: 'center' },
+  removeSlotBtn: { padding: 10 },
   bottomActions: { flexDirection: 'row', gap: 15, paddingBottom: 40, paddingTop: 20 },
   mainBtn: { height: 64, borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, elevation: 8, shadowColor: '#6B5CE7', shadowOpacity: 0.3, shadowRadius: 15 },
   mainBtnText: { fontSize: 16, letterSpacing: 1 },
+  secondaryBtn: { height: 64, paddingHorizontal: 30, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  secondaryBtnText: { fontSize: 16, letterSpacing: 1 },
   pulseCircle: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center', elevation: 15, shadowColor: '#6B5CE7', shadowOpacity: 0.4, shadowRadius: 20 },
-  metaInfo: { flexDirection: 'row', gap: 18, padding: 25, borderRadius: 28, marginTop: 50 },
-  metaInfoText: { flex: 1, fontSize: 13, lineHeight: 20, opacity: 0.8 }
 });

@@ -58,10 +58,14 @@ public class ScheduleService : IScheduleService
         var hasError = !string.IsNullOrEmpty(response.AiSchedule.Error);
         var mode = ParseMode(response.AnalysisResults.Mode);
 
+        var generationTime = _time.GetUtcNow();
+        var targetDateTime = targetDate.ToDateTime(TimeOnly.FromTimeSpan(generationTime.TimeOfDay));
+        var targetGeneratedAt = new DateTimeOffset(targetDateTime, generationTime.Offset);
+
         var entity = new AiSchedule
         {
             UserId = userId,
-            GeneratedAt = _time.GetUtcNow(),
+            GeneratedAt = targetGeneratedAt,
             Mode = mode,
             BurnoutScore = (decimal)response.AnalysisResults.BurnoutScore,
             IsExhausted = response.AnalysisResults.IsExhausted,
