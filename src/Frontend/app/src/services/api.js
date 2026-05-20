@@ -12,6 +12,7 @@ export const usersApi = {
   me: () => apiClient.get('/users/me').then(r => r.data),
   update: (payload) => apiClient.put('/users/me', payload).then(r => r.data),
   onboard: (payload) => apiClient.post('/users/me/onboarding', payload).then(r => r.data),
+  registerPushToken: (pushToken) => apiClient.post('/users/me/push-token', { pushToken }).then(r => r.data),
 };
 
 export const subjectsApi = {

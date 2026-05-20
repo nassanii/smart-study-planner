@@ -21,6 +21,10 @@ public static class DependencyInjection
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
+        services.AddSingleton<SmartStudyPlanner.Application.Common.INotificationService, SmartStudyPlanner.Infrastructure.Services.FirebaseNotificationService>();
+
+        services.AddHostedService<SmartStudyPlanner.Infrastructure.Services.NotificationSchedulerService>();
+
         services.AddIdentityCore<ApplicationUser>(options =>
             {
                 options.Password.RequiredLength = 8;

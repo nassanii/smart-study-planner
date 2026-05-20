@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SmartStudyPlanner.Application.BehavioralLogs.Services;
 using SmartStudyPlanner.Application.Common;
 using SmartStudyPlanner.Application.FocusSessions.Dtos;
+using SmartStudyPlanner.Application.Identity;
 using SmartStudyPlanner.Application.Persistence;
 using SmartStudyPlanner.Domain.Entities;
 using SmartStudyPlanner.Domain.Enums;
@@ -13,12 +16,14 @@ public class FocusSessionService : IFocusSessionService
     private readonly IAppDbContext _db;
     private readonly IBehavioralLogService _behavioralLogs;
     private readonly TimeProvider _time;
+    private readonly IServiceProvider _serviceProvider;
 
-    public FocusSessionService(IAppDbContext db, IBehavioralLogService behavioralLogs, TimeProvider time)
+    public FocusSessionService(IAppDbContext db, IBehavioralLogService behavioralLogs, TimeProvider time, IServiceProvider serviceProvider)
     {
         _db = db;
         _behavioralLogs = behavioralLogs;
         _time = time;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<IReadOnlyList<FocusSessionDto>> ListAsync(int userId, DateOnly? from, DateOnly? to, CancellationToken ct)
@@ -60,6 +65,58 @@ public class FocusSessionService : IFocusSessionService
         };
         _db.FocusSessions.Add(session);
         await _db.SaveChangesAsync(ct);
+
+        int durationSeconds = dto.Mode switch
+        {
+            FocusMode.Focus25 => 25 * 60,
+            FocusMode.Short5 => 5 * 60,
+            FocusMode.Long15 => 15 * 60,
+            _ => 25 * 60
+        };
+
+        var sessionId = session.Id;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(durationSeconds));
+
+                using var scope = _serviceProvider.CreateScope();
+                var scopedDb = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+                var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+                var currentSession = await scopedDb.FocusSessions
+                    .Include(fs => fs.Subject)
+                    .FirstOrDefaultAsync(fs => fs.Id == sessionId);
+
+                if (currentSession != null && currentSession.CompletedAt == null)
+                {
+                    var user = await userManager.FindByIdAsync(userId.ToString());
+                    if (user != null && !string.IsNullOrWhiteSpace(user.PushToken))
+                    {
+                        string modeName = dto.Mode switch
+                        {
+                            FocusMode.Focus25 => "25-minute focus",
+                            FocusMode.Short5 => "5-minute break",
+                            FocusMode.Long15 => "15-minute break",
+                            _ => "focus"
+                        };
+
+                        await notificationService.SendNotificationAsync(
+                            user.PushToken,
+                            "Focus Session Completed",
+                            $"Great job! Your {modeName} session is complete. Time to take a break and rate your focus!",
+                            CancellationToken.None
+                        );
+                    }
+                }
+            }
+            catch
+            {
+                // Suppress background errors
+            }
+        });
 
         return Map(session, subject.Name);
     }

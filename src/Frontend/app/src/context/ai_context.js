@@ -1,6 +1,52 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import Toast from "react-native-toast-message";
 import { useAuth } from "./auth_context";
 import { tasksApi, behavioralLogsApi, subjectsApi, usersApi, focusApi, scheduleApi } from "../services/api";
+import { pushNotification } from "../services/notifications_bus";
+
+const TASK_CREATED_TITLES = ["Mission Accepted", "Fresh Quest", "Game On, Scholar", "New Challenge"];
+const TASK_CREATED_BODIES = [
+   "'{0}' just landed. {1} min of focus power required. Let's crush it!",
+   "Locked in: '{0}' ({1} min). Channel that focus energy!",
+   "'{0}' is on the board, {1} min ahead. Bring it on!",
+   "Boom! '{0}' is live. {1} min of laser focus await."
+];
+const SUBJECT_ADDED_TITLES = ["Knowledge Library Expanded", "New Subject", "Subject Locked", "Welcome Aboard"];
+const SUBJECT_ADDED_BODIES = [
+   "'{0}' added to your subjects. Ready to master it!",
+   "Welcome '{0}' to your study lineup!",
+   "'{0}' is now part of your plan.",
+   "Subject '{0}' added — your next adventure starts here."
+];
+const PLAN_READY_TITLES = ["Plan Is Ready", "Roadmap Unlocked", "AI Schedule Live", "Time to Shine"];
+const PLAN_READY_BODIES = [
+   "Your personalized study plan is ready!",
+   "Fresh schedule generated. Let's make today productive!",
+   "Your study slots are mapped out.",
+   "AI just optimized your day."
+];
+const FOCUS_DONE_TITLES = ["Session Complete", "Great Job!", "Focus Achieved", "Round Done"];
+const FOCUS_DONE_BODIES = [
+   "Time to take a break and rate your focus!",
+   "Excellent! Step back and reward yourself.",
+   "You crushed it. Time for a quick reset.",
+   "Wrapped up — log your focus rating."
+];
+
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const fmt = (tpl, ...args) => args.reduce((s, a, i) => s.replace(`{${i}}`, a), tpl);
+
+const showInAppNotification = (title, body) => {
+   pushNotification(title, body);
+   Toast.show({
+      type: 'success',
+      text1: title,
+      text2: body,
+      position: 'top',
+      visibilityTime: 5000,
+      topOffset: 60,
+   });
+};
 
 // --- Data Mappers (placed at top for hoisting & safety) ---
 
@@ -161,6 +207,10 @@ export const AIProvider = ({ children }) => {
    const addTask = useCallback(async (payload) => {
       const created = await tasksApi.create(payload);
       setTasks((prev) => [...prev, mapTaskFromApi(created)]);
+      showInAppNotification(
+         pickRandom(TASK_CREATED_TITLES),
+         fmt(pickRandom(TASK_CREATED_BODIES), created.title || payload.title, created.estimatedMinutes || payload.estimatedMinutes)
+      );
       return created;
    }, []);
 
@@ -190,6 +240,10 @@ export const AIProvider = ({ children }) => {
    const addSubject = useCallback(async (payload) => {
       const created = await subjectsApi.create(payload);
       setSubjects((prev) => [...prev, mapSubjectFromApi(created)]);
+      showInAppNotification(
+         pickRandom(SUBJECT_ADDED_TITLES),
+         fmt(pickRandom(SUBJECT_ADDED_BODIES), created.name || payload.name)
+      );
       return created;
    }, []);
 
@@ -240,7 +294,8 @@ export const AIProvider = ({ children }) => {
    const completeFocusSession = useCallback(
       async (id, payload) => {
          const session = await focusApi.complete(id, payload);
-         await reloadAll(); // Full reload to sync tasks, logs, and schedule statuses
+         await reloadAll();
+         showInAppNotification(pickRandom(FOCUS_DONE_TITLES), pickRandom(FOCUS_DONE_BODIES));
          return session;
       },
       [reloadAll],
@@ -250,6 +305,9 @@ export const AIProvider = ({ children }) => {
       const result = await scheduleApi.generate(date);
       const mapped = mapScheduleFromApi(result);
       setLatestSchedule(mapped);
+      if (!result?.hasError) {
+         showInAppNotification(pickRandom(PLAN_READY_TITLES), pickRandom(PLAN_READY_BODIES));
+      }
       return mapped;
    }, []);
 

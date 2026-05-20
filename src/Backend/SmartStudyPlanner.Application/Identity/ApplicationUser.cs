@@ -8,6 +8,7 @@ public class ApplicationUser : IdentityUser<int>
     public string Name { get; set; } = string.Empty;
     public DateOnly? Deadline { get; set; }
     public bool IsOnboarded { get; set; }
+    public string? PushToken { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 

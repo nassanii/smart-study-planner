@@ -35,4 +35,11 @@ public class UsersController : ControllerBase
     [HttpPost("me/onboarding")]
     public async Task<ActionResult<UserMeDto>> Onboard([FromBody] OnboardingDto dto, CancellationToken ct)
         => Ok(await _users.CompleteOnboardingAsync(_currentUser.RequireUserId(), dto, ct));
+
+    [HttpPost("me/push-token")]
+    public async Task<IActionResult> RegisterPushToken([FromBody] RegisterPushTokenDto dto, CancellationToken ct)
+    {
+        await _users.UpdatePushTokenAsync(_currentUser.RequireUserId(), dto.PushToken, ct);
+        return NoContent();
+    }
 }

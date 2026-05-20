@@ -7,4 +7,5 @@ public class UserMeDto
     public string Email { get; set; } = string.Empty;
     public DateOnly? Deadline { get; set; }
     public bool IsOnboarded { get; set; }
+    public string? PushToken { get; set; }
 }

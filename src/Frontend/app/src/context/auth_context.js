@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { authApi } from '../services/api';
 import { setTokens, getTokens, clearTokens } from '../services/auth_storage';
 import { setAuthFailureHandler } from '../services/api_client';
@@ -60,6 +60,19 @@ export const AuthProvider = ({ children }) => {
       setHydrating(false);
     })();
   }, []);
+
+  const pushTokenRegisteredRef = useRef(false);
+  useEffect(() => {
+    if (user && !user.pushToken && !pushTokenRegisteredRef.current) {
+      pushTokenRegisteredRef.current = true;
+      import('../services/notifications')
+        .then(({ registerPushTokenWithBackend }) => registerPushTokenWithBackend())
+        .catch((err) => {
+          pushTokenRegisteredRef.current = false;
+          console.log('[auth] error loading notification service', err);
+        });
+    }
+  }, [user]);
 
   const login = useCallback(async (email, password) => {
     const data = await authApi.login({ email, password });

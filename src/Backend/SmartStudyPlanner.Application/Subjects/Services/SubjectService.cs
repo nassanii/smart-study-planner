@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SmartStudyPlanner.Application.Common;
+using SmartStudyPlanner.Application.Identity;
 using SmartStudyPlanner.Application.Persistence;
 using SmartStudyPlanner.Application.Subjects.Dtos;
 using SmartStudyPlanner.Domain.Entities;
@@ -8,13 +11,31 @@ namespace SmartStudyPlanner.Application.Subjects.Services;
 
 public class SubjectService : ISubjectService
 {
+    private static readonly string[] SubjectAddedTitles =
+    {
+        "New Subject on Your Shelf",
+        "Knowledge Library Expanded",
+        "A Fresh Subject Joins the Crew",
+        "Subject Locked & Loaded"
+    };
+
+    private static readonly string[] SubjectAddedBodies =
+    {
+        "'{0}' has been added to your subjects. Ready to master it!",
+        "Welcome '{0}' to your study lineup. Let the journey begin!",
+        "'{0}' is now part of your plan. Time to dive in!",
+        "Subject '{0}' added — your next adventure starts here."
+    };
+
     private readonly IAppDbContext _db;
     private readonly TimeProvider _time;
+    private readonly IServiceProvider _serviceProvider;
 
-    public SubjectService(IAppDbContext db, TimeProvider time)
+    public SubjectService(IAppDbContext db, TimeProvider time, IServiceProvider serviceProvider)
     {
         _db = db;
         _time = time;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<IReadOnlyList<SubjectDto>> ListAsync(int userId, CancellationToken ct)
@@ -52,7 +73,32 @@ public class SubjectService : ISubjectService
         };
         _db.Subjects.Add(entity);
         await _db.SaveChangesAsync(ct);
+
+        _ = SendSubjectAddedNotificationAsync(userId, entity.Name);
+
         return Map(entity);
+    }
+
+    private async Task SendSubjectAddedNotificationAsync(int userId, string subjectName)
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is null || string.IsNullOrWhiteSpace(user.PushToken)) return;
+
+            var random = Random.Shared;
+            var title = SubjectAddedTitles[random.Next(SubjectAddedTitles.Length)];
+            var body = string.Format(SubjectAddedBodies[random.Next(SubjectAddedBodies.Length)], subjectName);
+
+            await notificationService.SendNotificationAsync(user.PushToken, title, body, CancellationToken.None);
+        }
+        catch
+        {
+        }
     }
 
     public async Task<SubjectDto> UpdateAsync(int userId, int id, UpdateSubjectDto dto, CancellationToken ct)

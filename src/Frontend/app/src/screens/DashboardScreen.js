@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Modal, FlatList, Pressable } from "react-native";
 import { useTheme } from "../theme/theme";
 import { useAI } from "../context/ai_context";
 import { useAuth } from "../context/auth_context";
@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BarChart, PieChart } from "react-native-chart-kit";
 import { analyticsApi } from "../services/api";
 import { useFocus } from "../context/focus_context";
+import { subscribeNotifications, markAllRead, clearNotifications } from "../services/notifications_bus";
 
 export const DashboardScreen = () => {
    const { colors, fonts } = useTheme();
@@ -17,7 +18,32 @@ export const DashboardScreen = () => {
    const [insights, setInsights] = useState(null);
    const [showAiAlert, setShowAiAlert] = useState(true);
    const [showDailyCheckin, setShowDailyCheckin] = useState(false);
+   const [showNotifs, setShowNotifs] = useState(false);
+   const [notifs, setNotifs] = useState([]);
+   const [unread, setUnread] = useState(0);
    const didLoad = useRef(false);
+
+   useEffect(() => {
+      return subscribeNotifications(({ items, unreadCount }) => {
+         setNotifs(items);
+         setUnread(unreadCount);
+      });
+   }, []);
+
+   const openNotifs = () => {
+      setShowNotifs(true);
+      markAllRead();
+   };
+
+   const formatRelativeTime = (iso) => {
+      const diff = Date.now() - new Date(iso).getTime();
+      const m = Math.floor(diff / 60000);
+      if (m < 1) return "just now";
+      if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h}h ago`;
+      return `${Math.floor(h / 24)}d ago`;
+   };
 
    useEffect(() => {
       if (didLoad.current) return;
@@ -71,9 +97,13 @@ export const DashboardScreen = () => {
                <Text style={[styles.userName, { color: colors.textDark, fontFamily: fonts.bold }]}>{user?.name || "Student"}</Text>
             </View>
             <View style={styles.headerRight}>
-               <TouchableOpacity style={styles.iconBtn}>
+               <TouchableOpacity style={styles.iconBtn} onPress={openNotifs}>
                   <Ionicons name="notifications" size={22} color={colors.textDark} />
-                  <View style={styles.notifDot} />
+                  {unread > 0 && (
+                     <View style={styles.notifBadge}>
+                        <Text style={styles.notifBadgeText}>{unread > 9 ? "9+" : unread}</Text>
+                     </View>
+                  )}
                </TouchableOpacity>
                <LinearGradient colors={[colors.primary, "#8575F3"]} style={styles.avatar}>
                   <Text style={[styles.avatarText, { fontFamily: fonts.bold }]}>{initial}</Text>
@@ -305,6 +335,50 @@ export const DashboardScreen = () => {
                })
             )}
          </View>
+
+         <Modal visible={showNotifs} animationType="slide" transparent onRequestClose={() => setShowNotifs(false)}>
+            <Pressable style={styles.modalBackdrop} onPress={() => setShowNotifs(false)}>
+               <Pressable style={[styles.modalSheet, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
+                  <View style={styles.modalHeader}>
+                     <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Notifications</Text>
+                     <View style={{ flexDirection: "row", gap: 12 }}>
+                        {notifs.length > 0 && (
+                           <TouchableOpacity onPress={() => clearNotifications()}>
+                              <Text style={{ color: colors.primary, fontFamily: fonts.medium }}>Clear</Text>
+                           </TouchableOpacity>
+                        )}
+                        <TouchableOpacity onPress={() => setShowNotifs(false)}>
+                           <Ionicons name="close" size={22} color={colors.textDark} />
+                        </TouchableOpacity>
+                     </View>
+                  </View>
+                  {notifs.length === 0 ? (
+                     <View style={{ alignItems: "center", paddingVertical: 60 }}>
+                        <Ionicons name="notifications-off-outline" size={48} color={colors.textLight} />
+                        <Text style={{ color: colors.textLight, fontFamily: fonts.medium, marginTop: 12 }}>No notifications yet</Text>
+                     </View>
+                  ) : (
+                     <FlatList
+                        data={notifs}
+                        keyExtractor={(item) => item.id}
+                        style={{ maxHeight: 480 }}
+                        renderItem={({ item }) => (
+                           <View style={[styles.notifItem, { borderBottomColor: colors.border }]}>
+                              <View style={[styles.notifIcon, { backgroundColor: colors.primaryLight }]}>
+                                 <Ionicons name="notifications" size={18} color={colors.primary} />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                 <Text style={[styles.notifTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{item.title}</Text>
+                                 <Text style={[styles.notifBody, { color: colors.textLight, fontFamily: fonts.medium }]}>{item.body}</Text>
+                                 <Text style={[styles.notifTime, { color: colors.textLight, fontFamily: fonts.medium }]}>{formatRelativeTime(item.createdAt)}</Text>
+                              </View>
+                           </View>
+                        )}
+                     />
+                  )}
+               </Pressable>
+            </Pressable>
+         </Modal>
       </ScrollView>
    );
 };
@@ -337,6 +411,30 @@ const styles = StyleSheet.create({
       borderWidth: 2,
       borderColor: "#FFF",
    },
+   notifBadge: {
+      position: "absolute",
+      top: 6,
+      right: 6,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 4,
+      backgroundColor: "#F43F5E",
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: "#FFF",
+      justifyContent: "center",
+      alignItems: "center",
+   },
+   notifBadgeText: { color: "#FFF", fontSize: 10, fontWeight: "bold" },
+   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, maxHeight: "75%" },
+   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#EEE" },
+   modalTitle: { fontSize: 18 },
+   notifItem: { flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1, gap: 12 },
+   notifIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+   notifTitle: { fontSize: 14, marginBottom: 4 },
+   notifBody: { fontSize: 13, lineHeight: 18 },
+   notifTime: { fontSize: 11, marginTop: 4 },
    avatar: { width: 44, height: 44, borderRadius: 14, justifyContent: "center", alignItems: "center" },
    avatarText: { color: "#FFF", fontSize: 16 },
    aiCard: { flexDirection: "row", padding: 18, borderRadius: 20, marginBottom: 30, alignItems: "center", borderWidth: 1 },

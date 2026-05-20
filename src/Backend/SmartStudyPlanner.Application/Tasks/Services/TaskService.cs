@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SmartStudyPlanner.Application.BehavioralLogs.Services;
 using SmartStudyPlanner.Application.Common;
+using SmartStudyPlanner.Application.Identity;
 using SmartStudyPlanner.Application.Persistence;
 using SmartStudyPlanner.Application.Tasks.Dtos;
 using SmartStudyPlanner.Domain.Entities;
@@ -10,15 +13,39 @@ namespace SmartStudyPlanner.Application.Tasks.Services;
 
 public class TaskService : ITaskService
 {
+    private static readonly string[] CreativeTitles =
+    {
+        "New Study Mission Unlocked",
+        "Mission Accepted",
+        "Fresh Quest in Your Queue",
+        "Game On, Scholar!",
+        "Your Next Challenge Awaits"
+    };
+
+    private static readonly string[] CreativeBodies =
+    {
+        "'{0}' just landed on your roadmap. {1} minutes of focus power required. Let's crush it!",
+        "Locked in: '{0}' ({1} min of brainwork). Time to channel that focus energy.",
+        "'{0}' is on the board, {1} minutes of deep work ahead. Bring it on!",
+        "Heads up — '{0}' added to your plan. Estimated grind: {1} min. You got this!",
+        "Boom! '{0}' is live. {1} minutes of laser focus await. Make it count!"
+    };
+
     private readonly IAppDbContext _db;
     private readonly IBehavioralLogService _behavioralLogs;
     private readonly TimeProvider _time;
+    private readonly IServiceProvider _serviceProvider;
 
-    public TaskService(IAppDbContext db, IBehavioralLogService behavioralLogs, TimeProvider time)
+    public TaskService(
+        IAppDbContext db,
+        IBehavioralLogService behavioralLogs,
+        TimeProvider time,
+        IServiceProvider serviceProvider)
     {
         _db = db;
         _behavioralLogs = behavioralLogs;
         _time = time;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<IReadOnlyList<TaskDto>> ListAsync(int userId, TaskFilter filter, CancellationToken ct)
@@ -70,7 +97,33 @@ public class TaskService : ITaskService
         await _db.SaveChangesAsync(ct);
 
         await _db.Entry(entity).Reference(e => e.Subject).LoadAsync(ct);
+
+        _ = SendTaskCreatedNotificationAsync(userId, entity.Title, entity.EstimatedMinutes);
+
         return Map(entity);
+    }
+
+    private async Task SendTaskCreatedNotificationAsync(int userId, string title, int estimatedMinutes)
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is null || string.IsNullOrWhiteSpace(user.PushToken)) return;
+
+            var random = Random.Shared;
+            var pushTitle = CreativeTitles[random.Next(CreativeTitles.Length)];
+            var pushBody = string.Format(CreativeBodies[random.Next(CreativeBodies.Length)], title, estimatedMinutes);
+
+            await notificationService.SendNotificationAsync(user.PushToken, pushTitle, pushBody, CancellationToken.None);
+        }
+        catch
+        {
+            // Suppress background errors
+        }
     }
 
     public async Task<TaskDto> UpdateAsync(int userId, int id, UpdateTaskDto dto, CancellationToken ct)

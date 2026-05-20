@@ -1,6 +1,10 @@
 # Secrets / env
 .env
 .env.local
+secrets/
+**/firebase-service-account*.json
+**/google-services.json
+**/GoogleService-Info.plist
 
 # Python
 .venv/
@@ -33,6 +37,7 @@ Thumbs.db
 # Local logs
 logs/
 *.tsbuildinfo
+.dev-backend.log
 
 # AI
 src/AI/venv/

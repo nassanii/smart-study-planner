@@ -3,7 +3,8 @@ import Constants from 'expo-constants';
 import { getTokens, setTokens, clearTokens } from './auth_storage';
 import { incrementLoading, decrementLoading } from './loading_bus';
 
-const baseURL = Constants.expoConfig?.extra?.apiBaseUrl
+const baseURL = process.env.EXPO_PUBLIC_API_BASE_URL
+  || Constants.expoConfig?.extra?.apiBaseUrl
   || Constants.manifest?.extra?.apiBaseUrl
   || 'http://localhost:5080/api/v1';
 

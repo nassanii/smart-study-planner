@@ -119,12 +119,32 @@ public class UserService : IUserService
         return Map(user);
     }
 
+    public async Task UpdatePushTokenAsync(int userId, string pushToken, CancellationToken ct)
+    {
+        var user = await _users.FindByIdAsync(userId.ToString())
+            ?? throw new NotFoundException("User", userId);
+
+        if (user.PushToken == pushToken) return;
+
+        user.PushToken = pushToken;
+        user.UpdatedAt = _time.GetUtcNow();
+
+        var result = await _users.UpdateAsync(user);
+        if (result.Succeeded) return;
+
+        var refreshed = await _users.FindByIdAsync(userId.ToString());
+        if (refreshed?.PushToken == pushToken) return;
+
+        throw new ConflictException(string.Join("; ", result.Errors.Select(e => e.Description)));
+    }
+
     private static UserMeDto Map(ApplicationUser u) => new()
     {
         UserId = u.Id,
         Name = u.Name,
         Email = u.Email ?? string.Empty,
         Deadline = u.Deadline,
-        IsOnboarded = u.IsOnboarded
+        IsOnboarded = u.IsOnboarded,
+        PushToken = u.PushToken
     };
 }

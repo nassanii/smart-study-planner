@@ -7,4 +7,5 @@ public interface IUserService
 {
     Task<UserMeDto> UpdateAsync(int userId, UpdateUserDto dto, CancellationToken ct);
     Task<UserMeDto> CompleteOnboardingAsync(int userId, OnboardingDto dto, CancellationToken ct);
+    Task UpdatePushTokenAsync(int userId, string pushToken, CancellationToken ct);
 }

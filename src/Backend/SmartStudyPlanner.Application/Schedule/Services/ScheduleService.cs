@@ -1,8 +1,11 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SmartStudyPlanner.Application.Ai;
 using SmartStudyPlanner.Application.Common;
+using SmartStudyPlanner.Application.Identity;
 using SmartStudyPlanner.Application.Persistence;
 using SmartStudyPlanner.Application.Schedule.Dtos;
 using SmartStudyPlanner.Application.Schedule.Dtos.AiPayload;
@@ -20,19 +23,37 @@ public class ScheduleService : IScheduleService
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly string[] PlanReadyTitles =
+    {
+        "Your Plan Is Ready",
+        "Today's Study Roadmap Unlocked",
+        "Your AI-Powered Schedule Is Live",
+        "Plan Generated — Time to Shine"
+    };
+
+    private static readonly string[] PlanReadyBodies =
+    {
+        "Your personalized study plan is ready. Open the app and start crushing it!",
+        "Fresh schedule generated for you. Let's make today productive!",
+        "Your study slots are mapped out. Time to focus and conquer.",
+        "AI just optimized your day. Tap to see what's next on the agenda."
+    };
+
     private readonly IAppDbContext _db;
     private readonly IAiClient _ai;
     private readonly SchedulePayloadBuilder _builder;
     private readonly TimeProvider _time;
     private readonly ILogger<ScheduleService> _log;
+    private readonly IServiceProvider _serviceProvider;
 
-    public ScheduleService(IAppDbContext db, IAiClient ai, SchedulePayloadBuilder builder, TimeProvider time, ILogger<ScheduleService> log)
+    public ScheduleService(IAppDbContext db, IAiClient ai, SchedulePayloadBuilder builder, TimeProvider time, ILogger<ScheduleService> log, IServiceProvider serviceProvider)
     {
         _db = db;
         _ai = ai;
         _builder = builder;
         _time = time;
         _log = log;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<GenerateScheduleResponse> GenerateAsync(int userId, DateOnly? date, CancellationToken ct)
@@ -80,6 +101,10 @@ public class ScheduleService : IScheduleService
         if (hasError)
         {
             _log.LogWarning("AI returned error for user {UserId}: {Error}", userId, response.AiSchedule.Error);
+        }
+        else
+        {
+            _ = SendPlanReadyNotificationAsync(userId);
         }
 
         return new GenerateScheduleResponse
@@ -165,6 +190,28 @@ public class ScheduleService : IScheduleService
                 AiMessage = a.AiMessage
             })
             .ToListAsync(ct);
+    }
+
+    private async Task SendPlanReadyNotificationAsync(int userId)
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is null || string.IsNullOrWhiteSpace(user.PushToken)) return;
+
+            var random = Random.Shared;
+            var title = PlanReadyTitles[random.Next(PlanReadyTitles.Length)];
+            var body = PlanReadyBodies[random.Next(PlanReadyBodies.Length)];
+
+            await notificationService.SendNotificationAsync(user.PushToken, title, body, CancellationToken.None);
+        }
+        catch
+        {
+        }
     }
 
     internal static ScheduleMode ParseMode(string raw)

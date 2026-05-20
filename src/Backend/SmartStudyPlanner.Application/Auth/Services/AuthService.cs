@@ -229,6 +229,7 @@ public class AuthService : IAuthService
         Name = u.Name,
         Email = u.Email ?? string.Empty,
         Deadline = u.Deadline,
-        IsOnboarded = u.IsOnboarded
+        IsOnboarded = u.IsOnboarded,
+        PushToken = u.PushToken
     };
 }
