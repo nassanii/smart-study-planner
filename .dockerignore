@@ -1,0 +1,17 @@
+.git
+.github
+.dev-logs
+node_modules
+**/node_modules
+**/bin
+**/obj
+**/dist
+**/.expo
+**/.gradle
+src/Frontend/app/android/.gradle
+src/Frontend/app/android/app/build
+src/Frontend/app/android/build
+src/AI/reports
+src/Backend/SmartStudyPlanner.Api/smart_study_planner.db*
+*.log
+.DS_Store

@@ -9,7 +9,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator
 } from 'react-native';
 import { useTheme } from '../theme/theme';
@@ -17,14 +16,6 @@ import { useAuth } from '../context/auth_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppNavigation } from '../context/navigation_context';
-
-const showAlert = (title, message) => {
-  if (Platform.OS === 'web') {
-    if (typeof window !== 'undefined' && window.alert) window.alert(`${title}\n\n${message}`);
-  } else {
-    Alert.alert(title, message);
-  }
-};
 
 export const LoginScreen = () => {
   const { colors, fonts } = useTheme();
@@ -40,10 +31,6 @@ export const LoginScreen = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-
-  const handleForgot = () => {
-    showAlert('Reset Password', 'A password reset link has been sent to your email.');
-  };
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -95,6 +82,7 @@ export const LoginScreen = () => {
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient
@@ -234,9 +222,6 @@ export const LoginScreen = () => {
                     </View>
                     <Text style={[styles.checkText, { color: colors.textLight, fontFamily: fonts.medium }]}>Remember me</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleForgot}>
-                   <Text style={[styles.forgotText, { color: colors.primary, fontFamily: fonts.bold }]}>Forgot?</Text>
-                </TouchableOpacity>
              </View>
            )}
 
@@ -272,23 +257,6 @@ export const LoginScreen = () => {
               </LinearGradient>
            </TouchableOpacity>
 
-           <View style={styles.dividerRow}>
-              <View style={[styles.line, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { color: colors.textLight, fontFamily: fonts.bold }]}> OR </Text>
-              <View style={[styles.line, { backgroundColor: colors.border }]} />
-           </View>
-
-           <View style={styles.socialRow}>
-              {['logo-google', 'logo-apple'].map(icon => (
-                <TouchableOpacity key={icon} style={[styles.socialBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                   <Ionicons name={icon} size={24} color={colors.textDark} />
-                   <Text style={[styles.socialText, { color: colors.textDark, fontFamily: fonts.bold }]}>
-                      {icon === 'logo-google' ? 'Google' : 'Apple ID'}
-                   </Text>
-                </TouchableOpacity>
-              ))}
-           </View>
-
            <View style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.textLight, fontFamily: fonts.medium }]}>
                 {loginMode === 'login' ? "New here? " : "Joined already? "}
@@ -321,20 +289,13 @@ const styles = StyleSheet.create({
   label: { fontSize: 15, marginBottom: 12, marginLeft: 4, letterSpacing: 0.5 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, height: 64, borderRadius: 20, borderWidth: 0, marginBottom: 25, gap: 15 },
   input: { flex: 1, fontSize: 18, outlineStyle: 'none' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 35, paddingHorizontal: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 35, paddingHorizontal: 4 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkbox: { width: 22, height: 22, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
   checkText: { fontSize: 14 },
-  forgotText: { fontSize: 14 },
   loginBtn: { height: 64, borderRadius: 20, overflow: 'hidden', marginBottom: 35, elevation: 8, shadowColor: '#6B5CE7', shadowOpacity: 0.3, shadowRadius: 15, shadowOffset: { width: 0, height: 8 } },
   gradientBtn: { flex: 1, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
   loginBtnText: { color: '#FFF', fontSize: 17 },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 30 },
-  line: { flex: 1, height: 1.5 },
-  dividerText: { fontSize: 12, marginHorizontal: 15, letterSpacing: 1 },
-  socialRow: { flexDirection: 'row', justifyContent: 'center', gap: 15, marginBottom: 45 },
-  socialBtn: { flex: 1, height: 58, borderRadius: 18, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
-  socialText: { fontSize: 15 },
   footer: { alignItems: 'center' },
   footerText: { fontSize: 15 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 18 },

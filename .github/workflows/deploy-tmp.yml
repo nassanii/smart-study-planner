@@ -1,0 +1,39 @@
+name: Deploy TMP
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.TMP_SSH_KEY }}" > ~/.ssh/tmp_deploy_key
+          chmod 600 ~/.ssh/tmp_deploy_key
+          ssh-keyscan -H "${{ secrets.TMP_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync source to server
+        run: |
+          ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+            'mkdir -p /TMP/smart-study-planner/source'
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.dev-logs' \
+            --exclude 'src/Frontend/app/android/.gradle' \
+            --exclude 'src/Frontend/app/android/app/build' \
+            -e "ssh -i ~/.ssh/tmp_deploy_key" \
+            ./ "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/TMP/smart-study-planner/source/"
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+            'cd /TMP/smart-study-planner/source && bash deploy/tmp/deploy-remote.sh'

@@ -1,3 +1,9 @@
+const fs = require("fs");
+
+const googleServicesFile =
+  process.env.GOOGLE_SERVICES_JSON ||
+  (fs.existsSync("./google-services.json") ? "./google-services.json" : undefined);
+
 module.exports = {
   expo: {
     name: "Smart Study Planner",
@@ -18,8 +24,7 @@ module.exports = {
     },
     android: {
       package: "com.smartstudyplanner.app",
-      googleServicesFile:
-        process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
+      ...(googleServicesFile ? { googleServicesFile } : {}),
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff",

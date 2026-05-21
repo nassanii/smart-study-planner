@@ -1,0 +1,61 @@
+name: tmp-smart-study-planner
+
+services:
+  ai:
+    container_name: tmp-smart-ai
+    build:
+      context: ../..
+      dockerfile: deploy/tmp/ai.Dockerfile
+    restart: unless-stopped
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    expose:
+      - "8000"
+    networks:
+      - lisan_default
+
+  backend:
+    container_name: tmp-smart-backend
+    build:
+      context: ../..
+      dockerfile: deploy/tmp/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:5080
+      APPDB_CONNECTION: Data Source=/data/smart_study_planner.db
+      ConnectionStrings__AppDb: Data Source=/data/smart_study_planner.db
+      Jwt__Issuer: smart-study-planner-tmp
+      Jwt__Audience: smart-study-planner-tmp-clients
+      Jwt__SigningKey: ${TMP_JWT_SIGNING_KEY}
+      AiService__BaseUrl: http://tmp-smart-ai:8000/api/v1/
+      AiService__TimeoutSeconds: "90"
+    volumes:
+      - /TMP/smart-study-planner/data/backend:/data
+    depends_on:
+      - ai
+    expose:
+      - "5080"
+    networks:
+      - lisan_default
+
+  frontend:
+    container_name: tmp-smart-frontend
+    build:
+      context: ../..
+      dockerfile: deploy/tmp/frontend.Dockerfile
+      args:
+        EXPO_PUBLIC_API_BASE_URL: ${TMP_API_URL}/api/v1
+    restart: unless-stopped
+    depends_on:
+      - backend
+    expose:
+      - "80"
+    networks:
+      - lisan_default
+
+networks:
+  lisan_default:
+    external: true
