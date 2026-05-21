@@ -9,9 +9,9 @@ ENV_FILE="$RUNTIME_DIR/.env"
 SERVER_IP="${SERVER_IP:-187.77.109.189}"
 SSLIP_HOST="${SERVER_IP//./-}.sslip.io"
 
-FRONT_HOST="${FRONT_HOST:-tmp-smart.$SSLIP_HOST}"
-API_HOST="${API_HOST:-tmp-smart-api.$SSLIP_HOST}"
-AI_HOST="${AI_HOST:-tmp-smart-ai.$SSLIP_HOST}"
+FRONT_HOST="${FRONT_HOST:-smart-study-project.$SSLIP_HOST}"
+API_HOST="${API_HOST:-api.smart-study-project.$SSLIP_HOST}"
+AI_HOST="${AI_HOST:-ai.smart-study-project.$SSLIP_HOST}"
 
 FRONT_URL="https://$FRONT_HOST"
 API_URL="https://$API_HOST"
@@ -20,18 +20,28 @@ AI_URL="https://$AI_HOST"
 CADDYFILE="/opt/lisan/ops/caddy/Caddyfile"
 MARKER_BEGIN="# BEGIN TMP_SMART_STUDY_PLANNER"
 MARKER_END="# END TMP_SMART_STUDY_PLANNER"
+PATH_MARKER_BEGIN="# BEGIN TMP_SMART_STUDY_PLANNER_PATHS"
+PATH_MARKER_END="# END TMP_SMART_STUDY_PLANNER_PATHS"
 
 mkdir -p "$TMP_ROOT/data/backend" "$RUNTIME_DIR"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   TMP_JWT_SIGNING_KEY="$(openssl rand -base64 48)"
-  {
-    printf 'TMP_JWT_SIGNING_KEY=%q\n' "$TMP_JWT_SIGNING_KEY"
-    printf 'TMP_API_URL=%q\n' "$API_URL"
-    printf 'TMP_FRONT_URL=%q\n' "$FRONT_URL"
-    printf 'TMP_AI_URL=%q\n' "$AI_URL"
-  } > "$ENV_FILE"
+else
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
 fi
+
+TMP_API_URL="$API_URL"
+TMP_FRONT_URL="$FRONT_URL"
+TMP_AI_URL="$AI_URL"
+
+{
+  printf 'TMP_JWT_SIGNING_KEY=%q\n' "$TMP_JWT_SIGNING_KEY"
+  printf 'TMP_API_URL=%q\n' "$TMP_API_URL"
+  printf 'TMP_FRONT_URL=%q\n' "$TMP_FRONT_URL"
+  printf 'TMP_AI_URL=%q\n' "$TMP_AI_URL"
+} > "$ENV_FILE"
 
 set -a
 source "$ENV_FILE"
@@ -48,9 +58,13 @@ if [[ ! -f "$CADDYFILE" ]]; then
 fi
 
 tmp_caddy="$(mktemp)"
-awk -v begin="$MARKER_BEGIN" -v end="$MARKER_END" '
-  $0 == begin { skip = 1; next }
-  $0 == end { skip = 0; next }
+awk \
+  -v begin="$MARKER_BEGIN" \
+  -v end="$MARKER_END" \
+  -v path_begin="$PATH_MARKER_BEGIN" \
+  -v path_end="$PATH_MARKER_END" '
+  $0 == begin || $0 == path_begin { skip = 1; next }
+  $0 == end || $0 == path_end { skip = 0; next }
   !skip { print }
 ' "$CADDYFILE" > "$tmp_caddy"
 
