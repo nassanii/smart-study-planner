@@ -11,14 +11,14 @@ const TASK_CREATED_BODIES = [
    "'{0}' is on the board, {1} min ahead. Bring it on!",
    "Boom! '{0}' is live. {1} min of laser focus await."
 ];
-const SUBJECT_ADDED_TITLES = ["Knowledge Library Expanded", "New Subject", "Subject Locked", "Welcome Aboard"];
+const SUBJECT_ADDED_TITLES = ["Course Added", "New Course", "Course Locked", "Welcome Aboard"];
 const SUBJECT_ADDED_BODIES = [
-   "'{0}' added to your subjects. Ready to master it!",
-   "Welcome '{0}' to your study lineup!",
+   "'{0}' added to your courses. Ready to master it!",
+   "Welcome '{0}' to your course lineup!",
    "'{0}' is now part of your plan.",
-   "Subject '{0}' added — your next adventure starts here."
+   "Course '{0}' added. Your next study block starts here."
 ];
-const PLAN_READY_TITLES = ["Plan Is Ready", "Roadmap Unlocked", "AI Schedule Live", "Time to Shine"];
+const PLAN_READY_TITLES = ["Plan Is Ready", "Roadmap Unlocked", "Schedule Live", "Time to Study"];
 const PLAN_READY_BODIES = [
    "Your personalized study plan is ready!",
    "Fresh schedule generated. Let's make today productive!",
@@ -237,6 +237,12 @@ export const AIProvider = ({ children }) => {
       setTasks((prev) => prev.filter((t) => t.id !== id));
    }, []);
 
+   const updateTask = useCallback(async (id, payload) => {
+      const updated = await tasksApi.update(id, payload);
+      setTasks((prev) => prev.map((t) => (t.id === id ? mapTaskFromApi(updated) : t)));
+      return updated;
+   }, []);
+
    const addSubject = useCallback(async (payload) => {
       const created = await subjectsApi.create(payload);
       setSubjects((prev) => [...prev, mapSubjectFromApi(created)]);
@@ -301,8 +307,8 @@ export const AIProvider = ({ children }) => {
       [reloadAll],
    );
 
-   const generateSchedule = useCallback(async (date) => {
-      const result = await scheduleApi.generate(date);
+   const generateSchedule = useCallback(async (date, options = {}) => {
+      const result = await scheduleApi.generate(date, !!options.useAi);
       const mapped = mapScheduleFromApi(result);
       setLatestSchedule(mapped);
       if (!result?.hasError) {
@@ -330,6 +336,7 @@ export const AIProvider = ({ children }) => {
             completeTask,
             snoozeTask,
             removeTask,
+            updateTask,
             completeOnboarding,
             startFocusSession,
             completeFocusSession,

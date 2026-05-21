@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const NavigationContext = createContext(null);
 const TAB_PERSIST_KEY = 'ssp.activeTab';
+const PRIMARY_TABS = ['home', 'calendar', 'subjects', 'focus', 'profile'];
 
 export const NavigationProvider = ({ children }) => {
   const [activeTab, _setActiveTab] = useState('home');
@@ -14,7 +15,7 @@ export const NavigationProvider = ({ children }) => {
     (async () => {
       try {
         const savedTab = await AsyncStorage.getItem(TAB_PERSIST_KEY);
-        if (savedTab) {
+        if (savedTab && PRIMARY_TABS.includes(savedTab)) {
           _setActiveTab(savedTab);
         }
       } catch (err) {
@@ -27,6 +28,7 @@ export const NavigationProvider = ({ children }) => {
 
   const setActiveTab = async (tabId) => {
     _setActiveTab(tabId);
+    if (!PRIMARY_TABS.includes(tabId)) return;
     try {
       await AsyncStorage.setItem(TAB_PERSIST_KEY, tabId);
     } catch (err) {

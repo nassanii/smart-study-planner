@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Alert } from 'react-native';
-import Toast from 'react-native-toast-message';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { useAppNavigation } from '../context/navigation_context';
@@ -8,7 +7,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { focusApi, scheduleApi } from '../services/api';
 import { DailyCheckinModal } from '../components/DailyCheckinModal';
-import { pushNotification } from '../services/notifications_bus';
 
 import { useFocus } from '../context/focus_context';
 
@@ -28,22 +26,6 @@ export const CalendarScreen = () => {
   const [snoozeReason, setSnoozeReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [showPlanWizard, setShowPlanWizard] = useState(false);
-
-  // Manual slot state
-  const [showManualModal, setShowManualModal] = useState(false);
-  const [manualHour, setManualHour] = useState('09');
-  const [manualMinute, setManualMinute] = useState('00');
-  const [manualDuration, setManualDuration] = useState(30);
-  const [manualSubjectId, setManualSubjectId] = useState(null);
-  const [manualSlotsByDate, setManualSlotsByDate] = useState({});
-  const reminderTimersRef = useRef([]);
-
-  useEffect(() => {
-    return () => {
-      reminderTimersRef.current.forEach((id) => clearTimeout(id));
-      reminderTimersRef.current = [];
-    };
-  }, []);
 
   const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral, reloadAll, generateSchedule } = useAI();
   const { slotStatuses: slotStatus, setSlotStatuses: setSlotStatus, activeSlotIndex } = useFocus();
@@ -71,74 +53,11 @@ export const CalendarScreen = () => {
 
   // Date key for current selection
   const selectedDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-  const manualSlotsForDay = manualSlotsByDate[selectedDateKey] || [];
-
-  // Merge manual slots with AI slots, sorted by start time
-  const currentSlots = [...mappedSlots, ...manualSlotsForDay].sort((a, b) => {
+  const currentSlots = [...mappedSlots].sort((a, b) => {
     const startA = (a.time_slot || '').split('-')[0].trim();
     const startB = (b.time_slot || '').split('-')[0].trim();
     return startA.localeCompare(startB);
   });
-
-  const addManualSlot = () => {
-    const h = Math.max(0, Math.min(23, parseInt(manualHour, 10) || 0));
-    const m = Math.max(0, Math.min(59, parseInt(manualMinute, 10) || 0));
-    const startStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    const endTotal = h * 60 + m + manualDuration;
-    const endH = Math.floor(endTotal / 60) % 24;
-    const endM = endTotal % 60;
-    const endStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-    const subject = subjects.find(s => s.id === manualSubjectId);
-    const subjectName = subject?.name || 'Custom';
-
-    const slot = {
-      time_slot: `${startStr}-${endStr}`,
-      subject: subjectName,
-      adjusted_duration_minutes: manualDuration,
-      activity_type: 'study',
-      subject_id: subject?.id || null,
-      is_manual: true,
-    };
-
-    setManualSlotsByDate(prev => ({
-      ...prev,
-      [selectedDateKey]: [...(prev[selectedDateKey] || []), slot],
-    }));
-
-    // Schedule a 5-min-before reminder (only if the slot start is in the future)
-    const slotStart = new Date(year, month, selectedDay, h, m, 0, 0);
-    const reminderAt = slotStart.getTime() - 5 * 60 * 1000;
-    const msUntil = reminderAt - Date.now();
-    if (msUntil > 0) {
-      const timerId = setTimeout(() => {
-        const title = 'Study Slot Starting Soon';
-        const body = `Heads up: '${subjectName}' starts in 5 minutes. Get ready to focus!`;
-        pushNotification(title, body);
-        Toast.show({ type: 'info', text1: title, text2: body, position: 'top', visibilityTime: 6000, topOffset: 60 });
-      }, msUntil);
-      reminderTimersRef.current.push(timerId);
-      Toast.show({
-        type: 'success',
-        text1: 'Slot scheduled',
-        text2: `Reminder set 5 min before ${startStr}`,
-        position: 'top',
-        visibilityTime: 3500,
-        topOffset: 60,
-      });
-    } else {
-      Toast.show({
-        type: 'success',
-        text1: 'Slot added',
-        text2: `${startStr} - ${endStr} (start time already passed, no reminder)`,
-        position: 'top',
-        visibilityTime: 3500,
-        topOffset: 60,
-      });
-    }
-
-    setShowManualModal(false);
-    setManualSubjectId(null);
-  };
 
   // Fetch month's completed sessions for dots
   useEffect(() => {
@@ -432,7 +351,7 @@ export const CalendarScreen = () => {
            {subjects.length === 0 ? (
              <View style={styles.emptyCard}>
                 <Ionicons name="book-outline" size={32} color="#CBD5E1" style={{ marginBottom: 12 }} />
-                <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>No subjects added yet. Add subjects to generate your plan!</Text>
+                <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>No courses added yet. Add courses to create your plan.</Text>
              </View>
            ) : currentSlots.length === 0 ? (
              <View style={styles.emptyCard}>
@@ -442,21 +361,7 @@ export const CalendarScreen = () => {
                   <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
                     <TouchableOpacity
                        style={{ flex: 1, height: 56, borderRadius: 16, overflow: 'hidden', elevation: 6, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
-                       onPress={() => {
-                         const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-                         generateSchedule(dStr)
-                           .then(res => {
-                             setSelectedDaySchedule({
-                               ...res,
-                               generatedAt: res.generated_at,
-                               analysisResults: res.analysis_results,
-                               aiSchedule: res.ai_schedule,
-                               hasError: res.has_error,
-                               slotStatuses: res.slot_statuses,
-                             });
-                           })
-                           .catch(err => Alert.alert('Generation Failed', err.message));
-                       }}
+                       onPress={() => setShowPlanWizard(true)}
                     >
                        <LinearGradient
                          colors={['#6366F1', '#8B5CF6']}
@@ -465,15 +370,8 @@ export const CalendarScreen = () => {
                          end={{ x: 1, y: 0 }}
                        >
                          <MaterialCommunityIcons name="brain" size={22} color="#FFF" />
-                         <Text style={{ color: '#FFF', fontFamily: fonts.bold, fontSize: 14, letterSpacing: 0.5 }}>AI Plan</Text>
+                         <Text style={{ color: '#FFF', fontFamily: fonts.bold, fontSize: 14, letterSpacing: 0.5 }}>Create Plan</Text>
                        </LinearGradient>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                       style={{ flex: 1, height: 56, borderRadius: 16, borderWidth: 2, borderColor: colors.primary, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8 }}
-                       onPress={() => setShowManualModal(true)}
-                    >
-                       <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
-                       <Text style={{ color: colors.primary, fontFamily: fonts.bold, fontSize: 14, letterSpacing: 0.5 }}>Manual</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -595,11 +493,6 @@ export const CalendarScreen = () => {
       {/* Floating Action Button for Plan Generation */}
       {isTrulyToday && (
         <View style={{ position: 'absolute', bottom: 30, right: 25, flexDirection: 'column', gap: 12 }}>
-          <TouchableOpacity onPress={() => setShowManualModal(true)}>
-            <View style={[styles.magicFabInner, { backgroundColor: '#FFF', borderWidth: 2, borderColor: '#6366F1' }]}>
-              <Ionicons name="add" size={28} color="#6366F1" />
-            </View>
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowPlanWizard(true)}>
             <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.magicFabInner}>
               <MaterialCommunityIcons name="brain" size={28} color="#FFF" />
@@ -607,90 +500,6 @@ export const CalendarScreen = () => {
           </TouchableOpacity>
         </View>
       )}
-
-      {/* Manual Slot Modal */}
-      <Modal visible={showManualModal} animationType="slide" transparent onRequestClose={() => setShowManualModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Add Manual Slot</Text>
-            <Text style={{ color: colors.textLight, fontFamily: fonts.medium, marginBottom: 20, fontSize: 13 }}>
-              Pick a time, duration, and subject.
-            </Text>
-
-            <Text style={{ color: colors.textDark, fontFamily: fonts.bold, marginBottom: 8, fontSize: 13 }}>Start time (24h)</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <TextInput
-                value={manualHour}
-                onChangeText={(v) => setManualHour(v.replace(/[^0-9]/g, '').slice(0, 2))}
-                keyboardType="number-pad"
-                maxLength={2}
-                placeholder="HH"
-                placeholderTextColor={colors.textLight}
-                style={{ flex: 1, height: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, fontSize: 18, textAlign: 'center', color: colors.textDark, fontFamily: fonts.bold }}
-              />
-              <Text style={{ color: colors.textDark, fontSize: 22, fontFamily: fonts.bold }}>:</Text>
-              <TextInput
-                value={manualMinute}
-                onChangeText={(v) => setManualMinute(v.replace(/[^0-9]/g, '').slice(0, 2))}
-                keyboardType="number-pad"
-                maxLength={2}
-                placeholder="MM"
-                placeholderTextColor={colors.textLight}
-                style={{ flex: 1, height: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, fontSize: 18, textAlign: 'center', color: colors.textDark, fontFamily: fonts.bold }}
-              />
-            </View>
-
-            <Text style={{ color: colors.textDark, fontFamily: fonts.bold, marginBottom: 8, fontSize: 13 }}>Duration</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-              {[15, 25, 30, 45, 60, 90].map(d => (
-                <TouchableOpacity
-                  key={d}
-                  onPress={() => setManualDuration(d)}
-                  style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: manualDuration === d ? colors.primary : colors.border, backgroundColor: manualDuration === d ? colors.primaryLight : 'transparent' }}
-                >
-                  <Text style={{ color: manualDuration === d ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 13 }}>{d} min</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={{ color: colors.textDark, fontFamily: fonts.bold, marginBottom: 8, fontSize: 13 }}>Subject</Text>
-            <ScrollView style={{ maxHeight: 140, marginBottom: 22 }} showsVerticalScrollIndicator={false}>
-              {subjects.length === 0 ? (
-                <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
-                  No subjects available. Add one first.
-                </Text>
-              ) : (
-                subjects.map(s => (
-                  <TouchableOpacity
-                    key={s.id}
-                    onPress={() => setManualSubjectId(s.id)}
-                    style={{ paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: manualSubjectId === s.id ? colors.primary : colors.border, backgroundColor: manualSubjectId === s.id ? colors.primaryLight : 'transparent', marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 10 }}
-                  >
-                    <Ionicons name={manualSubjectId === s.id ? 'radio-button-on' : 'radio-button-off'} size={18} color={manualSubjectId === s.id ? colors.primary : colors.textLight} />
-                    <Text style={{ color: colors.textDark, fontFamily: fonts.medium, fontSize: 14 }}>{s.name}</Text>
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity
-                style={{ flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' }}
-                onPress={() => setShowManualModal(false)}
-              >
-                <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 14 }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, height: 48, borderRadius: 12, backgroundColor: subjects.length === 0 || !manualSubjectId ? colors.border : colors.primary, justifyContent: 'center', alignItems: 'center' }}
-                onPress={addManualSlot}
-                disabled={subjects.length === 0 || !manualSubjectId}
-              >
-                <Text style={{ color: '#FFF', fontFamily: fonts.bold, fontSize: 14 }}>Add Slot</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };

@@ -8,16 +8,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BarChart, PieChart } from "react-native-chart-kit";
 import { analyticsApi } from "../services/api";
 import { useFocus } from "../context/focus_context";
+import { useAppNavigation } from "../context/navigation_context";
 import { subscribeNotifications, markAllRead, clearNotifications } from "../services/notifications_bus";
 
 export const DashboardScreen = () => {
    const { colors, fonts } = useTheme();
    const { user } = useAuth();
-   const { userData, behavioralLogs, tasks, subjects, latestSchedule, reloadAll, hydrating } = useAI();
+   const { userData, behavioralLogs, tasks, subjects, latestSchedule } = useAI();
    const { sessionElapsedSeconds } = useFocus();
+   const { navigate } = useAppNavigation();
    const [insights, setInsights] = useState(null);
    const [showAiAlert, setShowAiAlert] = useState(true);
-   const [showDailyCheckin, setShowDailyCheckin] = useState(false);
    const [showNotifs, setShowNotifs] = useState(false);
    const [notifs, setNotifs] = useState([]);
    const [unread, setUnread] = useState(0);
@@ -54,11 +55,6 @@ export const DashboardScreen = () => {
          .catch(() => {});
    }, []);
 
-   useEffect(() => {
-      // We now trigger plan generation from the Calendar screen button
-   }, [hydrating, latestSchedule]);
-
-   const completedCount = insights?.completedTasks ?? tasks.filter((t) => t.status === "done").length;
    const burnoutScore = latestSchedule?.analysisResults?.burnout_score ?? (insights?.latestBurnout != null ? Number(insights.latestBurnout) : 0);
    const burnoutPct = Math.round(burnoutScore * 100);
    const flowPct = Math.min(100, Math.round(((behavioralLogs?.study_hours_today || 0) / (userData?.max_hours_per_day || 6)) * 100));
@@ -75,6 +71,15 @@ export const DashboardScreen = () => {
    };
 
    const initial = (user?.name || userData.name || "IH").slice(0, 2).toUpperCase();
+   const scheduleSlots = latestSchedule?.aiSchedule?.scheduled_slots || [];
+   const slotStatuses = latestSchedule?.slot_statuses || latestSchedule?.slotStatuses || {};
+   const nextSlot = scheduleSlots.find((_, idx) => !['completed', 'snoozed'].includes(slotStatuses[idx]?.status));
+   const activeTaskCount = tasks.filter((t) => t.status !== "done").length;
+   const homeAction = subjects.length === 0
+      ? { label: "Add first course", icon: "library-outline", target: "subjects" }
+      : scheduleSlots.length === 0
+         ? { label: "Create today's plan", icon: "calendar-outline", target: "calendar" }
+         : { label: "Open next session", icon: "play-circle-outline", target: "calendar" };
 
    const formatDuration = (totalHours) => {
       const totalSeconds = Math.floor(totalHours * 3600);
@@ -108,6 +113,34 @@ export const DashboardScreen = () => {
                <LinearGradient colors={[colors.primary, "#8575F3"]} style={styles.avatar}>
                   <Text style={[styles.avatarText, { fontFamily: fonts.bold }]}>{initial}</Text>
                </LinearGradient>
+            </View>
+         </View>
+
+         <View style={[styles.todayCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.todayTop}>
+               <View style={{ flex: 1 }}>
+                  <Text style={[styles.todayEyebrow, { color: colors.primary, fontFamily: fonts.bold }]}>TODAY</Text>
+                  <Text style={[styles.todayTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>
+                     {nextSlot ? nextSlot.subject : subjects.length === 0 ? "Set up your first course" : "Build a plan that fits today"}
+                  </Text>
+                  <Text style={[styles.todayMeta, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                     {nextSlot
+                        ? `${nextSlot.time_slot} · ${nextSlot.adjusted_duration_minutes || 25} min`
+                        : `${subjects.length} courses · ${activeTaskCount} open tasks`}
+                  </Text>
+               </View>
+               <TouchableOpacity style={[styles.todayAction, { backgroundColor: colors.primary }]} onPress={() => navigate(homeAction.target)}>
+                  <Ionicons name={homeAction.icon} size={20} color="#FFF" />
+                  <Text style={[styles.todayActionText, { fontFamily: fonts.bold }]}>{homeAction.label}</Text>
+               </TouchableOpacity>
+            </View>
+            <View style={[styles.nudgeRow, { backgroundColor: colors.cardAlt }]}>
+               <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+               <Text style={[styles.nudgeText, { color: colors.textDark, fontFamily: fonts.medium }]}>
+                  {activeTaskCount > 0
+                     ? "Your progress is based on completed tasks, actual study time, and missed courses."
+                     : "Add tasks inside each course so the app can tell what you are really finishing."}
+               </Text>
             </View>
          </View>
 
@@ -265,7 +298,7 @@ export const DashboardScreen = () => {
             )}
          </View>
 
-         {/* Subject Distribution Chart */}
+         {/* Course Distribution Chart */}
          <View style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
             <View style={styles.sectionHeader}>
                <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Focus Distribution</Text>
@@ -293,19 +326,19 @@ export const DashboardScreen = () => {
                />
             ) : (
                <View style={{ height: 100, justifyContent: "center", alignItems: "center" }}>
-                  <Text style={{ color: colors.textLight, fontFamily: fonts.medium }}>Add subjects to see distribution</Text>
+                  <Text style={{ color: colors.textLight, fontFamily: fonts.medium }}>Add courses to see distribution</Text>
                </View>
             )}
          </View>
 
-         {/* Subject Progress */}
-         <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 15 }]}>Subject Progress</Text>
+         {/* Course Progress */}
+         <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 15 }]}>Course Progress</Text>
          <View style={[styles.subjectCard, { backgroundColor: colors.surface }]}>
             {subjects.length === 0 ? (
                <View style={{ alignItems: "center", paddingVertical: 20 }}>
                   <MaterialCommunityIcons name="book-plus-outline" size={40} color={colors.textLight} />
                   <Text style={{ color: colors.textLight, fontFamily: fonts.medium, marginTop: 10, textAlign: "center" }}>
-                     No subjects yet. Use the Daily Check-in or Subjects tab to add your first one!
+                     No courses yet. Add your first course to start seeing real progress.
                   </Text>
                </View>
             ) : (
@@ -437,6 +470,15 @@ const styles = StyleSheet.create({
    notifTime: { fontSize: 11, marginTop: 4 },
    avatar: { width: 44, height: 44, borderRadius: 14, justifyContent: "center", alignItems: "center" },
    avatarText: { color: "#FFF", fontSize: 16 },
+   todayCard: { borderWidth: 1, borderRadius: 26, padding: 18, marginBottom: 22 },
+   todayTop: { flexDirection: "row", alignItems: "center", gap: 14 },
+   todayEyebrow: { fontSize: 10, letterSpacing: 1 },
+   todayTitle: { fontSize: 20, marginTop: 4 },
+   todayMeta: { fontSize: 13, marginTop: 5 },
+   todayAction: { minWidth: 118, height: 48, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12 },
+   todayActionText: { color: "#FFF", fontSize: 12 },
+   nudgeRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 16, marginTop: 14 },
+   nudgeText: { flex: 1, fontSize: 12, lineHeight: 17 },
    aiCard: { flexDirection: "row", padding: 18, borderRadius: 20, marginBottom: 30, alignItems: "center", borderWidth: 1 },
    aiIcon: { marginRight: 15 },
    aiTextContainer: { flex: 1 },

@@ -17,6 +17,12 @@ export const OnboardingScreen = () => {
   
   const [name, setName] = useState(userData?.name || '');
   const [deadline, setDeadline] = useState(userData?.deadline || '');
+  const [courseName, setCourseName] = useState('');
+  const [courseDifficulty, setCourseDifficulty] = useState(5);
+  const [coursePriority, setCoursePriority] = useState(2);
+  const [courseExamDate, setCourseExamDate] = useState('');
+  const [initialTaskTitle, setInitialTaskTitle] = useState('');
+  const [initialTaskMinutes, setInitialTaskMinutes] = useState(45);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -28,9 +34,16 @@ export const OnboardingScreen = () => {
   }, [userData]);
 
   const handleNext = () => {
-    if (!name.trim()) return showToast("Please enter your name", true);
-    if (!deadline) return showToast("Please select your final exam deadline", true);
-    setStep(2);
+    if (step === 1) {
+      if (!name.trim()) return showToast("Please enter your name", true);
+      if (!deadline) return showToast("Please select your semester or final deadline", true);
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      if (!courseName.trim()) return showToast("Add at least one course", true);
+      setStep(3);
+    }
   };
 
   const handleAddSlot = () => {
@@ -53,7 +66,14 @@ export const OnboardingScreen = () => {
       await completeOnboarding({ 
         name, 
         deadline, 
-        subjects: [], 
+        subjects: [{
+          name: courseName.trim(),
+          difficulty: courseDifficulty,
+          priority: coursePriority,
+          examDate: courseExamDate || deadline,
+          initialTaskTitle: initialTaskTitle.trim() || `Start ${courseName.trim()}`,
+          estimatedMinutes: initialTaskMinutes,
+        }],
         slots 
       });
     } catch (err) {
@@ -67,7 +87,7 @@ export const OnboardingScreen = () => {
     <View style={styles.stepContainer}>
       <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Welcome! 🎓</Text>
       <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-        Let's start with the basics. You can add your subjects later in the app.
+        Let's set the semester goal first. Then we will add your first course.
       </Text>
       
       <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
@@ -87,7 +107,7 @@ export const OnboardingScreen = () => {
       <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
         <View style={styles.inputHeader}>
            <Ionicons name="calendar-outline" size={20} color={colors.accent.exam} />
-           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL EXAM DEADLINE</Text>
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>SEMESTER / FINAL DEADLINE</Text>
         </View>
         {Platform.OS === 'web' ? (
           <input
@@ -121,6 +141,95 @@ export const OnboardingScreen = () => {
   );
 
   const renderStep2 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>First Course</Text>
+      <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
+        Add one course to make the app useful right away. You can add the rest later.
+      </Text>
+
+      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
+        <View style={styles.inputHeader}>
+           <Ionicons name="library-outline" size={20} color={colors.primary} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>COURSE</Text>
+        </View>
+        <TextInput
+          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
+          value={courseName}
+          onChangeText={setCourseName}
+          placeholder="e.g. Calculus"
+          placeholderTextColor={colors.textLight}
+        />
+      </View>
+
+      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
+        <View style={styles.inputHeader}>
+           <Ionicons name="flag-outline" size={20} color={colors.accent.exam} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>COURSE EXAM DATE</Text>
+        </View>
+        <TextInput
+          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
+          value={courseExamDate}
+          onChangeText={setCourseExamDate}
+          placeholder={deadline || 'YYYY-MM-DD'}
+          placeholderTextColor={colors.textLight}
+        />
+      </View>
+
+      <Text style={[styles.slotsTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 12 }]}>How hard does it feel?</Text>
+      <View style={styles.diffBarRow}>
+        {[...Array(10)].map((_, i) => (
+          <TouchableOpacity
+            key={i}
+            style={[styles.diffBit, { backgroundColor: courseDifficulty > i ? colors.primary : colors.cardAlt }]}
+            onPress={() => setCourseDifficulty(i + 1)}
+          />
+        ))}
+      </View>
+
+      <Text style={[styles.slotsTitle, { color: colors.textDark, fontFamily: fonts.bold, marginTop: 22, marginBottom: 12 }]}>Priority</Text>
+      <View style={styles.prioRow}>
+        {[1, 2, 3].map((p) => (
+          <TouchableOpacity
+            key={p}
+            style={[styles.prioBtn, { borderColor: coursePriority === p ? colors.primary : colors.border, backgroundColor: coursePriority === p ? colors.primaryLight : colors.surface }]}
+            onPress={() => setCoursePriority(p)}
+          >
+            <Text style={{ color: coursePriority === p ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>
+              {p === 1 ? 'High' : p === 2 ? 'Medium' : 'Low'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt, marginTop: 24 }]}>
+        <View style={styles.inputHeader}>
+           <Ionicons name="checkbox-outline" size={20} color={colors.primary} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FIRST TASK</Text>
+        </View>
+        <TextInput
+          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
+          value={initialTaskTitle}
+          onChangeText={setInitialTaskTitle}
+          placeholder="e.g. Review chapter 1"
+          placeholderTextColor={colors.textLight}
+        />
+      </View>
+
+      <View style={styles.durationRow}>
+        {[25, 45, 60, 90].map((m) => (
+          <TouchableOpacity
+            key={m}
+            style={[styles.durationBtn, { borderColor: initialTaskMinutes === m ? colors.primary : colors.border, backgroundColor: initialTaskMinutes === m ? colors.primaryLight : colors.surface }]}
+            onPress={() => setInitialTaskMinutes(m)}
+          >
+            <Text style={{ color: initialTaskMinutes === m ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>{m}m</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => (
     <View style={styles.stepContainer}>
       <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Study Availability 🕒</Text>
       <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
@@ -217,26 +326,26 @@ export const OnboardingScreen = () => {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
          <View style={styles.progLineBg}>
-            <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: step === 1 ? '50%' : '100%' }]} />
+            <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: step === 1 ? '33%' : step === 2 ? '66%' : '100%' }]} />
          </View>
          <Text style={[styles.stepLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>
-            {step === 1 ? 'PROFILE SETUP' : 'AVAILABILITY SETUP'}
+            {step === 1 ? 'PROFILE SETUP' : step === 2 ? 'COURSE SETUP' : 'AVAILABILITY SETUP'}
          </Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {step === 1 ? renderStep1() : renderStep2()}
+        {step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()}
       </ScrollView>
 
       <View style={styles.bottomActions}>
-         {step === 2 && (
-            <TouchableOpacity style={[styles.secondaryBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setStep(1)} disabled={isSubmitting}>
+         {step > 1 && (
+            <TouchableOpacity style={[styles.secondaryBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setStep(step - 1)} disabled={isSubmitting}>
                <Text style={[styles.secondaryBtnText, { color: colors.textDark, fontFamily: fonts.bold }]}>BACK</Text>
             </TouchableOpacity>
          )}
-         <TouchableOpacity style={[styles.mainBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={step === 1 ? handleNext : handleComplete} disabled={isSubmitting}>
+         <TouchableOpacity style={[styles.mainBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={step < 3 ? handleNext : handleComplete} disabled={isSubmitting}>
             <Text style={[styles.mainBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>
-               {step === 1 ? 'CONTINUE' : (isSubmitting ? 'SETTING UP...' : 'ENTER APP')}
+               {step < 3 ? 'CONTINUE' : (isSubmitting ? 'SETTING UP...' : 'ENTER APP')}
             </Text>
             {!isSubmitting && <Ionicons name="chevron-forward" size={20} color="#FFF" />}
          </TouchableOpacity>
@@ -270,6 +379,12 @@ const styles = StyleSheet.create({
   input: { fontSize: 20, paddingLeft: 10 },
   slotsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, marginTop: 10 },
   slotsTitle: { fontSize: 16 },
+  prioRow: { flexDirection: 'row', gap: 10 },
+  prioBtn: { flex: 1, height: 44, borderRadius: 14, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
+  durationRow: { flexDirection: 'row', gap: 8, marginTop: -6 },
+  durationBtn: { flex: 1, height: 42, borderRadius: 13, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
+  diffBarRow: { flexDirection: 'row', gap: 5 },
+  diffBit: { flex: 1, height: 10, borderRadius: 6 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   slotItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 20, borderWidth: 1, marginBottom: 12, gap: 15 },
   timeInput: { flex: 1, fontSize: 16, padding: 12, borderRadius: 12, textAlign: 'center' },

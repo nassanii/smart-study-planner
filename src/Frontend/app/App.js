@@ -19,6 +19,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { SubjectsScreen } from './src/screens/TasksScreen';
+import { CourseDetailScreen } from './src/screens/CourseDetailScreen';
 import { CalendarScreen } from './src/screens/CalendarScreen';
 import { FocusScreen } from './src/screens/FocusScreen';
 import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
@@ -56,6 +57,7 @@ const MainApp = () => {
       case 'home': return <DashboardScreen />;
       case 'calendar': return <CalendarScreen />;
       case 'subjects': return <SubjectsScreen />;
+      case 'course_detail': return <CourseDetailScreen />;
       case 'focus': return <FocusScreen />;
       case 'analytics': return <AnalyticsScreen />;
       case 'profile': return <ProfileScreen />;

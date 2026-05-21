@@ -1,36 +1,55 @@
 import { extractErrorMessage } from '../services/errors';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
+import { useAppNavigation } from '../context/navigation_context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showAlert, showConfirm } from '../services/dialogs';
 
-
-
 export const SubjectsScreen = () => {
   const { colors, fonts } = useTheme();
-  const { subjects, addSubject, updateSubject, removeSubject } = useAI();
-  
-  const [showSubjectModal, setShowSubjectModal] = useState(false);
-  const [editingSubject, setEditingSubject] = useState(null);
+  const { subjects, tasks, addSubject, updateSubject, removeSubject } = useAI();
+  const { navigate } = useAppNavigation();
 
-  const [subjectForm, setSubjectForm] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [courseForm, setCourseForm] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
   const [busy, setBusy] = useState(false);
 
-  const handleSaveSubject = async () => {
-    if (!subjectForm.name) return showAlert('Required', 'Please enter a subject name.');
+  const totals = useMemo(() => {
+    const done = tasks.filter((t) => t.status === 'done').length;
+    const open = tasks.filter((t) => t.status !== 'done').length;
+    return { done, open };
+  }, [tasks]);
+
+  const openCourseModal = (course = null) => {
+    setEditingCourse(course);
+    setCourseForm(course
+      ? { name: course.name || '', difficulty: course.difficulty || 5, priority: course.priority || 2, examDate: course.examDate || '' }
+      : { name: '', difficulty: 5, priority: 2, examDate: '' });
+    setShowCourseModal(true);
+  };
+
+  const handleSaveCourse = async () => {
+    if (!courseForm.name.trim()) return showAlert('Required', 'Please enter a course name.');
     setBusy(true);
     try {
-      if (editingSubject) {
-        await updateSubject(editingSubject.id, subjectForm);
+      const payload = {
+        ...courseForm,
+        name: courseForm.name.trim(),
+        difficulty: Number(courseForm.difficulty) || 5,
+        priority: Number(courseForm.priority) || 2,
+        examDate: courseForm.examDate || null,
+      };
+      if (editingCourse) {
+        await updateSubject(editingCourse.id, payload);
       } else {
-        await addSubject(subjectForm);
+        await addSubject(payload);
       }
-      setShowSubjectModal(false);
-      setSubjectForm({ name: '', difficulty: 5, priority: 2, examDate: '' });
-      setEditingSubject(null);
+      setShowCourseModal(false);
+      setEditingCourse(null);
     } catch (err) {
       showAlert('Error', extractErrorMessage(err));
     } finally {
@@ -38,129 +57,211 @@ export const SubjectsScreen = () => {
     }
   };
 
-  const handleDeleteSubject = (s) => {
+  const handleDeleteCourse = (course) => {
     showConfirm({
-      title: 'Delete Subject',
-      message: `Delete "${s.name}"? This will remove all associated study history.`,
+      title: 'Delete Course',
+      message: `Delete "${course.name}"? This will remove its tasks and study history.`,
       confirmText: 'Delete',
       destructive: true,
-      onConfirm: () => removeSubject(s.id),
+      onConfirm: () => removeSubject(course.id),
     });
   };
 
   const getPrioColor = (p) => p === 1 ? '#F43F5E' : p === 2 ? '#F59E0B' : '#10B981';
   const getPrioLabel = (p) => p === 1 ? 'High' : p === 2 ? 'Medium' : 'Low';
 
+  const courseStats = (course) => {
+    const courseTasks = tasks.filter((t) => t.subject_id === course.id);
+    const done = courseTasks.filter((t) => t.status === 'done').length;
+    const open = courseTasks.length - done;
+    const minutes = courseTasks.reduce((sum, t) => sum + Number(t.actual_minutes || 0), 0);
+    const progress = courseTasks.length === 0 ? 0 : Math.round((done / courseTasks.length) * 100);
+    const nextDue = courseTasks
+      .filter((t) => t.status !== 'done' && t.deadline)
+      .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))[0]?.deadline;
+    return { done, open, minutes, progress, nextDue };
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-           <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Subjects</Text>
-           <View style={[styles.activeBadge, { backgroundColor: colors.primary + '15' }]}>
-              <Text style={[styles.activeBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>{subjects.length} Active</Text>
-           </View>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Courses</Text>
+            <Text style={[styles.headerSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+              Track progress, tasks, and what needs attention.
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.primary }]} onPress={() => openCourseModal()}>
+            <Ionicons name="add" size={20} color="#FFF" />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.taskList}>
-           {subjects.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Ionicons name="library-outline" size={32} color="#CBD5E1" style={{ marginBottom: 12 }} />
-                <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>No subjects yet. Tap + to add one.</Text>
-              </View>
-           ) : (
-             subjects.map((s) => (
-                <View key={s.id} style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}>
-                  <View style={[styles.indicator, { backgroundColor: getPrioColor(s.priority) }]} />
-                  <View style={styles.content}>
-                      <View style={styles.titleRow}>
-                        <Text style={[styles.taskTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
-                        <View style={[styles.prioTag, { backgroundColor: getPrioColor(s.priority) + '15' }]}>
-                            <Text style={[styles.prioTagText, { color: getPrioColor(s.priority), fontFamily: fonts.bold }]}>{getPrioLabel(s.priority)}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.metaRow}>
-                        <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                          {s.examDate ? `Exam: ${new Date(s.examDate).toLocaleDateString()}` : 'No exam date'}
-                        </Text>
-                        <View style={[styles.dot, { backgroundColor: colors.border }]} />
-                        <Text style={[styles.metaText, { color: colors.textLight, fontFamily: fonts.medium }]}>Diff: {s.difficulty}/10</Text>
-                      </View>
-                  </View>
-                  <View style={styles.controls}>
-                      <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => { setEditingSubject(s); setSubjectForm({ name: s.name, difficulty: s.difficulty, priority: s.priority, examDate: s.examDate || '' }); setShowSubjectModal(true); }}>
-                        <Ionicons name="pencil" size={16} color={colors.textDark} />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={() => handleDeleteSubject(s)}>
-                        <Ionicons name="trash" size={16} color={colors.textDark} />
-                      </TouchableOpacity>
-                  </View>
-                </View>
-             ))
-           )}
+        <View style={styles.summaryRow}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.summaryValue, { color: colors.textDark, fontFamily: fonts.bold }]}>{subjects.length}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>COURSES</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.summaryValue, { color: colors.textDark, fontFamily: fonts.bold }]}>{totals.open}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>OPEN TASKS</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.summaryValue, { color: colors.textDark, fontFamily: fonts.bold }]}>{totals.done}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>DONE</Text>
+          </View>
         </View>
+
+        {subjects.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="library-outline" size={36} color="#CBD5E1" />
+            <Text style={[styles.emptyTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Add your first course</Text>
+            <Text style={[styles.emptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+              Start with Calculus, Physics, Biology, or any course you want to track.
+            </Text>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={() => openCourseModal()}>
+              <Text style={[styles.primaryBtnText, { fontFamily: fonts.bold }]}>Add Course</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.courseList}>
+            {subjects.map((course) => {
+              const stats = courseStats(course);
+              return (
+                <TouchableOpacity
+                  key={course.id}
+                  activeOpacity={0.85}
+                  style={[styles.courseCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  onPress={() => navigate('course_detail', { courseId: course.id })}
+                >
+                  <View style={[styles.indicator, { backgroundColor: getPrioColor(course.priority) }]} />
+                  <View style={styles.courseBody}>
+                    <View style={styles.courseTopRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.courseName, { color: colors.textDark, fontFamily: fonts.bold }]} numberOfLines={1}>
+                          {course.name}
+                        </Text>
+                        <Text style={[styles.courseMeta, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                          {course.examDate ? `Exam ${new Date(course.examDate).toLocaleDateString()}` : 'No exam date'} | Diff {course.difficulty}/10
+                        </Text>
+                      </View>
+                      <View style={[styles.prioTag, { backgroundColor: getPrioColor(course.priority) + '15' }]}>
+                        <Text style={[styles.prioTagText, { color: getPrioColor(course.priority), fontFamily: fonts.bold }]}>
+                          {getPrioLabel(course.priority)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.progressRow}>
+                      <View style={[styles.progressBg, { backgroundColor: colors.cardAlt }]}>
+                        <View style={[styles.progressFill, { width: `${stats.progress}%`, backgroundColor: getPrioColor(course.priority) }]} />
+                      </View>
+                      <Text style={[styles.progressText, { color: colors.textLight, fontFamily: fonts.bold }]}>{stats.progress}%</Text>
+                    </View>
+
+                    <View style={styles.courseFooter}>
+                      <Text style={[styles.footerText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                        {stats.open} open | {stats.done} done | {Math.round(stats.minutes / 60)}h studied
+                      </Text>
+                      <View style={styles.controls}>
+                        <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={(e) => { e.stopPropagation(); openCourseModal(course); }}>
+                          <Ionicons name="pencil" size={15} color={colors.textDark} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.controlBtn, { backgroundColor: colors.cardAlt }]} onPress={(e) => { e.stopPropagation(); handleDeleteCourse(course); }}>
+                          <Ionicons name="trash" size={15} color={colors.textDark} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {stats.nextDue && (
+                      <View style={[styles.insightPill, { backgroundColor: colors.cardAlt }]}>
+                        <Ionicons name="calendar-outline" size={14} color={colors.primary} />
+                        <Text style={[styles.insightText, { color: colors.textDark, fontFamily: fonts.medium }]}>
+                          Next task due {new Date(stats.nextDue).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
-      {/* FAB - Add Subject */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => { setEditingSubject(null); setSubjectForm({ name: '', difficulty: 5, priority: 2, examDate: '' }); setShowSubjectModal(true); }}>
+      <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => openCourseModal()}>
         <LinearGradient colors={[colors.primary, '#9F8FFF']} style={styles.fabInner}>
-           <Ionicons name="add" size={32} color="#FFF" />
+          <Ionicons name="add" size={32} color="#FFF" />
         </LinearGradient>
       </TouchableOpacity>
 
-      {/* Subject Modal */}
-      <Modal visible={showSubjectModal} transparent animationType="slide">
-         <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-               <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{editingSubject ? 'Edit Subject' : 'New Subject'}</Text>
-               
-               <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={styles.inputHeader}>
-                     <Ionicons name="book-outline" size={20} color={colors.primary} />
-                     <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginBottom: 0 }]}>SUBJECT NAME</Text>
-                  </View>
-                  <TextInput 
-                     style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]} 
-                     value={subjectForm.name}
-                     onChangeText={v => setSubjectForm({...subjectForm, name: v})}
-                     placeholder="e.g. Advanced Calculus"
-                     placeholderTextColor={colors.textLight}
-                  />
-               </View>
+      <Modal visible={showCourseModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>
+              {editingCourse ? 'Edit Course' : 'New Course'}
+            </Text>
 
-               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 20 }]}>PRIORITY</Text>
-               <View style={styles.prioGrid}>
-                  {[1, 2, 3].map(p => (
-                      <TouchableOpacity
-                         key={p}
-                         style={[styles.prioSelect, { borderColor: subjectForm.priority === p ? colors.primary : colors.border }]}
-                         onPress={() => setSubjectForm({...subjectForm, priority: p})}
-                      >
-                         <Text style={{ color: subjectForm.priority === p ? colors.textDark : colors.textLight, fontFamily: fonts.bold }}>{p === 1 ? 'High' : p === 2 ? 'Med' : 'Low'}</Text>
-                      </TouchableOpacity>
-                  ))}
-               </View>
-
-               <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 25 }]}>DIFFICULTY: {subjectForm.difficulty}/10</Text>
-               <View style={styles.diffBarRow}>
-                  {[...Array(10)].map((_, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={[styles.diffBit, { backgroundColor: subjectForm.difficulty > i ? colors.primary : colors.cardAlt }]}
-                      onPress={() => setSubjectForm({...subjectForm, difficulty: i + 1})}
-                    />
-                  ))}
-               </View>
-
-               <View style={styles.modalFooter}>
-                  <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border, borderWidth: 1 }]} onPress={() => setShowSubjectModal(false)}>
-                     <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleSaveSubject} disabled={busy}>
-                     {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Save Subject</Text>}
-                  </TouchableOpacity>
-               </View>
+            <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>COURSE NAME</Text>
+              <TextInput
+                style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
+                value={courseForm.name}
+                onChangeText={(v) => setCourseForm({ ...courseForm, name: v })}
+                placeholder="e.g. Calculus"
+                placeholderTextColor={colors.textLight}
+              />
             </View>
-         </View>
+
+            <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>EXAM DATE</Text>
+              <TextInput
+                style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
+                value={courseForm.examDate}
+                onChangeText={(v) => setCourseForm({ ...courseForm, examDate: v })}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textLight}
+              />
+            </View>
+
+            <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PRIORITY</Text>
+            <View style={styles.segmentRow}>
+              {[1, 2, 3].map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.segmentBtn, { borderColor: courseForm.priority === p ? colors.primary : colors.border, backgroundColor: courseForm.priority === p ? colors.primary + '12' : 'transparent' }]}
+                  onPress={() => setCourseForm({ ...courseForm, priority: p })}
+                >
+                  <Text style={{ color: courseForm.priority === p ? colors.primary : colors.textLight, fontFamily: fonts.bold }}>
+                    {p === 1 ? 'High' : p === 2 ? 'Medium' : 'Low'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 22 }]}>
+              DIFFICULTY: {courseForm.difficulty}/10
+            </Text>
+            <View style={styles.diffBarRow}>
+              {[...Array(10)].map((_, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.diffBit, { backgroundColor: courseForm.difficulty > i ? colors.primary : colors.cardAlt }]}
+                  onPress={() => setCourseForm({ ...courseForm, difficulty: i + 1 })}
+                />
+              ))}
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border, borderWidth: 1 }]} onPress={() => setShowCourseModal(false)}>
+                <Text style={[styles.actionBtnText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleSaveCourse} disabled={busy}>
+                {busy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.actionBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Save Course</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -168,39 +269,52 @@ export const SubjectsScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
-  headerTitle: { fontSize: 26 },
-  activeBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  activeBadgeText: { fontSize: 12 },
-  taskList: { gap: 16 },
-  taskCard: { padding: 18, borderRadius: 24, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10 },
-  indicator: { width: 4, height: 40, borderRadius: 2, marginRight: 18 },
-  content: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 5 },
-  taskTitle: { fontSize: 16 },
-  prioTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  prioTagText: { fontSize: 10, letterSpacing: 0.5 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  metaText: { fontSize: 11, opacity: 0.6 },
-  dot: { width: 3, height: 3, borderRadius: 1.5 },
+  scrollContent: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 110 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
+  headerTitle: { fontSize: 28 },
+  headerSub: { fontSize: 13, marginTop: 4, maxWidth: 260 },
+  headerAddBtn: { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  summaryCard: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center' },
+  summaryValue: { fontSize: 22 },
+  summaryLabel: { fontSize: 10, marginTop: 4, letterSpacing: 0.5 },
+  emptyCard: { borderWidth: 1, borderRadius: 24, padding: 28, alignItems: 'center' },
+  emptyTitle: { fontSize: 20, marginTop: 14, marginBottom: 6 },
+  emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
+  primaryBtn: { paddingHorizontal: 22, height: 48, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  primaryBtnText: { color: '#FFF', fontSize: 15 },
+  courseList: { gap: 14 },
+  courseCard: { borderWidth: 1, borderRadius: 22, padding: 16, flexDirection: 'row' },
+  indicator: { width: 5, borderRadius: 4, marginRight: 14 },
+  courseBody: { flex: 1 },
+  courseTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  courseName: { fontSize: 18 },
+  courseMeta: { fontSize: 12, marginTop: 5 },
+  prioTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  prioTagText: { fontSize: 10, letterSpacing: 0.4 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
+  progressBg: { flex: 1, height: 8, borderRadius: 8, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 8 },
+  progressText: { fontSize: 11, minWidth: 34, textAlign: 'right' },
+  courseFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
+  footerText: { fontSize: 12 },
   controls: { flexDirection: 'row', gap: 6 },
   controlBtn: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  insightPill: { marginTop: 12, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12 },
+  insightText: { fontSize: 12 },
   fab: { position: 'absolute', bottom: 30, right: 30, width: 66, height: 66, borderRadius: 33, elevation: 10, shadowColor: '#6B5CE7', shadowOpacity: 0.4, shadowRadius: 15 },
   fabInner: { flex: 1, borderRadius: 33, justifyContent: 'center', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalContent: { padding: 30, borderTopLeftRadius: 40, borderTopRightRadius: 40, elevation: 20 },
-  modalTitle: { fontSize: 24, marginBottom: 25 },
-  inputGroup: { padding: 15, borderRadius: 16, borderWidth: 1, marginBottom: 15 },
-  inputHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  inputBoxText: { fontSize: 18, paddingLeft: 30, outlineStyle: 'none' },
-  miniLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 10, opacity: 0.7 },
-  prioGrid: { flexDirection: 'row', gap: 12, marginBottom: 5 },
-  prioSelect: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-  diffBarRow: { flexDirection: 'row', gap: 5, marginTop: 5, marginBottom: 25 },
-  diffBit: { flex: 1, height: 8, borderRadius: 4 },
-  modalFooter: { flexDirection: 'row', gap: 15, paddingBottom: 20, paddingTop: 10 },
+  modalContent: { padding: 26, borderTopLeftRadius: 32, borderTopRightRadius: 32, elevation: 20 },
+  modalTitle: { fontSize: 24, marginBottom: 22 },
+  inputGroup: { padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 14 },
+  miniLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 8, opacity: 0.75 },
+  inputBoxText: { fontSize: 18, paddingVertical: 4 },
+  segmentRow: { flexDirection: 'row', gap: 10 },
+  segmentBtn: { flex: 1, height: 42, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
+  diffBarRow: { flexDirection: 'row', gap: 5, marginTop: 4, marginBottom: 24 },
+  diffBit: { flex: 1, height: 9, borderRadius: 6 },
+  modalFooter: { flexDirection: 'row', gap: 12, paddingBottom: 10 },
   actionBtn: { flex: 1, height: 50, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   actionBtnText: { fontSize: 16 },
-  emptyCard: { padding: 40, alignItems: 'center' },
-  emptyText: { fontSize: 14 }
 });

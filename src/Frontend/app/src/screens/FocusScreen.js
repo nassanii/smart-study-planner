@@ -42,6 +42,7 @@ export const FocusScreen = () => {
 
   const [showUpNextModal, setShowUpNextModal] = useState(false);
   const [nextSlotPreview, setNextSlotPreview] = useState(null);
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
 
   // Auto-pause when leaving the focus tab
   useEffect(() => {
@@ -77,7 +78,7 @@ export const FocusScreen = () => {
       setIsActive(false);
       return;
     }
-    
+
     if (!activeSession) {
       // If we have a schedule, ensure we start the active slot
       if (scheduleSlots && activeSlotIndex !== null && activeSlotIndex < scheduleSlots.length) {
@@ -101,10 +102,10 @@ export const FocusScreen = () => {
       }
 
       if (mode === 'Focus' && !selectedSubjectId) {
-        showAlert('Pick a subject', 'Please complete onboarding to add subjects first.');
+        showAlert('Pick a course', 'Please complete onboarding or add a course first.');
         return;
       }
-      
+
       try {
         await startSession({
           taskId: selectedTaskId,
@@ -125,7 +126,7 @@ export const FocusScreen = () => {
       setShowRatingModal(true);
     } else {
       // It's a break session (or manual session without task)
-      await completeSession(); 
+      await completeSession();
       triggerUpNextFlow();
     }
   };
@@ -201,11 +202,29 @@ export const FocusScreen = () => {
   };
 
   const upcomingTasksForSubject = tasks.filter(t => t.subject_id === selectedSubjectId && t.status !== 'done');
-  const selectedSubjectName = mode === 'Break' 
-    ? 'Break' 
+  const selectedSubjectName = mode === 'Break'
+    ? 'Break'
     : (plannedSubjectName || subjects.find(s => s.id === selectedSubjectId)?.name || '—');
 
   const { behavioralLogs } = useAI();
+
+  const handleSwitchTarget = async (subject, task = null) => {
+    setShowSwitchModal(false);
+    try {
+      if (activeSession) {
+        await completeSession(3, null, false);
+      }
+      await startSession({
+        taskId: task?.id,
+        subjectId: subject.id,
+        subjectName: subject.name,
+        mode: 'Focus',
+        duration: task?.estimated_minutes || 25
+      });
+    } catch (err) {
+      showAlert('Switch failed', extractErrorMessage(err));
+    }
+  };
 
   const formatDurationLong = (totalHours) => {
     const totalSeconds = Math.floor(totalHours * 3600);
@@ -228,6 +247,29 @@ export const FocusScreen = () => {
              <Text style={[styles.sessionBadgeText, { color: colors.primary, fontFamily: fonts.bold }]}>{mode}</Text>
           </View>
         </View>
+
+        {!activeSession && mode === 'Focus' && subjects.length > 0 && (
+          <>
+            <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>COURSE</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 18 }}>
+              {subjects.map(s => {
+                const isSelected = selectedSubjectId === s.id;
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    onPress={() => { setSelectedSubjectId(s.id); setPlannedSubjectName(s.name); setSelectedTaskId(null); }}
+                    style={[styles.chip, {
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      backgroundColor: isSelected ? colors.primary + '15' : 'transparent'
+                    }]}
+                  >
+                    <Text style={{ color: isSelected ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>{s.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
 
         {upcomingTasksForSubject.length > 0 && (
           <>
@@ -288,15 +330,26 @@ export const FocusScreen = () => {
         </View>
 
         {isActive && (
-          <TouchableOpacity 
-            style={[styles.finishBtn, { backgroundColor: colors.surface, borderColor: isOvertime ? '#F43F5E' : colors.primary }]} 
-            onPress={handleFinishManual}
-          >
-            <Ionicons name="stop-circle" size={20} color={isOvertime ? '#F43F5E' : colors.primary} />
-            <Text style={[styles.finishBtnText, { color: isOvertime ? '#F43F5E' : colors.primary, fontFamily: fonts.bold }]}>
-              Finish {mode === 'Focus' ? 'Study' : 'Break'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ gap: 10, marginBottom: 12 }}>
+            <TouchableOpacity
+              style={[styles.finishBtn, { backgroundColor: colors.surface, borderColor: isOvertime ? '#F43F5E' : colors.primary }]}
+              onPress={handleFinishManual}
+            >
+              <Ionicons name="stop-circle" size={20} color={isOvertime ? '#F43F5E' : colors.primary} />
+              <Text style={[styles.finishBtnText, { color: isOvertime ? '#F43F5E' : colors.primary, fontFamily: fonts.bold }]}>
+                Finish {mode === 'Focus' ? 'Study' : 'Break'}
+              </Text>
+            </TouchableOpacity>
+            {mode === 'Focus' && (
+              <TouchableOpacity
+                style={[styles.switchBtn, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                onPress={() => setShowSwitchModal(true)}
+              >
+                <Ionicons name="swap-horizontal" size={18} color={colors.primary} />
+                <Text style={[styles.switchBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>Log time and switch course</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
 
         <View style={styles.controls}>
@@ -356,6 +409,40 @@ export const FocusScreen = () => {
          </View>
       </Modal>
 
+      <Modal visible={showSwitchModal} transparent animationType="slide" onRequestClose={() => setShowSwitchModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Switch Course</Text>
+            <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+              Your current time will be saved before starting the new course.
+            </Text>
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {subjects.map(subject => {
+                const subjectTasks = tasks.filter(t => t.subject_id === subject.id && t.status !== 'done').slice(0, 3);
+                return (
+                  <View key={subject.id} style={[styles.switchCourseCard, { backgroundColor: colors.cardAlt }]}>
+                    <TouchableOpacity onPress={() => handleSwitchTarget(subject)} style={styles.switchCourseHeader}>
+                      <Text style={[styles.switchCourseName, { color: colors.textDark, fontFamily: fonts.bold }]}>{subject.name}</Text>
+                      <Ionicons name="play-circle-outline" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                    {subjectTasks.map(task => (
+                      <TouchableOpacity key={task.id} style={styles.switchTaskRow} onPress={() => handleSwitchTarget(subject, task)}>
+                        <Text style={[styles.switchTaskText, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
+                          {task.title} · {task.estimated_minutes || 25}m
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowSwitchModal(false)}>
+              <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={showRatingModal} transparent animationType="slide">
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: colors.surface, alignItems: 'center' }]}>
@@ -388,7 +475,7 @@ export const FocusScreen = () => {
                <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium, textAlign: 'center' }]}>
                  {nextSlotPreview?.subject === 'Break' ? "Time for a well-deserved break!" : `Get ready for ${nextSlotPreview?.subject}`}
                </Text>
-               
+
                <View style={[styles.statsCard, { marginBottom: 30, backgroundColor: colors.cardAlt, borderWidth: 0 }]}>
                  <View style={styles.statCol}>
                    <Text style={[styles.statBig, { color: colors.textDark, fontSize: 18, fontFamily: fonts.bold }]}>{nextSlotPreview?.adjusted_duration_minutes}m</Text>
@@ -404,7 +491,7 @@ export const FocusScreen = () => {
                <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.primary }]} onPress={startNextSlot}>
                   <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>Start Next Block</Text>
                </TouchableOpacity>
-               
+
                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowUpNextModal(false); }}>
                   <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>I'll start later</Text>
                </TouchableOpacity>
@@ -417,11 +504,11 @@ export const FocusScreen = () => {
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Finish Session</Text>
             <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium }]}>How was your focus during this block?</Text>
-            
+
             <View style={styles.ratingContainer}>
               {[1, 2, 3, 4, 5].map((num) => (
-                <TouchableOpacity 
-                  key={num} 
+                <TouchableOpacity
+                  key={num}
                   style={[styles.ratingBtn, rating === num && { backgroundColor: colors.primary }]}
                   onPress={() => setRating(num)}
                 >
@@ -430,8 +517,8 @@ export const FocusScreen = () => {
               ))}
             </View>
 
-            <TouchableOpacity 
-              style={[styles.checkboxContainer, { marginTop: 20 }]} 
+            <TouchableOpacity
+              style={[styles.checkboxContainer, { marginTop: 20 }]}
               onPress={() => setIsTaskFinished(!isTaskFinished)}
             >
               <View style={[styles.checkbox, isTaskFinished && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
@@ -506,14 +593,14 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   controls: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 30, marginBottom: 35 },
-  finishBtn: { 
-    flexDirection: 'row', 
-    alignSelf: 'center', 
-    alignItems: 'center', 
-    paddingHorizontal: 24, 
-    paddingVertical: 12, 
-    borderRadius: 20, 
-    borderWidth: 1.5, 
+  finishBtn: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderWidth: 1.5,
     marginBottom: 20,
     gap: 8,
     elevation: 2,
@@ -522,6 +609,17 @@ const styles = StyleSheet.create({
     shadowRadius: 5
   },
   finishBtnText: { fontSize: 14 },
+  switchBtn: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 8,
+  },
+  switchBtnText: { fontSize: 13 },
   playButton: { width: 88, height: 88, borderRadius: 44, elevation: 10, shadowColor: '#6B5CE7', shadowOpacity: 0.35, shadowRadius: 15, shadowOffset: { width: 0, height: 10 } },
   playGradient: { flex: 1, borderRadius: 44, justifyContent: 'center', alignItems: 'center' },
   smallBtn: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 1, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 },
@@ -537,6 +635,11 @@ const styles = StyleSheet.create({
   modalSub: { fontSize: 15, marginBottom: 30 },
   reasonBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderRadius: 16, marginBottom: 12 },
   reasonText: { fontSize: 16 },
+  switchCourseCard: { borderRadius: 18, padding: 14, marginBottom: 10 },
+  switchCourseHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  switchCourseName: { fontSize: 16 },
+  switchTaskRow: { paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)' },
+  switchTaskText: { fontSize: 13 },
   cancelBtn: { marginTop: 20, alignSelf: 'center' },
   cancelText: { fontSize: 14 },
   congratsIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(107, 92, 231, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },

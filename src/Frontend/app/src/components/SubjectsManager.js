@@ -34,7 +34,7 @@ export const SubjectsManager = ({ visible, onClose }) => {
 
   const submit = async () => {
     if (!form.name.trim()) {
-      setError('Subject name is required.');
+      setError('Course name is required.');
       return;
     }
     if (form.difficulty < 1 || form.difficulty > 10) {
@@ -56,7 +56,7 @@ export const SubjectsManager = ({ visible, onClose }) => {
       }
       reset();
     } catch (err) {
-      setError(err.response?.data?.title || err.message || 'Could not save subject.');
+      setError(err.response?.data?.title || err.message || 'Could not save course.');
     } finally {
       setBusy(false);
     }
@@ -64,8 +64,8 @@ export const SubjectsManager = ({ visible, onClose }) => {
 
   const remove = (s) => {
     showConfirm({
-      title: 'Delete subject',
-      message: `Delete "${s.name}"? All tasks under this subject will also be removed.`,
+      title: 'Delete course',
+      message: `Delete "${s.name}"? All tasks under this course will also be removed.`,
       confirmText: 'Delete',
       destructive: true,
       onConfirm: async () => {
@@ -84,7 +84,7 @@ export const SubjectsManager = ({ visible, onClose }) => {
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { backgroundColor: colors.background, borderColor: colors.border }]}>
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Manage Subjects</Text>
+            <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Manage Courses</Text>
             <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.cardAlt }]}>
               <Ionicons name="close" size={20} color={colors.textDark} />
             </TouchableOpacity>
@@ -92,9 +92,9 @@ export const SubjectsManager = ({ visible, onClose }) => {
 
           <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
             <View style={styles.section}>
-              <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>YOUR SUBJECTS</Text>
+              <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>YOUR COURSES</Text>
               {subjects.length === 0 && (
-                <Text style={{ color: colors.textLight, fontFamily: fonts.medium, paddingVertical: 12 }}>No subjects yet — add one below.</Text>
+                <Text style={{ color: colors.textLight, fontFamily: fonts.medium, paddingVertical: 12 }}>No courses yet. Add one below.</Text>
               )}
               {subjects.map((s) => (
                 <View key={s.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -116,12 +116,12 @@ export const SubjectsManager = ({ visible, onClose }) => {
             </View>
 
             <View style={[styles.formCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.formTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{form.id ? 'Edit subject' : 'Add subject'}</Text>
+              <Text style={[styles.formTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{form.id ? 'Edit course' : 'Add course'}</Text>
 
               <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>NAME</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.medium }]}
-                placeholder="e.g. Mathematics"
+                placeholder="e.g. Calculus"
                 placeholderTextColor={colors.textLight}
                 value={form.name}
                 onChangeText={(v) => setForm(f => ({ ...f, name: v }))}
@@ -167,7 +167,7 @@ export const SubjectsManager = ({ visible, onClose }) => {
                 <TouchableOpacity style={[styles.saveBtn, { overflow: 'hidden' }]} onPress={submit} disabled={busy} activeOpacity={0.8}>
                   <LinearGradient colors={[colors.primary, '#8575F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.saveBtnInner}>
                     {busy ? <ActivityIndicator color="#FFF" /> : (
-                      <Text style={[styles.saveText, { color: '#FFF', fontFamily: fonts.bold }]}>{form.id ? 'Save changes' : 'Add subject'}</Text>
+                      <Text style={[styles.saveText, { color: '#FFF', fontFamily: fonts.bold }]}>{form.id ? 'Save changes' : 'Add course'}</Text>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>

@@ -135,6 +135,7 @@ public class TaskService : ITaskService
             if (!ok) throw new NotFoundException("Subject", dto.SubjectId.Value);
             t.SubjectId = dto.SubjectId.Value;
         }
+        if (!string.IsNullOrWhiteSpace(dto.Title)) t.Title = dto.Title.Trim();
         if (dto.Priority.HasValue) t.Priority = dto.Priority.Value;
         if (dto.DifficultyRating.HasValue) t.DifficultyRating = dto.DifficultyRating.Value;
         if (dto.EstimatedMinutes.HasValue) t.EstimatedMinutes = dto.EstimatedMinutes.Value;

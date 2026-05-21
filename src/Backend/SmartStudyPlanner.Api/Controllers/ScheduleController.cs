@@ -22,7 +22,7 @@ public class ScheduleController : ControllerBase
 
     [HttpPost("generate")]
     public async Task<ActionResult<GenerateScheduleResponse>> Generate([FromBody] GenerateScheduleRequest dto, CancellationToken ct)
-        => Ok(await _schedule.GenerateAsync(_currentUser.RequireUserId(), dto.Date, ct));
+        => Ok(await _schedule.GenerateAsync(_currentUser.RequireUserId(), dto.Date, dto.UseAi, ct));
 
     [HttpGet("today")]
     public async Task<ActionResult<GenerateScheduleResponse>> Today(CancellationToken ct)

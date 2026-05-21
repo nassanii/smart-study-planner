@@ -13,7 +13,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
    const { colors, fonts } = useTheme();
    const { subjects, tasks, generateSchedule, userData } = useAI();
    const { navigate } = useAppNavigation();
-   const [loading, setLoading] = useState(false);
+   const [loadingMode, setLoadingMode] = useState(null);
    const [slots, setSlots] = useState([]);
    const [newSlot, setNewSlot] = useState({ start: "08:00", end: "10:00" });
    const [showHourPicker, setShowHourPicker] = useState(false);
@@ -57,25 +57,25 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
       }
    };
 
-   const handleGenerate = async () => {
+   const handleGenerate = async (useAi = false) => {
       if (slots.length === 0) {
          showAlert("No Time Blocks", "Please add at least one study block to generate a plan.");
          return;
       }
       if (subjects.length === 0) {
-         showAlert("No Subjects", "Add a subject first.");
+         showAlert("No Courses", "Add a course first.");
          return;
       }
-      setLoading(true);
+      setLoadingMode(useAi ? "ai" : "standard");
       try {
          const dateToUse = selectedDate || new Date().toISOString().split("T")[0];
-         await generateSchedule(dateToUse);
+         await generateSchedule(dateToUse, { useAi });
          onClose();
       } catch (err) {
          const detail = extractErrorMessage(err);
-         showAlert("Optimization Failed", detail);
+         showAlert("Plan Failed", detail);
       } finally {
-         setLoading(false);
+         setLoadingMode(null);
       }
    };
 
@@ -86,7 +86,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
          <View style={styles.overlay}>
             <View style={[styles.container, { backgroundColor: colors.background }]}>
                <View style={styles.modalHeader}>
-                  <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Plan Optimizer</Text>
+                  <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Create Plan</Text>
                   <TouchableOpacity onPress={onClose}>
                      <Ionicons name="close" size={24} color={colors.textLight} />
                   </TouchableOpacity>
@@ -94,7 +94,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
 
                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
                   <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                     Configure your day. Set time blocks and verify your upcoming tasks for the AI to organize.
+                     Pick your time blocks and courses. The app creates the plan first; AI can improve it after.
                   </Text>
 
                   {/* SECTION 1: TIME BLOCKS */}
@@ -143,7 +143,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
                   {/* SUBJECTS & TASKS SECTION */}
                   <View style={[styles.sectionRow, { marginTop: 20 }]}>
                      <Ionicons name="book-outline" size={20} color={colors.primary} />
-                     <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold }]}>Subjects & Tasks</Text>
+                     <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold }]}>Courses & Tasks</Text>
                   </View>
 
                   <View style={styles.subjectsReview}>
@@ -186,24 +186,33 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
                      }}
                   >
                      <Ionicons name="create-outline" size={18} color={colors.primary} />
-                     <Text style={[styles.modifyBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>Modify Subjects & Tasks</Text>
+                     <Text style={[styles.modifyBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>Edit Courses & Tasks</Text>
                   </TouchableOpacity>
 
                   <Text
                      style={{ fontSize: 11, color: colors.textLight, textAlign: "center", marginBottom: 25, fontFamily: fonts.medium, marginTop: 10 }}
                   >
-                     The AI will prioritize these subjects based on your progress and exam dates.
+                     The plan uses priority, difficulty, exam dates, and your open tasks.
                   </Text>
 
-                  {/* GENERATE BUTTON */}
                   <TouchableOpacity
-                     style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
-                     onPress={handleGenerate}
-                     disabled={loading}
+                     style={[styles.generateBtn, { backgroundColor: colors.primary, opacity: loadingMode ? 0.7 : 1 }]}
+                     onPress={() => handleGenerate(false)}
+                     disabled={!!loadingMode}
                   >
                      <LinearGradient colors={["rgba(255,255,255,0.2)", "transparent"]} style={styles.btnGradient} />
-                     <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>{loading ? "Consulting AI..." : "Generate AI Plan"}</Text>
-                     <MaterialCommunityIcons name="brain" size={18} color="#FFF" style={{ marginLeft: 10 }} />
+                     <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>{loadingMode === "standard" ? "Creating..." : "Create Plan"}</Text>
+                     <MaterialCommunityIcons name="calendar-check" size={18} color="#FFF" style={{ marginLeft: 10 }} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                     style={[styles.aiBtn, { borderColor: colors.primary, opacity: loadingMode ? 0.7 : 1 }]}
+                     onPress={() => handleGenerate(true)}
+                     disabled={!!loadingMode}
+                  >
+                     <MaterialCommunityIcons name="brain" size={17} color={colors.primary} />
+                     <Text style={[styles.aiBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>
+                        {loadingMode === "ai" ? "Improving with AI..." : "Improve with AI"}
+                     </Text>
                   </TouchableOpacity>
                </ScrollView>
             </View>
@@ -354,6 +363,19 @@ const styles = StyleSheet.create({
    generateText: {
       color: "#fff",
       fontSize: 18,
+   },
+   aiBtn: {
+      height: 50,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      justifyContent: "center",
+      alignItems: "center",
+      flexDirection: "row",
+      gap: 8,
+      marginTop: 12,
+   },
+   aiBtnText: {
+      fontSize: 14,
    },
    formContainer: {
       marginBottom: 20,

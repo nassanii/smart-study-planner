@@ -27,7 +27,7 @@ public class ScheduleService : IScheduleService
     {
         "Your Plan Is Ready",
         "Today's Study Roadmap Unlocked",
-        "Your AI-Powered Schedule Is Live",
+        "Your Study Schedule Is Live",
         "Plan Generated — Time to Shine"
     };
 
@@ -36,7 +36,7 @@ public class ScheduleService : IScheduleService
         "Your personalized study plan is ready. Open the app and start crushing it!",
         "Fresh schedule generated for you. Let's make today productive!",
         "Your study slots are mapped out. Time to focus and conquer.",
-        "AI just optimized your day. Tap to see what's next on the agenda."
+        "Your day is organized. Tap to see what's next on the agenda."
     };
 
     private readonly IAppDbContext _db;
@@ -56,25 +56,14 @@ public class ScheduleService : IScheduleService
         _serviceProvider = serviceProvider;
     }
 
-    public async Task<GenerateScheduleResponse> GenerateAsync(int userId, DateOnly? date, CancellationToken ct)
+    public async Task<GenerateScheduleResponse> GenerateAsync(int userId, DateOnly? date, bool useAi, CancellationToken ct)
     {
         var targetDate = date ?? DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
         var request = await _builder.BuildAsync(userId, targetDate, ct);
         
-        AiOptimizeResponseDto response;
-        try
-        {
-            response = await _ai.OptimizeScheduleAsync(request, ct);
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "AI optimization failed for user {UserId}", userId);
-            response = new AiOptimizeResponseDto
-            {
-                AiSchedule = new AiScheduleResultDto { Error = "AI service unavailable", Details = ex.Message },
-                AnalysisResults = new AiAnalysisResultsDto { Mode = "Cold Start", BurnoutScore = 0 }
-            };
-        }
+        var response = useAi
+            ? await GenerateWithAiAsync(userId, request, ct)
+            : BuildRuleBasedSchedule(request, targetDate);
 
         var hasError = !string.IsNullOrEmpty(response.AiSchedule.Error);
         var mode = ParseMode(response.AnalysisResults.Mode);
@@ -119,6 +108,171 @@ public class ScheduleService : IScheduleService
             AiSchedule = response.AiSchedule,
             SlotStatuses = new()
         };
+    }
+
+    private async Task<AiOptimizeResponseDto> GenerateWithAiAsync(int userId, AiOptimizeRequestDto request, CancellationToken ct)
+    {
+        try
+        {
+            return await _ai.OptimizeScheduleAsync(request, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "AI optimization failed for user {UserId}", userId);
+            return new AiOptimizeResponseDto
+            {
+                AiSchedule = new AiScheduleResultDto { Error = "AI service unavailable", Details = ex.Message },
+                AnalysisResults = new AiAnalysisResultsDto { Mode = "Cold Start", BurnoutScore = 0 }
+            };
+        }
+    }
+
+    private static AiOptimizeResponseDto BuildRuleBasedSchedule(AiOptimizeRequestDto request, DateOnly targetDate)
+    {
+        if (request.AvailableSlots.Count == 0)
+        {
+            return RuleBasedError("Add at least one study time block before creating a plan.");
+        }
+
+        var items = request.CurrentTasksToPlan
+            .Select(t => new PlannerItem
+            {
+                TaskId = t.Id,
+                Subject = t.Subject,
+                RemainingMinutes = Math.Clamp(t.EstimatedMinutes <= 0 ? 25 : t.EstimatedMinutes, 15, 180),
+                Difficulty = Math.Clamp(t.DifficultyRating, 1, 10),
+                Priority = Math.Clamp(t.Priority, 1, 3),
+                Deadline = t.Deadline,
+                DaysSinceLastStudy = Math.Max(0, t.DaysSinceLastStudy),
+                ActivityType = string.Equals(t.Tag, "review", StringComparison.OrdinalIgnoreCase) ? "review" : "study"
+            })
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            items = request.Subjects
+                .Select(s => new PlannerItem
+                {
+                    Subject = s.Name,
+                    RemainingMinutes = 45,
+                    Difficulty = Math.Clamp(s.Difficulty, 1, 10),
+                    Priority = Math.Clamp(s.Priority, 1, 3),
+                    Deadline = s.ExamDate,
+                    ActivityType = "study"
+                })
+                .ToList();
+        }
+
+        if (items.Count == 0)
+        {
+            return RuleBasedError("Add at least one course before creating a plan.");
+        }
+
+        var slots = new List<AiScheduledSlotDto>();
+        foreach (var slot in request.AvailableSlots)
+        {
+            if (!TimeOnly.TryParse(slot.StartTime, out var cursor) || !TimeOnly.TryParse(slot.EndTime, out var end) || end <= cursor)
+            {
+                continue;
+            }
+
+            while (end > cursor && (end - cursor).TotalMinutes >= 15)
+            {
+                var item = items
+                    .Where(i => i.RemainingMinutes > 0)
+                    .OrderByDescending(i => i.Score(targetDate))
+                    .ThenBy(i => i.Deadline ?? DateOnly.MaxValue)
+                    .FirstOrDefault();
+
+                if (item is null) break;
+
+                var available = (int)(end - cursor).TotalMinutes;
+                var duration = Math.Min(Math.Min(50, item.RemainingMinutes), available);
+                if (duration < 15) break;
+
+                var next = cursor.AddMinutes(duration);
+                slots.Add(new AiScheduledSlotDto
+                {
+                    TimeSlot = $"{cursor:HH\\:mm}-{next:HH\\:mm}",
+                    Subject = item.Subject,
+                    AdjustedDurationMinutes = duration,
+                    ActivityType = item.ActivityType,
+                    TaskId = item.TaskId
+                });
+
+                item.RemainingMinutes -= duration;
+                cursor = next;
+
+                if ((end - cursor).TotalMinutes >= 20 && items.Any(i => i.RemainingMinutes > 0))
+                {
+                    var breakEnd = cursor.AddMinutes(10);
+                    slots.Add(new AiScheduledSlotDto
+                    {
+                        TimeSlot = $"{cursor:HH\\:mm}-{breakEnd:HH\\:mm}",
+                        Subject = "Break",
+                        AdjustedDurationMinutes = 10,
+                        ActivityType = "break"
+                    });
+                    cursor = breakEnd;
+                }
+            }
+        }
+
+        if (slots.Count == 0)
+        {
+            return RuleBasedError("Your time blocks are too short. Add a block of at least 15 minutes.");
+        }
+
+        return new AiOptimizeResponseDto
+        {
+            Status = "ok",
+            AnalysisResults = new AiAnalysisResultsDto
+            {
+                Mode = "Rule Based",
+                BurnoutScore = 0,
+                IsExhausted = false
+            },
+            AiSchedule = new AiScheduleResultDto
+            {
+                ScheduledSlots = slots,
+                AiMessage = "Plan created without AI. Use AI Optimize if you want a smarter second pass."
+            }
+        };
+    }
+
+    private static AiOptimizeResponseDto RuleBasedError(string message) => new()
+    {
+        Status = "error",
+        AnalysisResults = new AiAnalysisResultsDto { Mode = "Rule Based", BurnoutScore = 0 },
+        AiSchedule = new AiScheduleResultDto { Error = message, Details = message }
+    };
+
+    private sealed class PlannerItem
+    {
+        public int? TaskId { get; set; }
+        public string Subject { get; set; } = string.Empty;
+        public int RemainingMinutes { get; set; }
+        public int Difficulty { get; set; }
+        public int Priority { get; set; }
+        public DateOnly? Deadline { get; set; }
+        public int DaysSinceLastStudy { get; set; }
+        public string ActivityType { get; set; } = "study";
+
+        public int Score(DateOnly targetDate)
+        {
+            var priorityScore = (4 - Priority) * 20;
+            var difficultyScore = Difficulty * 4;
+            var staleScore = Math.Min(20, DaysSinceLastStudy * 3);
+            var dueScore = 0;
+
+            if (Deadline.HasValue)
+            {
+                var days = Deadline.Value.DayNumber - targetDate.DayNumber;
+                dueScore = days < 0 ? 60 : Math.Max(0, 35 - (days * 4));
+            }
+
+            return priorityScore + difficultyScore + staleScore + dueScore;
+        }
     }
 
     public async Task UpdateSlotStatusAsync(int userId, int scheduleId, int slotIndex, SlotStatusDto status, CancellationToken ct)

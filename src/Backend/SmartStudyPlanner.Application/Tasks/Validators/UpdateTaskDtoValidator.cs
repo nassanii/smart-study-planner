@@ -8,6 +8,7 @@ public class UpdateTaskDtoValidator : AbstractValidator<UpdateTaskDto>
     public UpdateTaskDtoValidator()
     {
         When(x => x.SubjectId.HasValue, () => RuleFor(x => x.SubjectId!.Value).GreaterThan(0));
+        When(x => x.Title is not null, () => RuleFor(x => x.Title!).MaximumLength(160));
         When(x => x.Priority.HasValue, () => RuleFor(x => x.Priority!.Value).IsInEnum());
         When(x => x.DifficultyRating.HasValue, () =>
             RuleFor(x => x.DifficultyRating!.Value).InclusiveBetween((short)1, (short)10));
