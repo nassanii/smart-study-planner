@@ -1,5 +1,5 @@
 import { extractErrorMessage } from '../services/errors';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
@@ -10,7 +10,7 @@ import { showAlert, showConfirm } from '../services/dialogs';
 
 export const SubjectsScreen = () => {
   const { colors, fonts } = useTheme();
-  const { subjects, tasks, addSubject, updateSubject, removeSubject } = useAI();
+  const { subjects, tasks, addSubject, updateSubject, removeSubject, reloadAll } = useAI();
   const { navigate } = useAppNavigation();
 
   const [showCourseModal, setShowCourseModal] = useState(false);
@@ -23,6 +23,10 @@ export const SubjectsScreen = () => {
     const open = tasks.filter((t) => t.status !== 'done').length;
     return { done, open };
   }, [tasks]);
+
+  useEffect(() => {
+    reloadAll().catch(() => {});
+  }, [reloadAll]);
 
   const openCourseModal = (course = null) => {
     setEditingCourse(course);

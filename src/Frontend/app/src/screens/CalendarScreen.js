@@ -603,7 +603,7 @@ export const CalendarScreen = () => {
                           </View>
                         )}
                         {status.status === 'snoozed' && (
-                          <Text style={styles.reasonText}>Skipped: {status.reason}</Text>
+                          <Text style={styles.reasonText}>Moved: {status.reason}</Text>
                         )}
                      </View>
                   </View>
@@ -618,7 +618,7 @@ export const CalendarScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Snooze Session</Text>
-            <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium }]}>Why are you skipping {snoozeTarget?.subject}?</Text>
+            <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium }]}>Why are you moving {snoozeTarget?.subject}?</Text>
             
             <View style={styles.reasonsGrid}>
               {reasons.map(r => (

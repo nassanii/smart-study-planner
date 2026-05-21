@@ -246,13 +246,32 @@ export const AIProvider = ({ children }) => {
    }, []);
 
    const addSubject = useCallback(async (payload) => {
-      const created = await subjectsApi.create(payload);
-      setSubjects((prev) => [...prev, mapSubjectFromApi(created)]);
-      showInAppNotification(
-         pickRandom(SUBJECT_ADDED_TITLES),
-         fmt(pickRandom(SUBJECT_ADDED_BODIES), created.name || payload.name)
-      );
-      return created;
+      try {
+         const created = await subjectsApi.create(payload);
+         const mapped = mapSubjectFromApi(created);
+         setSubjects((prev) => {
+            const withoutExisting = prev.filter((s) => s.id !== mapped.id);
+            return [...withoutExisting, mapped];
+         });
+         showInAppNotification(
+            pickRandom(SUBJECT_ADDED_TITLES),
+            fmt(pickRandom(SUBJECT_ADDED_BODIES), created.name || payload.name)
+         );
+         return created;
+      } catch (err) {
+         if (err.response?.status === 409) {
+            const remote = await subjectsApi.list();
+            const mapped = remote.map(mapSubjectFromApi);
+            setSubjects(mapped);
+            const existing = mapped.find((s) => s.name?.trim().toLowerCase() === payload.name?.trim().toLowerCase());
+            showInAppNotification(
+               "Course Already Exists",
+               existing ? `'${existing.name}' is already in your courses. I refreshed the list.` : "I refreshed your course list."
+            );
+            if (existing) return existing;
+         }
+         throw err;
+      }
    }, []);
 
    const updateSubject = useCallback(async (id, payload) => {

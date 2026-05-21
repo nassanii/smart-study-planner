@@ -21,7 +21,7 @@ export const ScheduleList = ({ scheduleData, loading }) => {
     }
 
     if (item.activity_type === 'break') {
-      return null; // Skip rendering breaks to match UI, or render as a thin line
+      return null;
     }
 
     return (

@@ -62,6 +62,10 @@ export const OnboardingScreen = () => {
   };
 
   const handleComplete = async () => {
+    if (slots.length === 0) {
+      showToast("Add at least one study time slot before finishing setup.", true);
+      return;
+    }
     setIsSubmitting(true);
     try {
       await completeOnboarding({ 
@@ -372,7 +376,7 @@ export const OnboardingScreen = () => {
          )}
          <TouchableOpacity style={[styles.mainBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={step < 3 ? handleNext : handleComplete} disabled={isSubmitting}>
             <Text style={[styles.mainBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>
-               {step < 3 ? 'CONTINUE' : (isSubmitting ? 'SETTING UP...' : 'ENTER APP')}
+               {step < 3 ? 'CONTINUE' : (isSubmitting ? 'SETTING UP...' : 'FINISH SETUP')}
             </Text>
             {!isSubmitting && <Ionicons name="chevron-forward" size={20} color="#FFF" />}
          </TouchableOpacity>

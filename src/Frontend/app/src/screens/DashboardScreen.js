@@ -102,6 +102,9 @@ export const DashboardScreen = () => {
                <Text style={[styles.userName, { color: colors.textDark, fontFamily: fonts.bold }]}>{user?.name || "Student"}</Text>
             </View>
             <View style={styles.headerRight}>
+               <TouchableOpacity style={styles.iconBtn} onPress={() => navigate("analytics")}>
+                  <Ionicons name="analytics-outline" size={22} color={colors.textDark} />
+               </TouchableOpacity>
                <TouchableOpacity style={styles.iconBtn} onPress={openNotifs}>
                   <Ionicons name="notifications" size={22} color={colors.textDark} />
                   {unread > 0 && (
