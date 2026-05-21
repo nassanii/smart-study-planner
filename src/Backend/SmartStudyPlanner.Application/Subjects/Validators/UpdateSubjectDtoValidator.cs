@@ -15,5 +15,9 @@ public class UpdateSubjectDtoValidator : AbstractValidator<UpdateSubjectDto>
         {
             RuleFor(x => x.Difficulty!.Value).InclusiveBetween((short)1, (short)10);
         });
+        When(x => x.Priority is not null, () =>
+        {
+            RuleFor(x => x.Priority!.Value).InclusiveBetween((short)1, (short)3);
+        });
     }
 }

@@ -663,6 +663,14 @@ namespace SmartStudyPlanner.Infrastructure.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("exam_date");
 
+                    b.Property<DateOnly?>("FinalDate")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("final_date");
+
+                    b.Property<DateOnly?>("MidtermDate")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("midterm_date");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)

@@ -20,7 +20,8 @@ export const OnboardingScreen = () => {
   const [courseName, setCourseName] = useState('');
   const [courseDifficulty, setCourseDifficulty] = useState(5);
   const [coursePriority, setCoursePriority] = useState(2);
-  const [courseExamDate, setCourseExamDate] = useState('');
+  const [courseMidtermDate, setCourseMidtermDate] = useState('');
+  const [courseFinalDate, setCourseFinalDate] = useState('');
   const [initialTaskTitle, setInitialTaskTitle] = useState('');
   const [initialTaskMinutes, setInitialTaskMinutes] = useState(45);
 
@@ -70,7 +71,9 @@ export const OnboardingScreen = () => {
           name: courseName.trim(),
           difficulty: courseDifficulty,
           priority: coursePriority,
-          examDate: courseExamDate || deadline,
+          examDate: courseFinalDate || courseMidtermDate || null,
+          midtermDate: courseMidtermDate || null,
+          finalDate: courseFinalDate || null,
           initialTaskTitle: initialTaskTitle.trim() || `Start ${courseName.trim()}`,
           estimatedMinutes: initialTaskMinutes,
         }],
@@ -164,15 +167,39 @@ export const OnboardingScreen = () => {
       <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
         <View style={styles.inputHeader}>
            <Ionicons name="flag-outline" size={20} color={colors.accent.exam} />
-           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>COURSE EXAM DATE</Text>
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM DATE</Text>
         </View>
         <TextInput
           style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
-          value={courseExamDate}
-          onChangeText={setCourseExamDate}
-          placeholder={deadline || 'YYYY-MM-DD'}
+          value={courseMidtermDate}
+          onChangeText={setCourseMidtermDate}
+          placeholder="Optional YYYY-MM-DD"
           placeholderTextColor={colors.textLight}
         />
+        {!!courseMidtermDate && (
+          <TouchableOpacity style={styles.clearDateBtn} onPress={() => setCourseMidtermDate('')}>
+            <Text style={[styles.clearDateText, { color: colors.primary, fontFamily: fonts.bold }]}>No midterm</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
+        <View style={styles.inputHeader}>
+           <Ionicons name="trophy-outline" size={20} color={colors.accent.exam} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL DATE</Text>
+        </View>
+        <TextInput
+          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
+          value={courseFinalDate}
+          onChangeText={setCourseFinalDate}
+          placeholder="Optional YYYY-MM-DD"
+          placeholderTextColor={colors.textLight}
+        />
+        {!!courseFinalDate && (
+          <TouchableOpacity style={styles.clearDateBtn} onPress={() => setCourseFinalDate('')}>
+            <Text style={[styles.clearDateText, { color: colors.primary, fontFamily: fonts.bold }]}>No final</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Text style={[styles.slotsTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 12 }]}>How hard does it feel?</Text>
@@ -377,6 +404,8 @@ const styles = StyleSheet.create({
   inputHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   label: { fontSize: 12, letterSpacing: 1 },
   input: { fontSize: 20, paddingLeft: 10 },
+  clearDateBtn: { alignSelf: 'flex-start', marginTop: 12, paddingVertical: 6, paddingHorizontal: 10 },
+  clearDateText: { fontSize: 12 },
   slotsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, marginTop: 10 },
   slotsTitle: { fontSize: 16 },
   prioRow: { flexDirection: 'row', gap: 10 },

@@ -6,7 +6,7 @@ import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { showAlert, showConfirm } from '../services/dialogs';
 
-const emptyForm = { id: null, name: '', difficulty: 5, examDate: '' };
+const emptyForm = { id: null, name: '', difficulty: 5, midtermDate: '', finalDate: '' };
 
 export const SubjectsManager = ({ visible, onClose }) => {
   const { colors, fonts } = useTheme();
@@ -23,7 +23,13 @@ export const SubjectsManager = ({ visible, onClose }) => {
   }, [visible]);
 
   const startEdit = (s) => {
-    setForm({ id: s.id, name: s.name, difficulty: s.difficulty, examDate: s.examDate || '' });
+    setForm({
+      id: s.id,
+      name: s.name,
+      difficulty: s.difficulty,
+      midtermDate: s.midtermDate || '',
+      finalDate: s.finalDate || s.examDate || '',
+    });
     setError('');
   };
 
@@ -47,7 +53,9 @@ export const SubjectsManager = ({ visible, onClose }) => {
       const payload = {
         name: form.name.trim(),
         difficulty: Number(form.difficulty),
-        examDate: form.examDate ? form.examDate.trim() : null,
+        midtermDate: form.midtermDate ? form.midtermDate.trim() : null,
+        finalDate: form.finalDate ? form.finalDate.trim() : null,
+        examDate: (form.finalDate || form.midtermDate) ? (form.finalDate || form.midtermDate).trim() : null,
       };
       if (form.id) {
         await updateSubject(form.id, payload);
@@ -103,7 +111,9 @@ export const SubjectsManager = ({ visible, onClose }) => {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.cardTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>{s.name}</Text>
-                    <Text style={[styles.cardSub, { color: colors.textLight, fontFamily: fonts.medium }]}>D{s.difficulty}/10{s.examDate ? ` · Exam ${s.examDate}` : ''}</Text>
+                    <Text style={[styles.cardSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                      D{s.difficulty}/10 · {formatCourseExams(s)}
+                    </Text>
                   </View>
                   <TouchableOpacity onPress={() => startEdit(s)} style={[styles.iconBtn, { backgroundColor: colors.cardAlt }]}>
                     <Ionicons name="pencil" size={16} color={colors.textDark} />
@@ -140,16 +150,41 @@ export const SubjectsManager = ({ visible, onClose }) => {
                 ))}
               </View>
 
-              <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>EXAM DATE (optional, YYYY-MM-DD)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.medium }]}
-                placeholder="2026-06-10"
-                placeholderTextColor={colors.textLight}
-                value={form.examDate}
-                onChangeText={(v) => setForm(f => ({ ...f, examDate: v }))}
-                autoComplete="off"
-                autoCorrect={false}
-              />
+              <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>MIDTERM DATE (optional, YYYY-MM-DD)</Text>
+              <View style={styles.dateLine}>
+                <TextInput
+                  style={[styles.input, styles.dateInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.medium }]}
+                  placeholder="No midterm"
+                  placeholderTextColor={colors.textLight}
+                  value={form.midtermDate}
+                  onChangeText={(v) => setForm(f => ({ ...f, midtermDate: v }))}
+                  autoComplete="off"
+                  autoCorrect={false}
+                />
+                {form.midtermDate ? (
+                  <TouchableOpacity style={[styles.clearDateBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setForm(f => ({ ...f, midtermDate: '' }))}>
+                    <Text style={[styles.clearDateText, { color: colors.textLight, fontFamily: fonts.bold }]}>Clear</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>FINAL DATE (optional, YYYY-MM-DD)</Text>
+              <View style={styles.dateLine}>
+                <TextInput
+                  style={[styles.input, styles.dateInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.medium }]}
+                  placeholder="No final"
+                  placeholderTextColor={colors.textLight}
+                  value={form.finalDate}
+                  onChangeText={(v) => setForm(f => ({ ...f, finalDate: v }))}
+                  autoComplete="off"
+                  autoCorrect={false}
+                />
+                {form.finalDate ? (
+                  <TouchableOpacity style={[styles.clearDateBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setForm(f => ({ ...f, finalDate: '' }))}>
+                    <Text style={[styles.clearDateText, { color: colors.textLight, fontFamily: fonts.bold }]}>Clear</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
 
               {error ? (
                 <View style={[styles.errorBox, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
@@ -180,6 +215,14 @@ export const SubjectsManager = ({ visible, onClose }) => {
   );
 };
 
+const formatCourseExams = (course) => {
+  const parts = [];
+  if (course.midtermDate) parts.push(`Midterm ${course.midtermDate}`);
+  if (course.finalDate) parts.push(`Final ${course.finalDate}`);
+  if (parts.length === 0 && course.examDate) parts.push(`Exam ${course.examDate}`);
+  return parts.length ? parts.join(' · ') : 'No midterm/final';
+};
+
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(15, 11, 36, 0.5)', justifyContent: 'flex-end' },
   sheet: { maxHeight: '90%', borderTopLeftRadius: 32, borderTopRightRadius: 32, borderWidth: 1, paddingHorizontal: 22, paddingTop: 14 },
@@ -197,6 +240,10 @@ const styles = StyleSheet.create({
   formTitle: { fontSize: 17, marginBottom: 18 },
   fieldLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 10, opacity: 0.65, marginTop: 6 },
   input: { height: 52, borderRadius: 14, paddingHorizontal: 16, marginBottom: 16, fontSize: 15 },
+  dateLine: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  dateInput: { flex: 1, marginBottom: 0 },
+  clearDateBtn: { height: 52, paddingHorizontal: 14, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  clearDateText: { fontSize: 12 },
   diffRow: { flexDirection: 'row', gap: 5, marginBottom: 16 },
   diffBit: { flex: 1, height: 8, borderRadius: 4 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 14 },

@@ -72,7 +72,9 @@ public class UserService : IUserService
                     UserId = userId,
                     Name = s.Name,
                     Difficulty = s.Difficulty,
-                    ExamDate = s.ExamDate,
+                    ExamDate = s.ExamDate ?? s.FinalDate ?? s.MidtermDate,
+                    MidtermDate = s.MidtermDate,
+                    FinalDate = s.FinalDate,
                     Priority = s.Priority,
                     CreatedAt = _time.GetUtcNow()
                 };

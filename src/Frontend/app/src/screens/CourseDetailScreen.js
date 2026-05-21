@@ -41,7 +41,7 @@ export const CourseDetailScreen = () => {
   const progress = courseTasks.length === 0 ? 0 : Math.round((doneTasks.length / courseTasks.length) * 100);
   const nextTask = [...activeTasks].sort(sortTasks)[0];
   const lastDone = [...doneTasks].sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0))[0];
-  const insights = buildInsights({ course, activeTasks, doneTasks, overdueTasks, studiedMinutes, estimatedMinutes, lastDone });
+  const nextCourseDate = getNextCourseDate(course);
 
   if (!course) {
     return (
@@ -55,13 +55,15 @@ export const CourseDetailScreen = () => {
     );
   }
 
+  const insights = buildInsights({ course, activeTasks, doneTasks, overdueTasks, studiedMinutes, estimatedMinutes, lastDone });
+
   const openTaskModal = () => {
     setTaskForm({
       title: '',
       estimatedMinutes: 45,
       priority: course.priority || 2,
       difficultyRating: course.difficulty || 5,
-      deadline: course.examDate || '',
+      deadline: nextCourseDate || '',
       tag: 'homework',
     });
     setShowTaskModal(true);
@@ -129,7 +131,7 @@ export const CourseDetailScreen = () => {
           <View style={{ flex: 1 }}>
             <Text style={[styles.courseTitle, { color: colors.textDark, fontFamily: fonts.bold }]} numberOfLines={1}>{course.name}</Text>
             <Text style={[styles.courseSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
-              {course.examDate ? `Exam ${new Date(course.examDate).toLocaleDateString()}` : 'No exam date'} | Difficulty {course.difficulty}/10
+              {formatCourseExams(course)} | Difficulty {course.difficulty}/10
             </Text>
           </View>
         </View>
@@ -389,6 +391,31 @@ const sortTasks = (a, b) => {
 const priorityLabel = (p) => Number(p) === 1 ? 'High' : Number(p) === 3 ? 'Low' : 'Medium';
 const priorityColor = (p) => Number(p) === 1 ? '#F43F5E' : Number(p) === 3 ? '#10B981' : '#F59E0B';
 const formatHours = (minutes) => minutes < 60 ? `${minutes}m` : `${Math.round(minutes / 60)}h`;
+
+const getCourseExamDates = (course) => {
+  if (!course) return [];
+  const dates = [
+    course.midtermDate ? { label: 'Midterm', value: course.midtermDate } : null,
+    course.finalDate ? { label: 'Final', value: course.finalDate } : null,
+  ].filter(Boolean);
+  if (dates.length === 0 && course.examDate) dates.push({ label: 'Exam', value: course.examDate });
+  return dates;
+};
+
+const getNextCourseDate = (course) => {
+  const today = startOfToday();
+  const upcoming = getCourseExamDates(course)
+    .map((item) => item.value)
+    .filter((value) => new Date(value) >= today)
+    .sort((a, b) => new Date(a) - new Date(b));
+  return upcoming[0] || getCourseExamDates(course).slice(-1)[0]?.value || '';
+};
+
+const formatCourseExams = (course) => {
+  const dates = getCourseExamDates(course);
+  if (dates.length === 0) return 'No midterm/final';
+  return dates.map((item) => `${item.label} ${new Date(item.value).toLocaleDateString()}`).join(' | ');
+};
 
 const buildInsights = ({ course, activeTasks, doneTasks, overdueTasks, studiedMinutes, estimatedMinutes, lastDone }) => {
   const insights = [];

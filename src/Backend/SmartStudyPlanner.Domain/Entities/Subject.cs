@@ -8,6 +8,8 @@ public class Subject
     public short Difficulty { get; set; }
     public short Priority { get; set; } = 2;
     public DateOnly? ExamDate { get; set; }
+    public DateOnly? MidtermDate { get; set; }
+    public DateOnly? FinalDate { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public ICollection<StudyTask> Tasks { get; set; } = new List<StudyTask>();

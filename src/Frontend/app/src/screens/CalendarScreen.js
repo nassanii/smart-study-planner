@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { useAppNavigation } from '../context/navigation_context';
@@ -11,6 +11,8 @@ import { DailyCheckinModal } from '../components/DailyCheckinModal';
 import { useFocus } from '../context/focus_context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const DURATION_OPTIONS = [25, 45, 60, 90];
+const TASK_TYPES = ['homework', 'review', 'reading', 'exam prep'];
 
 export const CalendarScreen = () => {
   const { colors, fonts } = useTheme();
@@ -26,8 +28,19 @@ export const CalendarScreen = () => {
   const [snoozeReason, setSnoozeReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [showPlanWizard, setShowPlanWizard] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskBusy, setTaskBusy] = useState(false);
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    subjectId: null,
+    estimatedMinutes: 45,
+    priority: 2,
+    difficultyRating: 5,
+    tag: 'homework',
+    deadline: '',
+  });
 
-  const { latestSchedule, tasks, subjects, snoozeTask, reloadBehavioral, reloadAll, generateSchedule } = useAI();
+  const { latestSchedule, tasks, subjects, addTask, completeTask, snoozeTask, reloadBehavioral, reloadAll, generateSchedule } = useAI();
   const { slotStatuses: slotStatus, setSlotStatuses: setSlotStatus, activeSlotIndex } = useFocus();
   
   const year = currentDate.getFullYear();
@@ -53,6 +66,11 @@ export const CalendarScreen = () => {
 
   // Date key for current selection
   const selectedDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+  const tasksForSelectedDay = tasks
+    .filter((t) => t.deadline === selectedDateKey)
+    .sort(sortCalendarTasks);
+  const openTasksForSelectedDay = tasksForSelectedDay.filter((t) => t.status !== 'done');
+  const doneTasksForSelectedDay = tasksForSelectedDay.filter((t) => t.status === 'done');
   const currentSlots = [...mappedSlots].sort((a, b) => {
     const startA = (a.time_slot || '').split('-')[0].trim();
     const startB = (b.time_slot || '').split('-')[0].trim();
@@ -96,8 +114,14 @@ export const CalendarScreen = () => {
 
   // Map tasks, exams, AND completed sessions to days for dots
   const dayEvents = [
-    ...tasks, 
-    ...subjects.map(s => s.examDate ? { ...s, deadline: s.examDate, isExam: true } : null).filter(Boolean),
+    ...tasks,
+    ...subjects.flatMap(s => {
+      const events = [];
+      if (s.midtermDate) events.push({ ...s, subject_id: s.id, name: `${s.name} midterm`, deadline: s.midtermDate, isExam: true, examType: 'Midterm' });
+      if (s.finalDate) events.push({ ...s, subject_id: s.id, name: `${s.name} final`, deadline: s.finalDate, isExam: true, examType: 'Final' });
+      if (!s.midtermDate && !s.finalDate && s.examDate) events.push({ ...s, subject_id: s.id, name: `${s.name} exam`, deadline: s.examDate, isExam: true, examType: 'Exam' });
+      return events;
+    }),
     ...completedSessions.map(s => ({ ...s, deadline: s.completedAt, isSession: true }))
   ].reduce((acc, item) => {
       const dateStr = item.deadline || item.examDate || item.completedAt;
@@ -116,6 +140,7 @@ export const CalendarScreen = () => {
 
   const getEventColor = (item) => {
     if (item.isExam) return '#F43F5E';
+    if (item.status === 'done') return '#10B981';
     const subId = item.subject_id || item.subjectId;
     const idx = subjects.findIndex(s => s.id === subId);
     if (idx === -1) return '#6C5CE7';
@@ -198,6 +223,76 @@ export const CalendarScreen = () => {
 
 
   const reasons = ['Tired', 'Hungry', 'Emergency', 'Need prep', 'Other'];
+
+  const openTaskModal = (dateKey = selectedDateKey) => {
+    if (subjects.length === 0) {
+      Alert.alert('Add a course first', 'Create a course before adding calendar tasks.');
+      return;
+    }
+    const firstCourse = subjects[0];
+    setTaskForm({
+      title: '',
+      subjectId: firstCourse.id,
+      estimatedMinutes: 45,
+      priority: firstCourse.priority || 2,
+      difficultyRating: firstCourse.difficulty || 5,
+      tag: 'homework',
+      deadline: dateKey,
+    });
+    setShowTaskModal(true);
+  };
+
+  const moveSelectionToDate = (dateKey) => {
+    const next = parseDateKey(dateKey);
+    setCurrentDate(next);
+    setSelectedDay(next.getDate());
+  };
+
+  const handleCreateTask = async ({ keepAdding = false, advanceDay = false } = {}) => {
+    if (!taskForm.title.trim()) {
+      Alert.alert('Task needed', 'Write a short task title first.');
+      return;
+    }
+    setTaskBusy(true);
+    try {
+      await addTask({
+        subjectId: taskForm.subjectId,
+        title: taskForm.title.trim(),
+        estimatedMinutes: Number(taskForm.estimatedMinutes) || 45,
+        priority: Number(taskForm.priority) || 2,
+        difficultyRating: Number(taskForm.difficultyRating) || 5,
+        deadline: taskForm.deadline || selectedDateKey,
+        tag: taskForm.tag,
+      });
+
+      if (keepAdding) {
+        const nextDate = advanceDay ? shiftDateKey(taskForm.deadline || selectedDateKey, 1) : (taskForm.deadline || selectedDateKey);
+        if (advanceDay) moveSelectionToDate(nextDate);
+        setTaskForm((prev) => ({ ...prev, title: '', deadline: nextDate }));
+      } else {
+        setShowTaskModal(false);
+      }
+    } catch (err) {
+      Alert.alert('Could not save task', err.response?.data?.title || err.message || 'Please try again.');
+    } finally {
+      setTaskBusy(false);
+    }
+  };
+
+  const handleCompleteCalendarTask = async (task) => {
+    try {
+      await completeTask(task.id, task.estimated_minutes || 25);
+      const remaining = Math.max(0, openTasksForSelectedDay.length - 1);
+      Alert.alert(
+        'Ahsant!',
+        remaining === 0
+          ? 'That day is clean. Nothing left on the calendar.'
+          : `${remaining} task${remaining === 1 ? '' : 's'} left for this day.`
+      );
+    } catch (err) {
+      Alert.alert('Could not complete task', err.response?.data?.title || err.message || 'Please try again.');
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -312,6 +407,81 @@ export const CalendarScreen = () => {
             })}
           </View>
         )}
+
+        {/* Tasks Section */}
+        <View style={styles.taskSectionHeader}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Tasks on this date</Text>
+            <Text style={[styles.dateSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+              {doneTasksForSelectedDay.length} done · {openTasksForSelectedDay.length} remaining
+            </Text>
+          </View>
+          <TouchableOpacity
+            accessibilityLabel="Add task to selected date"
+            style={[styles.addTaskBtn, { backgroundColor: colors.primary }]}
+            onPress={() => openTaskModal(selectedDateKey)}
+          >
+            <Ionicons name="add" size={18} color="#FFF" />
+            <Text style={[styles.addTaskText, { fontFamily: fonts.bold }]}>Task</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.dayTasksCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {tasksForSelectedDay.length === 0 ? (
+            <View style={styles.dayTasksEmpty}>
+              <Ionicons name="calendar-clear-outline" size={28} color="#CBD5E1" />
+              <Text style={[styles.dayTasksEmptyTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>No tasks here yet</Text>
+              <Text style={[styles.dayTasksEmptyText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                Pick this date for homework, review, reading, or exam prep.
+              </Text>
+            </View>
+          ) : (
+            tasksForSelectedDay.map((task) => {
+              const done = task.status === 'done';
+              const subject = subjects.find((s) => s.id === task.subject_id);
+              return (
+                <View key={task.id} style={[styles.dayTaskRow, { borderBottomColor: colors.border }]}>
+                  <TouchableOpacity
+                    accessibilityLabel={done ? `${task.title} completed` : `Complete ${task.title}`}
+                    disabled={done}
+                    style={[styles.taskCheck, { backgroundColor: done ? '#10B981' : colors.cardAlt }]}
+                    onPress={() => handleCompleteCalendarTask(task)}
+                  >
+                    <Ionicons name={done ? 'checkmark' : 'ellipse-outline'} size={16} color={done ? '#FFF' : colors.textLight} />
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.dayTaskTitle,
+                        { color: done ? colors.textLight : colors.textDark, fontFamily: fonts.bold },
+                        done && styles.dayTaskDoneTitle
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {task.title}
+                    </Text>
+                    <Text style={[styles.dayTaskMeta, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
+                      {subject?.name || 'Course'} · {task.estimated_minutes || 25} min · {task.tag || 'study'}
+                    </Text>
+                  </View>
+                  <View style={[styles.taskStatePill, { backgroundColor: done ? '#10B98115' : colors.cardAlt }]}>
+                    <Text style={[styles.taskStateText, { color: done ? '#10B981' : colors.textLight, fontFamily: fonts.bold }]}>
+                      {done ? 'Done' : 'Open'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
+          {doneTasksForSelectedDay.length > 0 && (
+            <View style={[styles.praiseStrip, { backgroundColor: '#10B98112' }]}>
+              <Ionicons name="sparkles-outline" size={16} color="#10B981" />
+              <Text style={[styles.praiseText, { color: '#047857', fontFamily: fonts.bold }]}>
+                Nice work. {openTasksForSelectedDay.length === 0 ? 'This day is clear.' : `${openTasksForSelectedDay.length} left for this day.`}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Schedule Section */}
         <View style={styles.sectionHeader}>
@@ -484,6 +654,144 @@ export const CalendarScreen = () => {
         </View>
       </Modal>
 
+      <Modal visible={showTaskModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.taskModalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.taskModalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Add Calendar Task</Text>
+                <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium }]}>{taskForm.deadline || selectedDateKey}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowTaskModal(false)} style={[styles.closeTaskBtn, { backgroundColor: colors.cardAlt }]}>
+                <Ionicons name="close" size={18} color={colors.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={[styles.taskInputGroup, { borderColor: colors.border }]}>
+                <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>TASK</Text>
+                <TextInput
+                  value={taskForm.title}
+                  onChangeText={(v) => setTaskForm({ ...taskForm, title: v })}
+                  placeholder="e.g. Solve limits worksheet"
+                  placeholderTextColor={colors.textLight}
+                  style={[styles.taskTextInput, { color: colors.textDark, fontFamily: fonts.bold }]}
+                  autoComplete="off"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>COURSE</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.coursePicker}>
+                {subjects.map((subject) => {
+                  const selected = taskForm.subjectId === subject.id;
+                  return (
+                    <TouchableOpacity
+                      key={subject.id}
+                      style={[
+                        styles.courseChip,
+                        { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + '12' : colors.cardAlt }
+                      ]}
+                      onPress={() => setTaskForm({
+                        ...taskForm,
+                        subjectId: subject.id,
+                        priority: subject.priority || taskForm.priority,
+                        difficultyRating: subject.difficulty || taskForm.difficultyRating,
+                      })}
+                    >
+                      <Text style={{ color: selected ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>{subject.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 16 }]}>DATE</Text>
+              <TextInput
+                value={taskForm.deadline}
+                onChangeText={(v) => setTaskForm({ ...taskForm, deadline: v })}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textLight}
+                style={[styles.fullDateInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.bold }]}
+                autoComplete="off"
+                autoCorrect={false}
+              />
+
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>DURATION</Text>
+              <View style={styles.quickRow}>
+                {DURATION_OPTIONS.map((minutes) => (
+                  <TouchableOpacity
+                    key={minutes}
+                    style={[
+                      styles.quickBtn,
+                      { borderColor: taskForm.estimatedMinutes === minutes ? colors.primary : colors.border, backgroundColor: taskForm.estimatedMinutes === minutes ? colors.primary + '12' : 'transparent' }
+                    ]}
+                    onPress={() => setTaskForm({ ...taskForm, estimatedMinutes: minutes })}
+                  >
+                    <Text style={{ color: taskForm.estimatedMinutes === minutes ? colors.primary : colors.textLight, fontFamily: fonts.bold }}>{minutes}m</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 16 }]}>TYPE</Text>
+              <View style={styles.typeWrap}>
+                {TASK_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.typeChip,
+                      { borderColor: taskForm.tag === type ? colors.primary : colors.border, backgroundColor: taskForm.tag === type ? colors.primary + '12' : 'transparent' }
+                    ]}
+                    onPress={() => setTaskForm({ ...taskForm, tag: type })}
+                  >
+                    <Text style={{ color: taskForm.tag === type ? colors.primary : colors.textDark, fontFamily: fonts.medium }}>{type}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.quickRowWithTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PRIORITY</Text>
+                  <View style={styles.quickRow}>
+                    {[1, 2, 3].map((p) => (
+                      <TouchableOpacity
+                        key={p}
+                        style={[styles.quickBtn, { borderColor: taskForm.priority === p ? colors.primary : colors.border }]}
+                        onPress={() => setTaskForm({ ...taskForm, priority: p })}
+                      >
+                        <Text style={{ color: taskForm.priority === p ? colors.primary : colors.textLight, fontFamily: fonts.bold }}>{p === 1 ? 'H' : p === 2 ? 'M' : 'L'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>DIFFICULTY</Text>
+                  <View style={styles.quickRow}>
+                    {[3, 5, 8].map((d) => (
+                      <TouchableOpacity
+                        key={d}
+                        style={[styles.quickBtn, { borderColor: taskForm.difficultyRating === d ? colors.primary : colors.border }]}
+                        onPress={() => setTaskForm({ ...taskForm, difficultyRating: d })}
+                      >
+                        <Text style={{ color: taskForm.difficultyRating === d ? colors.primary : colors.textLight, fontFamily: fonts.bold }}>D{d}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.taskModalActions}>
+              <TouchableOpacity style={[styles.taskSecondaryBtn, { borderColor: colors.border }]} onPress={() => handleCreateTask({ keepAdding: true, advanceDay: true })} disabled={taskBusy}>
+                <Text style={[styles.taskSecondaryText, { color: colors.primary, fontFamily: fonts.bold }]}>Save + next day</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.taskPrimaryBtn, { backgroundColor: colors.primary }]} onPress={() => handleCreateTask()} disabled={taskBusy}>
+                {taskBusy ? <ActivityIndicator color="#FFF" /> : <Text style={[styles.taskPrimaryText, { fontFamily: fonts.bold }]}>Save Task</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <DailyCheckinModal 
         visible={showPlanWizard} 
         onClose={() => setShowPlanWizard(false)} 
@@ -502,6 +810,27 @@ export const CalendarScreen = () => {
       )}
     </View>
   );
+};
+
+const parseDateKey = (dateKey) => {
+  const [y, m, d] = String(dateKey).split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+const formatDateKey = (date) => (
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
+
+const shiftDateKey = (dateKey, days) => {
+  const date = parseDateKey(dateKey);
+  date.setDate(date.getDate() + days);
+  return formatDateKey(date);
+};
+
+const sortCalendarTasks = (a, b) => {
+  if ((a.status === 'done') !== (b.status === 'done')) return a.status === 'done' ? 1 : -1;
+  if ((a.priority || 2) !== (b.priority || 2)) return (a.priority || 2) - (b.priority || 2);
+  return (b.difficulty_rating || 0) - (a.difficulty_rating || 0);
 };
 
 const styles = StyleSheet.create({
@@ -530,6 +859,22 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 12 },
+  taskSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 },
+  addTaskBtn: { height: 42, paddingHorizontal: 14, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  addTaskText: { color: '#FFF', fontSize: 13 },
+  dayTasksCard: { borderWidth: 1, borderRadius: 22, padding: 14, marginBottom: 26 },
+  dayTasksEmpty: { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 12 },
+  dayTasksEmptyTitle: { fontSize: 16, marginTop: 10 },
+  dayTasksEmptyText: { textAlign: 'center', fontSize: 13, lineHeight: 18, marginTop: 5 },
+  dayTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12, borderBottomWidth: 1 },
+  taskCheck: { width: 34, height: 34, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  dayTaskTitle: { fontSize: 14 },
+  dayTaskDoneTitle: { textDecorationLine: 'line-through' },
+  dayTaskMeta: { fontSize: 12, marginTop: 4 },
+  taskStatePill: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10 },
+  taskStateText: { fontSize: 10 },
+  praiseStrip: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginTop: 10 },
+  praiseText: { fontSize: 12, flex: 1 },
   
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, paddingHorizontal: 4 },
   sectionTitle: { fontSize: 20 },
@@ -556,8 +901,27 @@ const styles = StyleSheet.create({
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 25 },
   modalContent: { borderRadius: 28, padding: 25, width: '100%', maxWidth: 400 },
+  taskModalContent: { maxHeight: '88%' },
+  taskModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
+  closeTaskBtn: { width: 34, height: 34, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   modalTitle: { fontSize: 20, marginBottom: 8 },
   modalSub: { fontSize: 14, marginBottom: 20 },
+  miniLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 8, opacity: 0.75 },
+  taskInputGroup: { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 14 },
+  taskTextInput: { fontSize: 17, paddingVertical: 4 },
+  coursePicker: { marginBottom: 2 },
+  courseChip: { borderWidth: 1.5, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 9, marginRight: 8 },
+  fullDateInput: { height: 48, borderRadius: 14, paddingHorizontal: 14, marginBottom: 16, fontSize: 14 },
+  quickRow: { flexDirection: 'row', gap: 8 },
+  quickRowWithTop: { flexDirection: 'row', gap: 12, marginTop: 18, marginBottom: 18 },
+  quickBtn: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  typeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  typeChip: { borderWidth: 1.5, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 9 },
+  taskModalActions: { flexDirection: 'row', gap: 10, paddingTop: 12 },
+  taskSecondaryBtn: { flex: 1, height: 50, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  taskSecondaryText: { fontSize: 13 },
+  taskPrimaryBtn: { flex: 1, height: 50, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  taskPrimaryText: { color: '#FFF', fontSize: 14 },
   reasonsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   reasonBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
   reasonBtnText: { fontSize: 13 },

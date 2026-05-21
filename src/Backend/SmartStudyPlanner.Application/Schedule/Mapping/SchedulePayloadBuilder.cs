@@ -80,7 +80,7 @@ public class SchedulePayloadBuilder
                 Name = s.Name,
                 Difficulty = s.Difficulty,
                 Priority = s.Priority,
-                ExamDate = s.ExamDate
+                ExamDate = s.FinalDate ?? s.MidtermDate ?? s.ExamDate
             })
             .ToListAsync(ct);
 

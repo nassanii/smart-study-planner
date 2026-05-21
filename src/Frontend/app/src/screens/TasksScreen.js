@@ -15,7 +15,7 @@ export const SubjectsScreen = () => {
 
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
-  const [courseForm, setCourseForm] = useState({ name: '', difficulty: 5, priority: 2, examDate: '' });
+  const [courseForm, setCourseForm] = useState({ name: '', difficulty: 5, priority: 2, midtermDate: '', finalDate: '' });
   const [busy, setBusy] = useState(false);
 
   const totals = useMemo(() => {
@@ -27,8 +27,14 @@ export const SubjectsScreen = () => {
   const openCourseModal = (course = null) => {
     setEditingCourse(course);
     setCourseForm(course
-      ? { name: course.name || '', difficulty: course.difficulty || 5, priority: course.priority || 2, examDate: course.examDate || '' }
-      : { name: '', difficulty: 5, priority: 2, examDate: '' });
+      ? {
+        name: course.name || '',
+        difficulty: course.difficulty || 5,
+        priority: course.priority || 2,
+        midtermDate: course.midtermDate || '',
+        finalDate: course.finalDate || course.examDate || '',
+      }
+      : { name: '', difficulty: 5, priority: 2, midtermDate: '', finalDate: '' });
     setShowCourseModal(true);
   };
 
@@ -41,7 +47,9 @@ export const SubjectsScreen = () => {
         name: courseForm.name.trim(),
         difficulty: Number(courseForm.difficulty) || 5,
         priority: Number(courseForm.priority) || 2,
-        examDate: courseForm.examDate || null,
+        midtermDate: courseForm.midtermDate || null,
+        finalDate: courseForm.finalDate || null,
+        examDate: courseForm.finalDate || courseForm.midtermDate || null,
       };
       if (editingCourse) {
         await updateSubject(editingCourse.id, payload);
@@ -142,7 +150,7 @@ export const SubjectsScreen = () => {
                           {course.name}
                         </Text>
                         <Text style={[styles.courseMeta, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                          {course.examDate ? `Exam ${new Date(course.examDate).toLocaleDateString()}` : 'No exam date'} | Diff {course.difficulty}/10
+                          {formatCourseExams(course)} | Diff {course.difficulty}/10
                         </Text>
                       </View>
                       <View style={[styles.prioTag, { backgroundColor: getPrioColor(course.priority) + '15' }]}>
@@ -213,15 +221,42 @@ export const SubjectsScreen = () => {
               />
             </View>
 
-            <View style={[styles.inputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>EXAM DATE</Text>
-              <TextInput
-                style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
-                value={courseForm.examDate}
-                onChangeText={(v) => setCourseForm({ ...courseForm, examDate: v })}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.textLight}
-              />
+            <View style={styles.dateGrid}>
+              <View style={[styles.inputGroup, styles.dateInputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM DATE</Text>
+                <TextInput
+                  style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
+                  value={courseForm.midtermDate}
+                  onChangeText={(v) => setCourseForm({ ...courseForm, midtermDate: v })}
+                  placeholder="Optional"
+                  placeholderTextColor={colors.textLight}
+                  autoComplete="off"
+                  autoCorrect={false}
+                />
+                {courseForm.midtermDate ? (
+                  <TouchableOpacity style={[styles.clearDateBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setCourseForm({ ...courseForm, midtermDate: '' })}>
+                    <Text style={[styles.clearDateText, { color: colors.textLight, fontFamily: fonts.bold }]}>No midterm</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              <View style={[styles.inputGroup, styles.dateInputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL DATE</Text>
+                <TextInput
+                  style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
+                  value={courseForm.finalDate}
+                  onChangeText={(v) => setCourseForm({ ...courseForm, finalDate: v })}
+                  placeholder="Optional"
+                  placeholderTextColor={colors.textLight}
+                  autoComplete="off"
+                  autoCorrect={false}
+                />
+                {courseForm.finalDate ? (
+                  <TouchableOpacity style={[styles.clearDateBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setCourseForm({ ...courseForm, finalDate: '' })}>
+                    <Text style={[styles.clearDateText, { color: colors.textLight, fontFamily: fonts.bold }]}>No final</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
 
             <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PRIORITY</Text>
@@ -267,6 +302,14 @@ export const SubjectsScreen = () => {
   );
 };
 
+const formatCourseExams = (course) => {
+  const parts = [];
+  if (course.midtermDate) parts.push(`Midterm ${new Date(course.midtermDate).toLocaleDateString()}`);
+  if (course.finalDate) parts.push(`Final ${new Date(course.finalDate).toLocaleDateString()}`);
+  if (parts.length === 0 && course.examDate) parts.push(`Exam ${new Date(course.examDate).toLocaleDateString()}`);
+  return parts.length ? parts.join(' | ') : 'No midterm/final';
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 110 },
@@ -308,8 +351,12 @@ const styles = StyleSheet.create({
   modalContent: { padding: 26, borderTopLeftRadius: 32, borderTopRightRadius: 32, elevation: 20 },
   modalTitle: { fontSize: 24, marginBottom: 22 },
   inputGroup: { padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 14 },
+  dateGrid: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  dateInputGroup: { flex: 1 },
   miniLabel: { fontSize: 10, letterSpacing: 1, marginBottom: 8, opacity: 0.75 },
   inputBoxText: { fontSize: 18, paddingVertical: 4 },
+  clearDateBtn: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10, marginTop: 7 },
+  clearDateText: { fontSize: 10 },
   segmentRow: { flexDirection: 'row', gap: 10 },
   segmentBtn: { flex: 1, height: 42, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
   diffBarRow: { flexDirection: 'row', gap: 5, marginTop: 4, marginBottom: 24 },

@@ -192,7 +192,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
                   <Text
                      style={{ fontSize: 11, color: colors.textLight, textAlign: "center", marginBottom: 25, fontFamily: fonts.medium, marginTop: 10 }}
                   >
-                     The plan uses priority, difficulty, exam dates, and your open tasks.
+                     The plan uses priority, difficulty, midterm/final dates, and your open tasks.
                   </Text>
 
                   <TouchableOpacity

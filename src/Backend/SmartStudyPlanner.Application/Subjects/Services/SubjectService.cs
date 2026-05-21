@@ -68,7 +68,9 @@ public class SubjectService : ISubjectService
             Name = dto.Name,
             Difficulty = dto.Difficulty,
             Priority = dto.Priority,
-            ExamDate = dto.ExamDate,
+            MidtermDate = dto.MidtermDate,
+            FinalDate = dto.FinalDate,
+            ExamDate = dto.ExamDate ?? dto.FinalDate ?? dto.MidtermDate,
             CreatedAt = _time.GetUtcNow()
         };
         _db.Subjects.Add(entity);
@@ -114,7 +116,9 @@ public class SubjectService : ISubjectService
         }
         if (dto.Difficulty.HasValue) s.Difficulty = dto.Difficulty.Value;
         if (dto.Priority.HasValue) s.Priority = dto.Priority.Value;
-        if (dto.ExamDate.HasValue) s.ExamDate = dto.ExamDate;
+        s.MidtermDate = dto.MidtermDate;
+        s.FinalDate = dto.FinalDate;
+        s.ExamDate = dto.ExamDate ?? dto.FinalDate ?? dto.MidtermDate;
 
         await _db.SaveChangesAsync(ct);
         return Map(s);
@@ -135,6 +139,8 @@ public class SubjectService : ISubjectService
         Difficulty = s.Difficulty,
         Priority = s.Priority,
         ExamDate = s.ExamDate,
+        MidtermDate = s.MidtermDate,
+        FinalDate = s.FinalDate,
         CreatedAt = s.CreatedAt
     };
 }

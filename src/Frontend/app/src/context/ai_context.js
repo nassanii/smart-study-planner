@@ -90,6 +90,8 @@ function mapSubjectFromApi(s) {
       difficulty: s.difficulty || s.Difficulty,
       priority: s.priority || s.Priority,
       examDate: s.examDate || s.exam_date || s.ExamDate,
+      midtermDate: s.midtermDate || s.midterm_date || s.MidtermDate,
+      finalDate: s.finalDate || s.final_date || s.FinalDate,
    };
 }
 
@@ -270,7 +272,9 @@ export const AIProvider = ({ children }) => {
             name: s.name,
             initialTaskTitle: s.initialTaskTitle,
             difficulty: Number(s.difficulty) || 5,
-            examDate: s.examDate || null,
+            examDate: s.examDate || s.finalDate || s.midtermDate || null,
+            midtermDate: s.midtermDate || null,
+            finalDate: s.finalDate || null,
             priority: Number(s.priority) || 2,
             estimatedMinutes: Number(s.estimatedMinutes) || 50,
          }));
