@@ -144,44 +144,6 @@ export const EditProfileScreen = () => {
             {errors.name && <Text style={[styles.errorText, { fontFamily: fonts.medium }]}>{errors.name}</Text>}
           </View>
 
-          {/* Deadline Section */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-               <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.semiBold }]}>FINAL EXAM DEADLINE</Text>
-               {deadline !== user?.deadline && <Text style={[styles.modifiedLabel, { color: colors.primary, fontFamily: fonts.bold }]}>MODIFIED</Text>}
-            </View>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.cardAlt, borderColor: errors.deadline ? colors.accent.exam : (deadline !== user?.deadline ? colors.primary : 'transparent'), borderWidth: errors.deadline || deadline !== user?.deadline ? 1 : 0 }]}>
-              <Ionicons name="calendar-outline" size={20} color={deadline !== user?.deadline ? colors.primary : colors.textLight} style={styles.inputIcon} />
-              {Platform.OS === 'web' ? (
-                <input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  style={{
-                    fontSize: 18,
-                    fontFamily: 'Outfit_500Medium',
-                    color: colors.textDark,
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    flex: 1,
-                    cursor: 'pointer'
-                  }}
-                />
-              ) : (
-                <TextInput
-                  style={[styles.input, { color: colors.textDark, fontFamily: fonts.medium }]}
-                  value={deadline}
-                  onChangeText={setDeadline}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.textLight}
-                  autoCorrect={false}
-                />
-              )}
-            </View>
-            {errors.deadline && <Text style={[styles.errorText, { fontFamily: fonts.medium }]}>{errors.deadline}</Text>}
-          </View>
-
           {/* Email Section - Read Only for Security */}
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>

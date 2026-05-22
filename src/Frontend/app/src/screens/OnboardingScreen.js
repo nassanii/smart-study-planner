@@ -1,5 +1,6 @@
 import { extractErrorMessage } from '../services/errors';
 import React, { useState, useEffect } from 'react';
+import { DatePickerModal } from '../components/DatePickerModal';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Dimensions, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
@@ -13,17 +14,55 @@ export const OnboardingScreen = () => {
   const { colors, fonts } = useTheme();
   const { completeOnboarding, userData } = useAI();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [step, setStep] = useState(1);
-  
+  // Step 1 (display name + global deadline) is skipped — name comes from registration,
+  // deadline is derived from the course's final/midterm date.
+  const [step, setStep] = useState(2);
+
   const [name, setName] = useState(userData?.name || '');
   const [deadline, setDeadline] = useState(userData?.deadline || '');
   const [courseName, setCourseName] = useState('');
   const [courseDifficulty, setCourseDifficulty] = useState(5);
   const [coursePriority, setCoursePriority] = useState(2);
-  const [courseMidtermDate, setCourseMidtermDate] = useState('');
-  const [courseFinalDate, setCourseFinalDate] = useState('');
-  const [initialTaskTitle, setInitialTaskTitle] = useState('');
-  const [initialTaskMinutes, setInitialTaskMinutes] = useState(45);
+  const [addedCourses, setAddedCourses] = useState([]);
+  // Semester-wide dates applied to all courses
+  const [semesterMidterm, setSemesterMidterm] = useState('');
+  const [semesterFinal, setSemesterFinal] = useState('');
+  const [showMidtermPicker, setShowMidtermPicker] = useState(false);
+  const [showFinalPicker, setShowFinalPicker] = useState(false);
+
+  const formatDateDisplay = (s) => {
+    if (!s) return '';
+    const d = String(s).split('T')[0];
+    const parts = d.split('-');
+    if (parts.length !== 3) return d;
+    const [y, m, dd] = parts;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[parseInt(m, 10) - 1] || m} ${parseInt(dd, 10)}, ${y}`;
+  };
+
+  const resetCourseForm = () => {
+    setCourseName('');
+    setCourseDifficulty(5);
+    setCoursePriority(2);
+  };
+
+  const addCurrentCourse = () => {
+    if (!courseName.trim()) {
+      showToast("Enter a course name first", true);
+      return false;
+    }
+    setAddedCourses((prev) => [...prev, {
+      name: courseName.trim(),
+      difficulty: courseDifficulty,
+      priority: coursePriority,
+    }]);
+    resetCourseForm();
+    return true;
+  };
+
+  const removeAddedCourse = (idx) => {
+    setAddedCourses((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const getLocalToday = () => {
     const d = new Date();
@@ -46,8 +85,21 @@ export const OnboardingScreen = () => {
       return;
     }
     if (step === 2) {
-      if (!courseName.trim()) return showToast("Add at least one course", true);
-      setStep(3);
+      let courses = addedCourses;
+      if (courseName.trim()) {
+        courses = [...addedCourses, {
+          name: courseName.trim(),
+          difficulty: courseDifficulty,
+          priority: coursePriority,
+        }];
+      }
+      if (courses.length === 0) {
+        return showToast("Add at least one course", true);
+      }
+      if (!semesterMidterm && !semesterFinal) {
+        return showToast("Pick a midterm or final date for the semester", true);
+      }
+      handleComplete(courses);
     }
   };
 
@@ -65,27 +117,33 @@ export const OnboardingScreen = () => {
     setSlots(slots.filter((_, i) => i !== index));
   };
 
-  const handleComplete = async () => {
-    if (slots.length === 0) {
-      showToast("Add at least one study time slot before finishing setup.", true);
+  const handleComplete = async (coursesList) => {
+    const courses = coursesList || addedCourses;
+    if (courses.length === 0) {
+      showToast("Add at least one course", true);
       return;
     }
     setIsSubmitting(true);
     try {
-      await completeOnboarding({ 
-        name, 
-        deadline, 
-        subjects: [{
-          name: courseName.trim(),
-          difficulty: courseDifficulty,
-          priority: coursePriority,
-          examDate: courseFinalDate || courseMidtermDate || null,
-          midtermDate: courseMidtermDate || null,
-          finalDate: courseFinalDate || null,
-          initialTaskTitle: initialTaskTitle.trim() || `Start ${courseName.trim()}`,
-          estimatedMinutes: initialTaskMinutes,
-        }],
-        slots 
+      const resolvedName = (name && name.trim()) || userData?.name || 'Student';
+      // One midterm + final for the whole semester — applied to every course
+      const resolvedDeadline = deadline || semesterFinal || semesterMidterm || (() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 6);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      })();
+      await completeOnboarding({
+        name: resolvedName,
+        deadline: resolvedDeadline,
+        subjects: courses.map((c) => ({
+          name: c.name,
+          difficulty: c.difficulty,
+          priority: c.priority,
+          examDate: semesterFinal || semesterMidterm || null,
+          midtermDate: semesterMidterm || null,
+          finalDate: semesterFinal || null,
+        })),
+        slots
       });
     } catch (err) {
       setIsSubmitting(false);
@@ -153,10 +211,42 @@ export const OnboardingScreen = () => {
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>First Course</Text>
+      <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Your Courses</Text>
       <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-        Add one course to make the app useful right away. You can add the rest later.
+        Add one or more courses. Tap "+ Add another" to chain them — finish setup when you're done.
       </Text>
+
+      {addedCourses.length > 0 && (
+        <View style={{ marginBottom: 18 }}>
+          {addedCourses.map((c, idx) => (
+            <View
+              key={idx}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                padding: 14,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+                marginBottom: 8,
+              }}
+            >
+              <Ionicons name="library" size={20} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 15 }} numberOfLines={1}>{c.name}</Text>
+                <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                  Diff {c.difficulty}/10 · {c.priority === 1 ? 'High' : c.priority === 2 ? 'Medium' : 'Low'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => removeAddedCourse(idx)}>
+                <Ionicons name="close-circle" size={22} color={colors.textLight} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
         <View style={styles.inputHeader}>
@@ -172,43 +262,6 @@ export const OnboardingScreen = () => {
         />
       </View>
 
-      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
-        <View style={styles.inputHeader}>
-           <Ionicons name="flag-outline" size={20} color={colors.accent.exam} />
-           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM DATE</Text>
-        </View>
-        <TextInput
-          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
-          value={courseMidtermDate}
-          onChangeText={setCourseMidtermDate}
-          placeholder="Optional YYYY-MM-DD"
-          placeholderTextColor={colors.textLight}
-        />
-        {!!courseMidtermDate && (
-          <TouchableOpacity style={styles.clearDateBtn} onPress={() => setCourseMidtermDate('')}>
-            <Text style={[styles.clearDateText, { color: colors.primary, fontFamily: fonts.bold }]}>No midterm</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}>
-        <View style={styles.inputHeader}>
-           <Ionicons name="trophy-outline" size={20} color={colors.accent.exam} />
-           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL DATE</Text>
-        </View>
-        <TextInput
-          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
-          value={courseFinalDate}
-          onChangeText={setCourseFinalDate}
-          placeholder="Optional YYYY-MM-DD"
-          placeholderTextColor={colors.textLight}
-        />
-        {!!courseFinalDate && (
-          <TouchableOpacity style={styles.clearDateBtn} onPress={() => setCourseFinalDate('')}>
-            <Text style={[styles.clearDateText, { color: colors.primary, fontFamily: fonts.bold }]}>No final</Text>
-          </TouchableOpacity>
-        )}
-      </View>
 
       <Text style={[styles.slotsTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 12 }]}>How hard does it feel?</Text>
       <View style={styles.diffBarRow}>
@@ -236,31 +289,79 @@ export const OnboardingScreen = () => {
         ))}
       </View>
 
-      <View style={[styles.inputGroup, { backgroundColor: colors.cardAlt, marginTop: 24 }]}>
-        <View style={styles.inputHeader}>
-           <Ionicons name="checkbox-outline" size={20} color={colors.primary} />
-           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FIRST TASK</Text>
-        </View>
-        <TextInput
-          style={[styles.input, { color: colors.textDark, fontFamily: fonts.bold, outlineStyle: 'none' }]}
-          value={initialTaskTitle}
-          onChangeText={setInitialTaskTitle}
-          placeholder="e.g. Review chapter 1"
-          placeholderTextColor={colors.textLight}
-        />
-      </View>
+      <TouchableOpacity
+        onPress={addCurrentCourse}
+        style={{
+          marginTop: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          padding: 14,
+          borderRadius: 14,
+          borderWidth: 1.5,
+          borderColor: colors.primary,
+          borderStyle: 'dashed',
+        }}
+      >
+        <Ionicons name="add" size={18} color={colors.primary} />
+        <Text style={{ color: colors.primary, fontFamily: fonts.bold, fontSize: 14 }}>Add another course</Text>
+      </TouchableOpacity>
 
-      <View style={styles.durationRow}>
-        {[25, 45, 60, 90].map((m) => (
-          <TouchableOpacity
-            key={m}
-            style={[styles.durationBtn, { borderColor: initialTaskMinutes === m ? colors.primary : colors.border, backgroundColor: initialTaskMinutes === m ? colors.primaryLight : colors.surface }]}
-            onPress={() => setInitialTaskMinutes(m)}
-          >
-            <Text style={{ color: initialTaskMinutes === m ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>{m}m</Text>
+      <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 26 }} />
+
+      <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold, fontSize: 22 }]}>Semester Dates</Text>
+      <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
+        Set once — applies to all your courses.
+      </Text>
+
+      <TouchableOpacity
+        style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}
+        onPress={() => setShowMidtermPicker(true)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.inputHeader}>
+           <Ionicons name="flag-outline" size={20} color={colors.accent.exam} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM DATE</Text>
+        </View>
+        <Text
+          style={[styles.input, {
+            color: semesterMidterm ? colors.textDark : colors.textLight,
+            fontFamily: fonts.bold,
+          }]}
+        >
+          {semesterMidterm ? formatDateDisplay(semesterMidterm) : 'Tap to choose'}
+        </Text>
+        {!!semesterMidterm && (
+          <TouchableOpacity style={styles.clearDateBtn} onPress={() => setSemesterMidterm('')}>
+            <Text style={[styles.clearDateText, { color: colors.primary, fontFamily: fonts.bold }]}>Clear</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.inputGroup, { backgroundColor: colors.cardAlt }]}
+        onPress={() => setShowFinalPicker(true)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.inputHeader}>
+           <Ionicons name="trophy-outline" size={20} color={colors.accent.exam} />
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL DATE</Text>
+        </View>
+        <Text
+          style={[styles.input, {
+            color: semesterFinal ? colors.textDark : colors.textLight,
+            fontFamily: fonts.bold,
+          }]}
+        >
+          {semesterFinal ? formatDateDisplay(semesterFinal) : 'Tap to choose'}
+        </Text>
+        {!!semesterFinal && (
+          <TouchableOpacity style={styles.clearDateBtn} onPress={() => setSemesterFinal('')}>
+            <Text style={[styles.clearDateText, { color: colors.primary, fontFamily: fonts.bold }]}>Clear</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     </View>
   );
 
@@ -361,30 +462,37 @@ export const OnboardingScreen = () => {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
          <View style={styles.progLineBg}>
-            <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: step === 1 ? '33%' : step === 2 ? '66%' : '100%' }]} />
+            <View style={[styles.progLineFill, { backgroundColor: colors.primary, width: '100%' }]} />
          </View>
-         <Text style={[styles.stepLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>
-            {step === 1 ? 'PROFILE SETUP' : step === 2 ? 'COURSE SETUP' : 'AVAILABILITY SETUP'}
-         </Text>
+         <Text style={[styles.stepLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>ADD YOUR FIRST COURSE</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()}
+        {renderStep2()}
       </ScrollView>
 
       <View style={styles.bottomActions}>
-         {step > 1 && (
-            <TouchableOpacity style={[styles.secondaryBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setStep(step - 1)} disabled={isSubmitting}>
-               <Text style={[styles.secondaryBtnText, { color: colors.textDark, fontFamily: fonts.bold }]}>BACK</Text>
-            </TouchableOpacity>
-         )}
-         <TouchableOpacity style={[styles.mainBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={step < 3 ? handleNext : handleComplete} disabled={isSubmitting}>
+         <TouchableOpacity style={[styles.mainBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={handleNext} disabled={isSubmitting}>
             <Text style={[styles.mainBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>
-               {step < 3 ? 'CONTINUE' : (isSubmitting ? 'SETTING UP...' : 'FINISH SETUP')}
+               {isSubmitting ? 'SETTING UP...' : 'FINISH SETUP'}
             </Text>
             {!isSubmitting && <Ionicons name="chevron-forward" size={20} color="#FFF" />}
          </TouchableOpacity>
       </View>
+
+      <DatePickerModal
+        visible={showMidtermPicker}
+        onClose={() => setShowMidtermPicker(false)}
+        selectedDate={semesterMidterm}
+        onSelect={(d) => setSemesterMidterm(d)}
+      />
+
+      <DatePickerModal
+        visible={showFinalPicker}
+        onClose={() => setShowFinalPicker(false)}
+        selectedDate={semesterFinal}
+        onSelect={(d) => setSemesterFinal(d)}
+      />
 
       <Modal visible={isSubmitting} transparent>
          <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 40 }}>

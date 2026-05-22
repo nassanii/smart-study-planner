@@ -1,5 +1,7 @@
 import { extractErrorMessage } from "../services/errors";
 import React, { useMemo, useState, useEffect, useRef } from "react";
+
+
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from "react-native";
 import { useTheme } from "../theme/theme";
 import { useAI } from "../context/ai_context";
@@ -59,6 +61,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
    };
    const { navigate } = useAppNavigation();
    const [loadingMode, setLoadingMode] = useState(null);
+   const savingRef = useRef(false);
    const [slots, setSlots] = useState([]);
    const [newSlot, setNewSlot] = useState({ start: "08:00", end: "10:00" });
    const [showHourPicker, setShowHourPicker] = useState(false);
@@ -104,6 +107,8 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
    const resolvedSubject = subjects.find((s) => s.id === manualForm.subjectId) || null;
 
    const handleAddManualTask = async () => {
+      // Hard guard: re-entry from double-tapping the Save button before disabled state propagates
+      if (savingRef.current) return;
       if (!manualForm.title.trim()) {
          showAlert("Required", "Please enter a title.");
          return;
@@ -136,6 +141,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
          }
       }
 
+      savingRef.current = true;
       setLoadingMode("manual");
       try {
          const startTime = hasTime
@@ -159,6 +165,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
          showAlert("Error", extractErrorMessage(err));
       } finally {
          setLoadingMode(null);
+         savingRef.current = false;
       }
    };
 

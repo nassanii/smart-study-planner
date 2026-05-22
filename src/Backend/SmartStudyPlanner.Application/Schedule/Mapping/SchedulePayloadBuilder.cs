@@ -32,8 +32,18 @@ public class SchedulePayloadBuilder
         var user = await _users.FindByIdAsync(userId.ToString())
             ?? throw new NotFoundException("User", userId);
 
+        // User deadline is optional — derive a fallback from the latest course exam date,
+        // or default to 6 months from today if no courses have exams yet.
+        var fallbackDeadline = await _db.Subjects
+            .Where(s => s.UserId == userId)
+            .Select(s => (DateOnly?)(s.FinalDate ?? s.MidtermDate ?? s.ExamDate))
+            .Where(d => d != null)
+            .OrderByDescending(d => d)
+            .FirstOrDefaultAsync(ct);
+
         var globalDeadline = user.Deadline
-            ?? throw new ConflictException("Cannot generate a schedule before the user completes onboarding (deadline missing).");
+            ?? fallbackDeadline
+            ?? DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(6));
 
         var recent = await _db.StudyTasks
             .Where(t => t.UserId == userId && (t.Status == StudyTaskStatus.Done || t.Status == StudyTaskStatus.Snoozed))

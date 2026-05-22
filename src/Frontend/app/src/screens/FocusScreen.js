@@ -81,15 +81,22 @@ export const FocusScreen = () => {
       });
     });
 
+    const seenTaskIds = new Set();
     tasks.forEach((t) => {
-      if (!t.start_time) return;
-      const dStr = String(t.deadline || '').split('T')[0];
-      if (dStr !== todayKey) return;
       if (t.status === 'done') return;
-      const subjectName = subjects.find((s) => s.id === t.subject_id)?.name || t.title;
+      // Only truly user-added manual tasks — skip onboarding-seeded ones (is_manual=false)
+      if (!t.is_manual) return;
+      // Skip legacy "Initial Study Session" rows that were created with is_manual=true defaults
+      if (t.title === 'Initial Study Session') return;
+      const dStr = String(t.deadline || '').split('T')[0];
+      // Only show tasks dated for today (no-deadline tasks are not part of today's plan)
+      if (dStr !== todayKey) return;
+      if (seenTaskIds.has(t.id)) return;
+      seenTaskIds.add(t.id);
+      const subjectName = subjects.find((s) => s.id === t.subject_id)?.name || 'Study';
       blocks.push({
-        key: `manual-${t.id}`,
-        time: String(t.start_time).slice(0, 5),
+        key: `task-${t.id}`,
+        time: t.start_time ? String(t.start_time).slice(0, 5) : '--:--',
         title: t.title,
         topic: t.tag?.startsWith('event:') ? t.tag.slice('event:'.length) : t.tag,
         duration: t.estimated_minutes || 45,
@@ -97,10 +104,18 @@ export const FocusScreen = () => {
         subjectName,
         taskId: t.id,
         source: 'Manual',
+        hasTime: !!t.start_time,
       });
     });
 
-    return blocks.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    // Sort: blocks with a time first (by time), then untimed manual tasks at the end
+    return blocks.sort((a, b) => {
+      const aTimed = a.time !== '--:--';
+      const bTimed = b.time !== '--:--';
+      if (aTimed && !bTimed) return -1;
+      if (!aTimed && bTimed) return 1;
+      return String(a.time).localeCompare(String(b.time));
+    });
   }, [latestSchedule, tasks, subjects]);
 
   const pickBlock = (block) => {
@@ -193,29 +208,10 @@ export const FocusScreen = () => {
     }
 
     if (!activeSession) {
-      // If we have a schedule, ensure we start the active slot
-      if (scheduleSlots && activeSlotIndex !== null && activeSlotIndex < scheduleSlots.length) {
-        const currentSlot = scheduleSlots[activeSlotIndex];
-        const matchingSubject = subjects.find(s => s.name === currentSlot.subject);
-        const resolvedSubjectId = currentSlot.subject_id || matchingSubject?.id;
-
-        try {
-          await startSession({
-            taskId: currentSlot.task_id,
-            subjectId: resolvedSubjectId,
-            mode: currentSlot.activity_type === 'break' ? 'Short' : 'Focus',
-            subjectName: currentSlot.subject,
-            duration: currentSlot.adjusted_duration_minutes,
-            index: activeSlotIndex
-          });
-        } catch (err) {
-          showAlert('Could not start session', extractErrorMessage(err));
-        }
-        return;
-      }
-
-      if (mode === 'Focus' && !selectedSubjectId) {
-        showAlert('Pick a course', 'Please complete onboarding or add a course first.');
+      const userPicked = !!plannedSubjectName && plannedSubjectName !== 'Break';
+      // No block picked yet → open the picker so the user can choose one
+      if (!userPicked) {
+        setShowBlockPicker(true);
         return;
       }
 
@@ -223,6 +219,8 @@ export const FocusScreen = () => {
         await startSession({
           taskId: selectedTaskId,
           subjectId: selectedSubjectId,
+          subjectName: plannedSubjectName,
+          duration: initialDuration > 0 ? Math.round(initialDuration / 60) : undefined,
           mode: mode,
         });
       } catch (err) {
@@ -393,19 +391,28 @@ export const FocusScreen = () => {
               <View style={{ flex: 1, alignItems: 'center' }}>
                 {(() => {
                   const hasBlock = plannedSubjectName && plannedSubjectName !== 'Break';
+                  // Prefer the task title when a specific task is selected
+                  const pickedTask = selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) : null;
+                  const title = pickedTask?.title || (hasBlock ? plannedSubjectName : null);
+                  const subtitleParts = [];
+                  if (pickedTask) {
+                    const subjName = subjects.find((s) => s.id === pickedTask.subject_id)?.name;
+                    if (subjName) subtitleParts.push(subjName);
+                  }
+                  subtitleParts.push(`${Math.round((initialDuration || 0) / 60)} min`);
                   return (
                     <>
                       <Text style={{
-                        color: hasBlock ? colors.textDark : colors.textLight,
+                        color: title ? colors.textDark : colors.textLight,
                         fontFamily: fonts.bold,
                         fontSize: 15,
                         textAlign: 'center',
                       }} numberOfLines={1}>
-                        {hasBlock ? plannedSubjectName : 'Pick a block to start'}
+                        {title || 'Pick a block to start'}
                       </Text>
-                      {hasBlock && (
+                      {title && (
                         <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
-                          {Math.round((initialDuration || 0) / 60)} min
+                          {subtitleParts.join(' · ')}
                         </Text>
                       )}
                     </>
@@ -527,7 +534,7 @@ export const FocusScreen = () => {
                       {b.title}
                     </Text>
                     <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
-                      {b.duration} min · {b.topic || b.source}
+                      {b.duration} min{b.subjectName && b.source === 'Manual' ? ` · ${b.subjectName}` : ''}{b.topic ? ` · ${b.topic}` : (b.source === 'AI' ? ' · Study' : '')}
                     </Text>
                   </View>
                   <View style={[styles.blockSourceBadge, { backgroundColor: b.source === 'AI' ? colors.primary + '20' : '#10B98120' }]}>

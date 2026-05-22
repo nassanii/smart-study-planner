@@ -96,6 +96,7 @@ public class UserService : IUserService
                         Priority = (SmartStudyPlanner.Domain.Enums.TaskPriority)s.Priority,
                         DifficultyRating = s.Difficulty,
                         EstimatedMinutes = s.EstimatedMinutes,
+                        IsManual = false,
                         CreatedAt = _time.GetUtcNow(),
                         UpdatedAt = _time.GetUtcNow()
                     });

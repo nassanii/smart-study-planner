@@ -449,14 +449,6 @@ export const CalendarScreen = () => {
               {doneTasksForSelectedDay.length} done · {openTasksForSelectedDay.length} remaining
             </Text>
           </View>
-          <TouchableOpacity
-            accessibilityLabel="Add task to selected date"
-            style={[styles.addTaskBtn, { backgroundColor: colors.primary }]}
-            onPress={() => openTaskModal(selectedDateKey)}
-          >
-            <Ionicons name="add" size={18} color="#FFF" />
-            <Text style={[styles.addTaskText, { fontFamily: fonts.bold }]}>Task</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={[styles.dayTasksCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>

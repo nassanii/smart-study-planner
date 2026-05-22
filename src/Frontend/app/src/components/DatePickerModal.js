@@ -50,6 +50,16 @@ export const DatePickerModal = ({ visible, onClose, onSelect, selectedDate }) =>
     onClose();
   };
 
+  const formatLocalDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  const handleQuickSelect = (offsetDays) => {
+    const target = new Date();
+    target.setDate(target.getDate() + offsetDays);
+    target.setHours(0, 0, 0, 0);
+    onSelect(formatLocalDate(target));
+    onClose();
+  };
+
   const isSelected = (day) => {
     if (!selectedDate) return false;
     const parts = String(selectedDate).split('T')[0].split('-');
@@ -60,18 +70,31 @@ export const DatePickerModal = ({ visible, onClose, onSelect, selectedDate }) =>
   return (
     <View style={[StyleSheet.absoluteFill, styles.overlay]}>
       <View style={[styles.content, { backgroundColor: colors.surface }]}>
+        <View style={styles.quickRow}>
+          <TouchableOpacity style={[styles.quickBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]} onPress={() => handleQuickSelect(0)}>
+            <Ionicons name="today-outline" size={15} color={colors.primary} />
+            <Text style={[styles.quickBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>Today</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.quickBtn, { backgroundColor: colors.cardAlt, borderColor: colors.border }]} onPress={() => handleQuickSelect(1)}>
+            <Ionicons name="arrow-forward-circle-outline" size={15} color={colors.textDark} />
+            <Text style={[styles.quickBtnText, { color: colors.textDark, fontFamily: fonts.bold }]}>Tomorrow</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.quickBtn, { backgroundColor: colors.cardAlt, borderColor: colors.border }]} onPress={() => handleQuickSelect(7)}>
+            <Ionicons name="calendar-number-outline" size={15} color={colors.textDark} />
+            <Text style={[styles.quickBtnText, { color: colors.textDark, fontFamily: fonts.bold }]}>Next week</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.header}>
+          <TouchableOpacity onPress={() => changeMonth(-1)} style={[styles.navBtn, { backgroundColor: colors.cardAlt }]}>
+            <Ionicons name="chevron-back" size={18} color={colors.textDark} />
+          </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>
             {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </Text>
-          <View style={styles.navRow}>
-            <TouchableOpacity onPress={() => changeMonth(-1)} style={[styles.navBtn, { backgroundColor: colors.cardAlt }]}>
-              <Ionicons name="chevron-back" size={18} color={colors.textDark} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => changeMonth(1)} style={[styles.navBtn, { backgroundColor: colors.cardAlt }]}>
-              <Ionicons name="chevron-forward" size={18} color={colors.textDark} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity onPress={() => changeMonth(1)} style={[styles.navBtn, { backgroundColor: colors.cardAlt }]}>
+            <Ionicons name="chevron-forward" size={18} color={colors.textDark} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.weekHeader}>
@@ -123,7 +146,7 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   content: { width: '85%', borderRadius: 24, padding: 20, elevation: 10 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  headerTitle: { fontSize: 18 },
+  headerTitle: { fontSize: 18, flex: 1, textAlign: 'center' },
   navRow: { flexDirection: 'row', gap: 8 },
   navBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   weekHeader: { flexDirection: 'row', marginBottom: 8 },
@@ -135,5 +158,8 @@ const styles = StyleSheet.create({
   selectedDayCell: { borderRadius: 10 },
   footer: { flexDirection: 'row', gap: 10, marginTop: 15, borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 15 },
   footerBtn: { flex: 1, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
-  footerBtnText: { fontSize: 14 }
+  footerBtnText: { fontSize: 14 },
+  quickRow: { flexDirection: 'row', gap: 6, marginBottom: 15 },
+  quickBtn: { flex: 1, height: 38, borderRadius: 12, flexDirection: 'row', gap: 4, justifyContent: 'center', alignItems: 'center', borderWidth: 1, paddingHorizontal: 4 },
+  quickBtnText: { fontSize: 12 },
 });

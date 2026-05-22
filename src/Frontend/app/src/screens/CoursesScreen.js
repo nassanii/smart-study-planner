@@ -7,6 +7,17 @@ import { useAppNavigation } from '../context/navigation_context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showAlert, showConfirm } from '../services/dialogs';
+import { DatePickerModal } from '../components/DatePickerModal';
+
+const formatDateDisplay = (s) => {
+  if (!s) return '';
+  const d = String(s).split('T')[0];
+  const parts = d.split('-');
+  if (parts.length !== 3) return d;
+  const [y, m, dd] = parts;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[parseInt(m, 10) - 1] || m} ${parseInt(dd, 10)}, ${y}`;
+};
 
 export const CoursesScreen = () => {
   const { colors, fonts } = useTheme();
@@ -21,6 +32,45 @@ export const CoursesScreen = () => {
   const [editingCourse, setEditingCourse] = useState(null);
   const [courseForm, setCourseForm] = useState({ name: '', difficulty: 5, priority: 2, midtermDate: '', finalDate: '' });
   const [busy, setBusy] = useState(false);
+  const [showCourseMidtermPicker, setShowCourseMidtermPicker] = useState(false);
+  const [showCourseFinalPicker, setShowCourseFinalPicker] = useState(false);
+  const [showSemesterModal, setShowSemesterModal] = useState(false);
+  const [showSemMidPicker, setShowSemMidPicker] = useState(false);
+  const [showSemFinPicker, setShowSemFinPicker] = useState(false);
+  const [semesterMidterm, setSemesterMidterm] = useState('');
+  const [semesterFinal, setSemesterFinal] = useState('');
+  const [savingSemester, setSavingSemester] = useState(false);
+
+  const openSemesterModal = () => {
+    // Pre-fill with most common existing dates so the user can edit them
+    const mid = subjects.map((s) => s.midtermDate).find(Boolean) || '';
+    const fin = subjects.map((s) => s.finalDate || s.examDate).find(Boolean) || '';
+    setSemesterMidterm(mid);
+    setSemesterFinal(fin);
+    setShowSemesterModal(true);
+  };
+
+  const saveSemesterDates = async () => {
+    if (!semesterMidterm && !semesterFinal) {
+      showAlert('Pick a date', 'Set a midterm or final date before saving.');
+      return;
+    }
+    setSavingSemester(true);
+    try {
+      for (const s of subjects) {
+        await updateSubject(s.id, {
+          midtermDate: semesterMidterm || null,
+          finalDate: semesterFinal || null,
+          examDate: semesterFinal || semesterMidterm || null,
+        });
+      }
+      setShowSemesterModal(false);
+    } catch (err) {
+      showAlert('Error', extractErrorMessage(err));
+    } finally {
+      setSavingSemester(false);
+    }
+  };
 
   const totals = useMemo(() => {
     const done = tasks.filter((t) => t.status === 'done').length;
@@ -111,9 +161,6 @@ export const CoursesScreen = () => {
               Track progress, tasks, and what needs attention.
             </Text>
           </View>
-          <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.primary }]} onPress={() => openCourseModal()}>
-            <Ionicons name="add" size={20} color="#FFF" />
-          </TouchableOpacity>
         </View>
 
         <View style={styles.summaryRow}>
@@ -130,6 +177,14 @@ export const CoursesScreen = () => {
             <Text style={[styles.summaryLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>DONE</Text>
           </View>
         </View>
+
+        <TouchableOpacity
+          style={[styles.semesterBtn, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+          onPress={openSemesterModal}
+        >
+          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+          <Text style={[styles.semesterBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>Edit Semester Dates</Text>
+        </TouchableOpacity>
 
         {visibleSubjects.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -233,41 +288,43 @@ export const CoursesScreen = () => {
             </View>
 
             <View style={styles.dateGrid}>
-              <View style={[styles.inputGroup, styles.dateInputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <TouchableOpacity
+                style={[styles.inputGroup, styles.dateInputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => setShowCourseMidtermPicker(true)}
+                activeOpacity={0.7}
+              >
                 <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM DATE</Text>
-                <TextInput
-                  style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
-                  value={courseForm.midtermDate}
-                  onChangeText={(v) => setCourseForm({ ...courseForm, midtermDate: v })}
-                  placeholder="Optional"
-                  placeholderTextColor={colors.textLight}
-                  autoComplete="off"
-                  autoCorrect={false}
-                />
+                <Text style={[styles.inputBoxText, {
+                  color: courseForm.midtermDate ? colors.textDark : colors.textLight,
+                  fontFamily: fonts.bold,
+                }]}>
+                  {courseForm.midtermDate ? formatDateDisplay(courseForm.midtermDate) : 'Tap to set'}
+                </Text>
                 {courseForm.midtermDate ? (
                   <TouchableOpacity style={[styles.clearDateBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setCourseForm({ ...courseForm, midtermDate: '' })}>
                     <Text style={[styles.clearDateText, { color: colors.textLight, fontFamily: fonts.bold }]}>No midterm</Text>
                   </TouchableOpacity>
                 ) : null}
-              </View>
+              </TouchableOpacity>
 
-              <View style={[styles.inputGroup, styles.dateInputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <TouchableOpacity
+                style={[styles.inputGroup, styles.dateInputGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => setShowCourseFinalPicker(true)}
+                activeOpacity={0.7}
+              >
                 <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL DATE</Text>
-                <TextInput
-                  style={[styles.inputBoxText, { color: colors.textDark, fontFamily: fonts.bold }]}
-                  value={courseForm.finalDate}
-                  onChangeText={(v) => setCourseForm({ ...courseForm, finalDate: v })}
-                  placeholder="Optional"
-                  placeholderTextColor={colors.textLight}
-                  autoComplete="off"
-                  autoCorrect={false}
-                />
+                <Text style={[styles.inputBoxText, {
+                  color: courseForm.finalDate ? colors.textDark : colors.textLight,
+                  fontFamily: fonts.bold,
+                }]}>
+                  {courseForm.finalDate ? formatDateDisplay(courseForm.finalDate) : 'Tap to set'}
+                </Text>
                 {courseForm.finalDate ? (
                   <TouchableOpacity style={[styles.clearDateBtn, { backgroundColor: colors.cardAlt }]} onPress={() => setCourseForm({ ...courseForm, finalDate: '' })}>
                     <Text style={[styles.clearDateText, { color: colors.textLight, fontFamily: fonts.bold }]}>No final</Text>
                   </TouchableOpacity>
                 ) : null}
-              </View>
+              </TouchableOpacity>
             </View>
 
             <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PRIORITY</Text>
@@ -309,6 +366,126 @@ export const CoursesScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <DatePickerModal
+        visible={showCourseMidtermPicker}
+        onClose={() => setShowCourseMidtermPicker(false)}
+        selectedDate={courseForm.midtermDate}
+        onSelect={(d) => setCourseForm({ ...courseForm, midtermDate: d || '' })}
+      />
+
+      <DatePickerModal
+        visible={showCourseFinalPicker}
+        onClose={() => setShowCourseFinalPicker(false)}
+        selectedDate={courseForm.finalDate}
+        onSelect={(d) => setCourseForm({ ...courseForm, finalDate: d || '' })}
+      />
+
+      <Modal visible={showSemesterModal} transparent animationType="slide" onRequestClose={() => setShowSemesterModal(false)}>
+        <View style={styles.semesterOverlay}>
+          <View style={[styles.semesterSheet, { backgroundColor: colors.surface }]}>
+            <View style={styles.semesterHeader}>
+              <View style={[styles.semesterIcon, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="calendar" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.semesterTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Semester Dates</Text>
+                <Text style={[styles.semesterSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                  Applied to every course at once.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSemesterModal(false)} style={styles.semesterClose}>
+                <Ionicons name="close" size={22} color={colors.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.semesterField, { backgroundColor: colors.cardAlt, borderColor: semesterMidterm ? colors.primary : colors.border }]}
+              onPress={() => setShowSemMidPicker(true)}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.semesterFieldIcon, { backgroundColor: '#F59E0B22' }]}>
+                <Ionicons name="flag" size={18} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.semesterFieldLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM</Text>
+                <Text style={[styles.semesterFieldValue, {
+                  color: semesterMidterm ? colors.textDark : colors.textLight,
+                  fontFamily: fonts.bold,
+                }]}>
+                  {semesterMidterm ? formatDateDisplay(semesterMidterm) : 'Tap to choose'}
+                </Text>
+              </View>
+              {semesterMidterm ? (
+                <TouchableOpacity onPress={() => setSemesterMidterm('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={20} color={colors.textLight} />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.semesterField, { backgroundColor: colors.cardAlt, borderColor: semesterFinal ? colors.primary : colors.border }]}
+              onPress={() => setShowSemFinPicker(true)}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.semesterFieldIcon, { backgroundColor: '#EF444422' }]}>
+                <Ionicons name="trophy" size={18} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.semesterFieldLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL</Text>
+                <Text style={[styles.semesterFieldValue, {
+                  color: semesterFinal ? colors.textDark : colors.textLight,
+                  fontFamily: fonts.bold,
+                }]}>
+                  {semesterFinal ? formatDateDisplay(semesterFinal) : 'Tap to choose'}
+                </Text>
+              </View>
+              {semesterFinal ? (
+                <TouchableOpacity onPress={() => setSemesterFinal('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={20} color={colors.textLight} />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={18} color={colors.textLight} />
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.semesterActions}>
+              <TouchableOpacity style={[styles.semesterBtnCancel, { borderColor: colors.border }]} onPress={() => setShowSemesterModal(false)}>
+                <Text style={[styles.semesterBtnCancelText, { color: colors.textDark, fontFamily: fonts.bold }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.semesterBtnSave, { backgroundColor: colors.primary, opacity: savingSemester ? 0.7 : 1 }]}
+                onPress={saveSemesterDates}
+                disabled={savingSemester}
+              >
+                {savingSemester
+                  ? <ActivityIndicator color="#FFF" />
+                  : (
+                    <>
+                      <Ionicons name="checkmark" size={18} color="#FFF" />
+                      <Text style={[styles.semesterBtnSaveText, { color: '#FFF', fontFamily: fonts.bold }]}>Apply to All</Text>
+                    </>
+                  )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <DatePickerModal
+          visible={showSemMidPicker}
+          onClose={() => setShowSemMidPicker(false)}
+          selectedDate={semesterMidterm}
+          onSelect={(d) => setSemesterMidterm(d || '')}
+        />
+        <DatePickerModal
+          visible={showSemFinPicker}
+          onClose={() => setShowSemFinPicker(false)}
+          selectedDate={semesterFinal}
+          onSelect={(d) => setSemesterFinal(d || '')}
+        />
+      </Modal>
     </View>
   );
 };
@@ -331,6 +508,24 @@ const styles = StyleSheet.create({
   headerAddBtn: { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
   summaryCard: { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center' },
+  semesterBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, marginBottom: 18 },
+  semesterBtnText: { fontSize: 14 },
+  semesterOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  semesterSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 32 },
+  semesterHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 22 },
+  semesterIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  semesterTitle: { fontSize: 20 },
+  semesterSub: { fontSize: 12, marginTop: 2 },
+  semesterClose: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  semesterField: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, marginBottom: 12 },
+  semesterFieldIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  semesterFieldLabel: { fontSize: 10, letterSpacing: 1.2, marginBottom: 4 },
+  semesterFieldValue: { fontSize: 15 },
+  semesterActions: { flexDirection: 'row', gap: 10, marginTop: 22 },
+  semesterBtnCancel: { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  semesterBtnCancelText: { fontSize: 14 },
+  semesterBtnSave: { flex: 1.4, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  semesterBtnSaveText: { fontSize: 14 },
   summaryValue: { fontSize: 22 },
   summaryLabel: { fontSize: 10, marginTop: 4, letterSpacing: 0.5 },
   emptyCard: { borderWidth: 1, borderRadius: 24, padding: 28, alignItems: 'center' },

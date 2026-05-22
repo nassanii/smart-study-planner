@@ -71,11 +71,8 @@ export const ProfileScreen = () => {
       <Text style={[styles.sectionTitle, { color: colors.textLight, fontFamily: fonts.bold }]}>ACCOUNT</Text>
       <View style={[styles.menuGrp, { backgroundColor: colors.surface, borderColor: colors.border }]}>
          {[
-           { icon: 'person-outline', title: 'Edit Profile', sub: 'Name, email, photo', val: null, action: () => navigate('edit_profile') },
            { icon: 'library-outline', title: 'Manage Courses', sub: 'Add, edit, or remove courses', val: null, action: () => navigate('courses') },
-           { icon: 'calendar-outline', title: 'Final Exam', sub: 'Your study target date', val: user?.deadline || 'Not set', action: () => navigate('edit_profile') },
-           { icon: 'lock-closed-outline', title: 'Change Password', sub: 'Update your security', val: null, action: () => navigate('change_password') },
-           { icon: 'link-outline', title: 'Connected Accounts', sub: 'Google, Apple', val: '2', action: () => {} }
+           { icon: 'lock-closed-outline', title: 'Change Password', sub: 'Update your security', val: null, action: () => navigate('change_password') }
          ].map((item, idx, arr) => (
            <TouchableOpacity
              key={idx}

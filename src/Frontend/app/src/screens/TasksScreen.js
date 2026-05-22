@@ -26,7 +26,7 @@ const formatDateDisplay = (dateStr) => {
 export const TasksScreen = () => {
   const { colors, fonts } = useTheme();
   const { subjects, tasks, latestSchedule, addTask, updateTask, removeTask, completeTask, addSubject, reloadAll } = useAI();
-  const { activeSlotIndex, slotStatuses: liveSlotStatuses, setSlotStatuses } = useFocus();
+  const { activeSlotIndex, slotStatuses: liveSlotStatuses, setSlotStatuses, activeSession, isActive: focusIsActive } = useFocus();
   const { navigate } = useAppNavigation();
 
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -36,6 +36,7 @@ export const TasksScreen = () => {
   const [showAIPlanModal, setShowAIPlanModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [busy, setBusy] = useState(false);
+  const savingTaskRef = useRef(false);
   const [selectedFilter, setSelectedFilter] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const durationScrollRef = useRef(null);
@@ -74,9 +75,10 @@ export const TasksScreen = () => {
     reloadAll().catch(() => {});
   }, [reloadAll]);
 
-  // Find under-the-hood General Tasks subject, fall back to first subject
+  // Hidden "General Tasks" bucket for blocks the user didn't tag with a real course.
+  // We do NOT fall back to subjects[0] — that would silently attach blocks to an unrelated course.
   const generalSubject = useMemo(() => {
-    return subjects.find((s) => s.name?.trim().toLowerCase() === 'general tasks') || subjects[0] || null;
+    return subjects.find((s) => s.name?.trim().toLowerCase() === 'general tasks') || null;
   }, [subjects]);
 
   const generalSubjectId = generalSubject ? generalSubject.id : null;
@@ -108,22 +110,28 @@ export const TasksScreen = () => {
 
   const openTaskModal = (task = null) => {
     setEditingTask(task);
+    const todayKey = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
     if (task) {
       setTaskForm({
         title: task.title || '',
-        subjectId: task.subject_id || generalSubjectId,
+        // Keep whatever the task already has — only set null if it had nothing
+        subjectId: task.subject_id || null,
         estimatedMinutes: String(task.estimated_minutes || 45),
         priority: task.priority || 2,
-        deadline: task.deadline || '',
+        deadline: task.deadline || todayKey,
         tag: task.tag || '',
       });
     } else {
+      // New blocks start with no course selected and due today
       setTaskForm({
         title: '',
-        subjectId: generalSubjectId,
+        subjectId: null,
         estimatedMinutes: '45',
         priority: 2,
-        deadline: '',
+        deadline: todayKey,
         tag: '',
       });
     }
@@ -131,8 +139,11 @@ export const TasksScreen = () => {
   };
 
   const handleSaveTask = async () => {
+    // Hard guard against double-tap before disabled state propagates
+    if (savingTaskRef.current) return;
     if (!taskForm.title.trim()) return showAlert('Required', 'Please enter a title.');
 
+    savingTaskRef.current = true;
     setBusy(true);
     try {
       let targetSubjectId = taskForm.subjectId || generalSubjectId;
@@ -165,6 +176,7 @@ export const TasksScreen = () => {
       showAlert('Error', extractErrorMessage(err));
     } finally {
       setBusy(false);
+      savingTaskRef.current = false;
     }
   };
 
@@ -189,14 +201,28 @@ export const TasksScreen = () => {
 
   const startTask = (task) => {
     const taskSubject = subjects.find((s) => s.id === task.subject_id);
-    navigate('focus', {
-      autoStart: true,
-      taskId: task.id,
-      subjectId: task.subject_id || generalSubjectId,
-      subjectName: taskSubject?.name || 'General Task',
-      mode: 'Focus',
-      duration: Number(task.estimated_minutes) || 25,
-    });
+    const launch = () => {
+      navigate('focus', {
+        autoStart: true,
+        taskId: task.id,
+        subjectId: task.subject_id || generalSubjectId,
+        subjectName: taskSubject?.name || 'General Task',
+        mode: 'Focus',
+        duration: Number(task.estimated_minutes) || 25,
+      });
+    };
+    if (activeSession || focusIsActive) {
+      showConfirm({
+        title: 'Session in progress',
+        message: `Switch to "${task.title}"? Your current session will end.`,
+        confirmText: 'Switch',
+        cancelText: 'Cancel',
+        destructive: true,
+        onConfirm: launch,
+      });
+      return;
+    }
+    launch();
   };
 
   const priorityColor = (p) => Number(p) === 1 ? '#F43F5E' : Number(p) === 3 ? '#10B981' : '#F59E0B';
