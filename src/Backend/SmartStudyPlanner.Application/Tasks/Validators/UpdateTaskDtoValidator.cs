@@ -15,6 +15,7 @@ public class UpdateTaskDtoValidator : AbstractValidator<UpdateTaskDto>
         When(x => x.EstimatedMinutes.HasValue, () =>
             RuleFor(x => x.EstimatedMinutes!.Value).GreaterThan(0).LessThanOrEqualTo(24 * 60));
         When(x => x.Status.HasValue, () => RuleFor(x => x.Status!.Value).IsInEnum());
+        When(x => x.TaskType.HasValue, () => RuleFor(x => x.TaskType!.Value).IsInEnum());
         When(x => x.Tag is not null, () => RuleFor(x => x.Tag!).MaximumLength(60));
     }
 }

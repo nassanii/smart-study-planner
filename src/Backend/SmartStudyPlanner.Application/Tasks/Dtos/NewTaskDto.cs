@@ -10,5 +10,8 @@ public class NewTaskDto
     public short DifficultyRating { get; set; }
     public int EstimatedMinutes { get; set; }
     public DateOnly? Deadline { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TaskType TaskType { get; set; } = TaskType.Study;
+    public bool IsManual { get; set; } = true;
     public string? Tag { get; set; }
 }

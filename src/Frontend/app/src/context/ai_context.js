@@ -76,6 +76,9 @@ function mapTaskFromApi(t) {
       consecutive_days_studied: t.consecutive_days_studied || t.consecutiveDaysStudied,
       status: mapStatus(t.status),
       deadline: t.deadline,
+      start_time: t.start_time || t.startTime || null,
+      task_type: t.task_type ?? t.taskType ?? 0, // 0 = Study, 1 = Personal
+      is_manual: t.is_manual ?? t.isManual ?? true,
       tag: t.tag,
       completed_at: t.completed_at || t.completedAt,
    };

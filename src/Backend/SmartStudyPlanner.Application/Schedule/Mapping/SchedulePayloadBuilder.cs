@@ -91,6 +91,24 @@ public class SchedulePayloadBuilder
             EndTime = s.EndTime.ToString("HH:mm")
         }).ToList();
 
+        // Manual blocks the user committed for this date — AI must not overlap or replace them.
+        var fixedBlocks = await _db.StudyTasks
+            .Include(t => t.Subject)
+            .Where(t => t.UserId == userId
+                && t.IsManual
+                && t.StartTime != null
+                && t.Deadline == date
+                && t.Status != StudyTaskStatus.Done)
+            .Select(t => new AiFixedBlockDto
+            {
+                Subject = t.Subject!.Name,
+                StartTime = t.StartTime!.Value.ToString("HH:mm"),
+                DurationMinutes = t.EstimatedMinutes,
+                Topic = t.Tag,
+                TaskId = t.Id
+            })
+            .ToListAsync(ct);
+
         return new AiOptimizeRequestDto
         {
             UserId = userId,
@@ -107,7 +125,8 @@ public class SchedulePayloadBuilder
             },
             CurrentTasksToPlan = upcoming,
             Subjects = subjects,
-            AvailableSlots = slotPayload
+            AvailableSlots = slotPayload,
+            FixedBlocks = fixedBlocks
         };
     }
 }

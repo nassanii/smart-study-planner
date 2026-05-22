@@ -10,16 +10,18 @@ import { analyticsApi } from "../services/api";
 import { useFocus } from "../context/focus_context";
 import { useAppNavigation } from "../context/navigation_context";
 import { subscribeNotifications, markAllRead, clearNotifications } from "../services/notifications_bus";
+import { DailyCheckinModal } from "../components/DailyCheckinModal";
 
 export const DashboardScreen = () => {
    const { colors, fonts } = useTheme();
    const { user } = useAuth();
    const { userData, behavioralLogs, tasks, subjects, latestSchedule } = useAI();
-   const { sessionElapsedSeconds } = useFocus();
+   const { sessionElapsedSeconds, slotStatuses: liveSlotStatuses } = useFocus();
    const { navigate } = useAppNavigation();
    const [insights, setInsights] = useState(null);
    const [showAiAlert, setShowAiAlert] = useState(true);
    const [showNotifs, setShowNotifs] = useState(false);
+   const [showPlanWizard, setShowPlanWizard] = useState(false);
    const [notifs, setNotifs] = useState([]);
    const [unread, setUnread] = useState(0);
    const didLoad = useRef(false);
@@ -72,11 +74,13 @@ export const DashboardScreen = () => {
 
    const initial = (user?.name || userData.name || "IH").slice(0, 2).toUpperCase();
    const scheduleSlots = latestSchedule?.aiSchedule?.scheduled_slots || [];
-   const slotStatuses = latestSchedule?.slot_statuses || latestSchedule?.slotStatuses || {};
+   const persistedSlotStatuses = latestSchedule?.slot_statuses || latestSchedule?.slotStatuses || {};
+   // Merge persisted (server) with live (in-memory) so status updates show immediately
+   const slotStatuses = { ...persistedSlotStatuses, ...(liveSlotStatuses || {}) };
    const nextSlot = scheduleSlots.find((_, idx) => !['completed', 'snoozed'].includes(slotStatuses[idx]?.status));
    const activeTaskCount = tasks.filter((t) => t.status !== "done").length;
    const homeAction = subjects.length === 0
-      ? { label: "Add first course", icon: "library-outline", target: "subjects" }
+      ? { label: "Add first course", icon: "library-outline", target: "courses" }
       : scheduleSlots.length === 0
          ? { label: "Create today's plan", icon: "calendar-outline", target: "calendar" }
          : { label: "Open next session", icon: "play-circle-outline", target: "calendar" };
@@ -90,8 +94,9 @@ export const DashboardScreen = () => {
    };
 
    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
-         style={[styles.container, { backgroundColor: colors.background }]}
+         style={styles.container}
          showsVerticalScrollIndicator={false}
          contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 100 }}
       >
@@ -146,6 +151,68 @@ export const DashboardScreen = () => {
                </Text>
             </View>
          </View>
+
+         {/* Today's Daily Program */}
+         {scheduleSlots.length > 0 && (
+            <View style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+               <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Today's Daily Program</Text>
+                  <TouchableOpacity onPress={() => navigate("calendar")}>
+                     <Text style={[styles.dashLink, { color: colors.primary, fontFamily: fonts.bold }]}>View all</Text>
+                  </TouchableOpacity>
+               </View>
+               <Text style={[styles.dashSectionMeta, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                  {(() => {
+                     const total = scheduleSlots.length;
+                     const done = Object.values(slotStatuses).filter((s) => s?.status === "completed").length;
+                     return `${total} blocks · ${done} completed`;
+                  })()}
+               </Text>
+               <View style={{ gap: 8, marginTop: 14 }}>
+                  {scheduleSlots.map((slot, idx) => {
+                     const isBreak = slot.activity_type === "break";
+                     const status = slotStatuses[idx] || { status: "pending" };
+                     const isDone = status.status === "completed";
+                     const accent = isBreak ? colors.textLight : colors.primary;
+                     return (
+                        <View
+                           key={idx}
+                           style={[styles.dashSlot, {
+                              backgroundColor: colors.cardAlt,
+                              borderLeftColor: accent,
+                              opacity: isDone ? 0.6 : 1,
+                           }]}
+                        >
+                           <Text style={[styles.dashSlotTime, { color: colors.textLight, fontFamily: fonts.bold }]}>{slot.time_slot}</Text>
+                           <View style={{ flex: 1, marginLeft: 4 }}>
+                              <Text
+                                 style={[styles.dashSlotTitle, {
+                                    color: isBreak ? colors.textLight : accent,
+                                    fontFamily: fonts.bold,
+                                    textDecorationLine: isDone ? "line-through" : "none",
+                                 }]}
+                                 numberOfLines={1}
+                              >
+                                 {slot.subject}
+                              </Text>
+                              <Text style={[styles.dashSlotMeta, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
+                                 {isBreak
+                                    ? "Break — Time to recharge"
+                                    : `${slot.adjusted_duration_minutes} min · ${slot.activity_type === "review" ? "Revision" : "Study"}`}
+                              </Text>
+                           </View>
+                           {status.status === "completed" && <Ionicons name="checkmark-circle" size={20} color="#10B981" />}
+                           {status.status === "in_progress" && <Ionicons name="play-circle" size={20} color={colors.primary} />}
+                           {status.status === "snoozed" && <Ionicons name="time" size={20} color="#F59E0B" />}
+                           {status.status === "pending" && (
+                              <Text style={[styles.dashSlotStatusText, { color: colors.textLight, fontFamily: fonts.bold }]}>Not started</Text>
+                           )}
+                        </View>
+                     );
+                  })}
+               </View>
+            </View>
+         )}
 
          {/* AI Alert Card */}
          {showAiAlert && latestSchedule && new Date(latestSchedule.generatedAt).toDateString() === new Date().toDateString() && (
@@ -416,6 +483,22 @@ export const DashboardScreen = () => {
             </Pressable>
          </Modal>
       </ScrollView>
+
+      <DailyCheckinModal
+         visible={showPlanWizard}
+         onClose={() => setShowPlanWizard(false)}
+      />
+
+      <TouchableOpacity
+         style={styles.magicFab}
+         activeOpacity={0.85}
+         onPress={() => setShowPlanWizard(true)}
+      >
+         <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.magicFabInner}>
+            <MaterialCommunityIcons name="brain" size={36} color="#FFF" />
+         </LinearGradient>
+      </TouchableOpacity>
+      </View>
    );
 };
 
@@ -504,6 +587,13 @@ const styles = StyleSheet.create({
    sectionCard: { padding: 22, borderRadius: 28, marginBottom: 35, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 15, elevation: 2 },
    sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
    sectionTitle: { fontSize: 18 },
+   dashLink: { fontSize: 13 },
+   dashSectionMeta: { fontSize: 12, marginTop: 4 },
+   dashSlot: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderLeftWidth: 4 },
+   dashSlotTime: { width: 48, fontSize: 12 },
+   dashSlotTitle: { fontSize: 14 },
+   dashSlotMeta: { fontSize: 11, marginTop: 2 },
+   dashSlotStatusText: { fontSize: 11, letterSpacing: 0.4 },
    balancedBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -536,4 +626,23 @@ const styles = StyleSheet.create({
   insightLab: { fontSize: 8, letterSpacing: 0.5 },
   peakHourCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.02)' },
   peakText: { fontSize: 12 },
+  magicFab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 24,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    elevation: 12,
+    shadowColor: '#6366F1',
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  magicFabInner: {
+    flex: 1,
+    borderRadius: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

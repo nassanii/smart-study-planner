@@ -14,6 +14,8 @@ public class StudyTaskConfiguration : IEntityTypeConfiguration<StudyTask>
         builder.Property(t => t.Tag).HasMaxLength(60);
         builder.Property(t => t.Priority).HasConversion<short>();
         builder.Property(t => t.Status).HasConversion<short>();
+        builder.Property(t => t.TaskType).HasConversion<short>().HasDefaultValue(TaskType.Study);
+        builder.Property(t => t.IsManual).HasDefaultValue(true);
 
         builder.HasOne<ApplicationUser>()
             .WithMany(u => u.Tasks)

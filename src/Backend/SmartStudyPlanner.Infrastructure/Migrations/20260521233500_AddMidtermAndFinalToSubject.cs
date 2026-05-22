@@ -1,9 +1,13 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using SmartStudyPlanner.Infrastructure.Persistence;
 
 #nullable disable
 
 namespace SmartStudyPlanner.Infrastructure.Migrations
 {
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260521233500_AddMidtermAndFinalToSubject")]
     /// <inheritdoc />
     public partial class AddMidtermAndFinalToSubject : Migration
     {

@@ -10,4 +10,5 @@ public class AiOptimizeRequestDto
     [JsonPropertyName("current_tasks_to_plan")] public List<AiTaskDto> CurrentTasksToPlan { get; set; } = new();
     [JsonPropertyName("subjects")] public List<AiSubjectDto> Subjects { get; set; } = new();
     [JsonPropertyName("available_slots")] public List<AiSlotDto> AvailableSlots { get; set; } = new();
+    [JsonPropertyName("fixed_blocks")] public List<AiFixedBlockDto> FixedBlocks { get; set; } = new();
 }

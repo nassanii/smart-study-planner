@@ -33,6 +33,7 @@ async def process_student_data(payload: IncomingPayload):
     tasks_to_plan_dict = [task.model_dump() for task in payload.current_tasks_to_plan]
     subjects_dict = [s.model_dump() for s in payload.subjects]
     available_slots_dict = [slot.model_dump() for slot in payload.available_slots]
+    fixed_blocks_dict = [b.model_dump() for b in payload.fixed_blocks]
 
     intelligent_response = await generate_intelligent_schedule(
         burnout_score=burnout_score,
@@ -41,6 +42,7 @@ async def process_student_data(payload: IncomingPayload):
         tasks_to_plan=tasks_to_plan_dict,
         subjects=subjects_dict,
         available_slots=available_slots_dict,
+        fixed_blocks=fixed_blocks_dict,
         deadline=payload.deadline,
         mode=mode,
     )

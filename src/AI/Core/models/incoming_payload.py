@@ -4,6 +4,7 @@ from .raw_history import RawHistory
 from .task import Task
 from .time_range import TimeRange
 from .subject import Subject
+from .fixed_block import FixedBlock
 
 class IncomingPayload(BaseModel):
     user_id: int
@@ -12,3 +13,4 @@ class IncomingPayload(BaseModel):
     current_tasks_to_plan: List[Task]
     subjects: List[Subject] = []
     available_slots: List[TimeRange] # Changed from List[str]
+    fixed_blocks: List[FixedBlock] = [] # User-created manual blocks the AI must NOT overlap

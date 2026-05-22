@@ -48,7 +48,7 @@ export const CourseDetailScreen = () => {
       <View style={[styles.emptyPage, { backgroundColor: colors.background }]}>
         <Ionicons name="library-outline" size={42} color={colors.textLight} />
         <Text style={[styles.emptyTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>No courses yet</Text>
-        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={() => navigate('subjects')}>
+        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={() => navigate('courses')}>
           <Text style={[styles.primaryBtnText, { fontFamily: fonts.bold }]}>Add Course</Text>
         </TouchableOpacity>
       </View>
@@ -125,7 +125,7 @@ export const CourseDetailScreen = () => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <TouchableOpacity style={[styles.backBtn, { backgroundColor: colors.surface }]} onPress={() => navigate('subjects')}>
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: colors.surface }]} onPress={() => navigate('courses')}>
             <Ionicons name="chevron-back" size={22} color={colors.textDark} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>

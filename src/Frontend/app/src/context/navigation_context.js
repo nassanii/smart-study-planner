@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const NavigationContext = createContext(null);
 const TAB_PERSIST_KEY = 'ssp.activeTab';
-const PRIMARY_TABS = ['home', 'calendar', 'subjects', 'focus', 'profile'];
+const PRIMARY_TABS = ['home', 'calendar', 'tasks', 'focus', 'profile'];
 
 export const NavigationProvider = ({ children }) => {
   const [activeTab, _setActiveTab] = useState('home');

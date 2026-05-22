@@ -1,12 +1,12 @@
-import { showDialog } from './dialog_bus';
+import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 export function showAlert(title, message) {
-  return showDialog({ kind: 'alert', title, message });
+  Alert.alert(title, message);
 }
 
 export function showError(title, message) {
-  return showDialog({ kind: 'alert', title, message, destructive: true });
+  Alert.alert(title, message);
 }
 
 export function showToast(message, destructive = false) {
@@ -20,8 +20,14 @@ export function showToast(message, destructive = false) {
 }
 
 export function showConfirm({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', destructive = false, onConfirm, onCancel }) {
-  return showDialog({ kind: 'confirm', title, message, confirmText, cancelText, destructive }).then(ok => {
-    if (ok) onConfirm?.(); else onCancel?.();
-    return ok;
-  });
+  Alert.alert(
+    title,
+    message,
+    [
+      { text: cancelText, onPress: onCancel, style: 'cancel' },
+      { text: confirmText, onPress: onConfirm, style: destructive ? 'destructive' : 'default' }
+    ],
+    { cancelable: true }
+  );
 }
+

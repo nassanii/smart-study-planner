@@ -7,8 +7,20 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { focusApi, scheduleApi } from '../services/api';
 import { DailyCheckinModal } from '../components/DailyCheckinModal';
+import { DatePickerModal } from '../components/DatePickerModal';
 
 import { useFocus } from '../context/focus_context';
+
+const formatDateDisplay = (dateStr) => {
+  if (!dateStr) return '';
+  const dateOnly = String(dateStr).split('T')[0];
+  const parts = dateOnly.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthName = months[parseInt(m, 10) - 1] || m;
+  return `${monthName} ${parseInt(d, 10)}, ${y}`;
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DURATION_OPTIONS = [25, 45, 60, 90];
@@ -29,19 +41,27 @@ export const CalendarScreen = () => {
   const [customReason, setCustomReason] = useState('');
   const [showPlanWizard, setShowPlanWizard] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [taskBusy, setTaskBusy] = useState(false);
   const [taskForm, setTaskForm] = useState({
     title: '',
     subjectId: null,
-    estimatedMinutes: 45,
+    estimatedMinutes: '45',
     priority: 2,
     difficultyRating: 5,
-    tag: 'homework',
+    tag: '',
     deadline: '',
   });
 
   const { latestSchedule, tasks, subjects, addTask, completeTask, snoozeTask, reloadBehavioral, reloadAll, generateSchedule } = useAI();
   const { slotStatuses: slotStatus, setSlotStatuses: setSlotStatus, activeSlotIndex } = useFocus();
+
+  // Find under-the-hood General Tasks subject
+  const generalSubject = React.useMemo(() => {
+    return subjects.find(s => s.name?.trim().toLowerCase() === 'general tasks');
+  }, [subjects]);
+
+  const generalSubjectId = generalSubject ? generalSubject.id : null;
   
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -79,8 +99,8 @@ export const CalendarScreen = () => {
 
   // Fetch month's completed sessions for dots
   useEffect(() => {
-    const from = new Date(year, month, 1).toISOString().split('T')[0];
-    const to = new Date(year, month + 1, 0).toISOString().split('T')[0];
+    const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
     focusApi.list({ from, to }).then(setCompletedSessions).catch(() => {});
   }, [year, month]);
 
@@ -225,19 +245,14 @@ export const CalendarScreen = () => {
   const reasons = ['Tired', 'Hungry', 'Emergency', 'Need prep', 'Other'];
 
   const openTaskModal = (dateKey = selectedDateKey) => {
-    if (subjects.length === 0) {
-      Alert.alert('Add a course first', 'Create a course before adding calendar tasks.');
-      return;
-    }
-    const firstCourse = subjects[0];
     setTaskForm({
       title: '',
-      subjectId: firstCourse.id,
-      estimatedMinutes: 45,
-      priority: firstCourse.priority || 2,
-      difficultyRating: firstCourse.difficulty || 5,
-      tag: 'homework',
-      deadline: dateKey,
+      subjectId: generalSubjectId,
+      estimatedMinutes: '45',
+      priority: 2,
+      difficultyRating: 5,
+      tag: '',
+      deadline: dateKey || selectedDateKey,
     });
     setShowTaskModal(true);
   };
@@ -253,22 +268,36 @@ export const CalendarScreen = () => {
       Alert.alert('Task needed', 'Write a short task title first.');
       return;
     }
+    const targetSubjectId = taskForm.subjectId || generalSubjectId;
+    if (!targetSubjectId) {
+      Alert.alert('System Busy', 'Initializing workspace, please try again in a moment.');
+      return;
+    }
     setTaskBusy(true);
     try {
       await addTask({
-        subjectId: taskForm.subjectId,
+        subjectId: targetSubjectId,
         title: taskForm.title.trim(),
         estimatedMinutes: Number(taskForm.estimatedMinutes) || 45,
         priority: Number(taskForm.priority) || 2,
         difficultyRating: Number(taskForm.difficultyRating) || 5,
         deadline: taskForm.deadline || selectedDateKey,
-        tag: taskForm.tag,
+        tag: taskForm.tag?.trim() || null,
       });
 
       if (keepAdding) {
         const nextDate = advanceDay ? shiftDateKey(taskForm.deadline || selectedDateKey, 1) : (taskForm.deadline || selectedDateKey);
         if (advanceDay) moveSelectionToDate(nextDate);
-        setTaskForm((prev) => ({ ...prev, title: '', deadline: nextDate }));
+        setTaskForm((prev) => ({
+          ...prev,
+          title: '',
+          deadline: nextDate,
+          subjectId: generalSubjectId,
+          estimatedMinutes: '45',
+          priority: 2,
+          difficultyRating: 5,
+          tag: '',
+        }));
       } else {
         setShowTaskModal(false);
       }
@@ -395,16 +424,20 @@ export const CalendarScreen = () => {
         {/* Legend */}
         {viewMode === 'Month' && (
           <View style={styles.legendRow}>
-            {subjects.slice(0, 4).concat([{ name: 'Exam', isExam: true }]).map((s, idx) => {
-              const colorsList = ['#6366F1', '#10B981', '#F43F5E', '#F59E0B', '#06B6D4', '#8B5CF6'];
-              const color = s.isExam ? '#F43F5E' : colorsList[idx % colorsList.length];
-              return (
-                <View key={idx} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: color }]} />
-                  <Text style={[styles.legendText, { color: colors.textLight, fontFamily: fonts.medium }]}>{s.name}</Text>
-                </View>
-              );
-            })}
+            {subjects
+              .filter(s => s.name?.trim().toLowerCase() !== 'general tasks')
+              .slice(0, 4)
+              .concat([{ name: 'Exam', isExam: true }])
+              .map((s, idx) => {
+                const colorsList = ['#6366F1', '#10B981', '#F43F5E', '#F59E0B', '#06B6D4', '#8B5CF6'];
+                const color = s.isExam ? '#F43F5E' : colorsList[idx % colorsList.length];
+                return (
+                  <View key={idx} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: color }]} />
+                    <Text style={[styles.legendText, { color: colors.textLight, fontFamily: fonts.medium }]}>{s.name}</Text>
+                  </View>
+                );
+              })}
           </View>
         )}
 
@@ -438,7 +471,7 @@ export const CalendarScreen = () => {
           ) : (
             tasksForSelectedDay.map((task) => {
               const done = task.status === 'done';
-              const subject = subjects.find((s) => s.id === task.subject_id);
+              const priorityColor = (p) => Number(p) === 1 ? '#F43F5E' : Number(p) === 3 ? '#10B981' : '#F59E0B';
               return (
                 <View key={task.id} style={[styles.dayTaskRow, { borderBottomColor: colors.border }]}>
                   <TouchableOpacity
@@ -450,18 +483,21 @@ export const CalendarScreen = () => {
                     <Ionicons name={done ? 'checkmark' : 'ellipse-outline'} size={16} color={done ? '#FFF' : colors.textLight} />
                   </TouchableOpacity>
                   <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.dayTaskTitle,
-                        { color: done ? colors.textLight : colors.textDark, fontFamily: fonts.bold },
-                        done && styles.dayTaskDoneTitle
-                      ]}
-                      numberOfLines={2}
-                    >
-                      {task.title}
-                    </Text>
-                    <Text style={[styles.dayTaskMeta, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
-                      {subject?.name || 'Course'} · {task.estimated_minutes || 25} min · {task.tag || 'study'}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="flag" size={16} color={priorityColor(task.priority)} />
+                      <Text
+                        style={[
+                          styles.dayTaskTitle,
+                          { color: done ? colors.textLight : colors.textDark, fontFamily: fonts.bold, flex: 1 },
+                          done && styles.dayTaskDoneTitle
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {task.title}
+                      </Text>
+                    </View>
+                    <Text style={[styles.dayTaskMeta, { color: colors.textLight, fontFamily: fonts.medium, marginTop: 4 }]} numberOfLines={1}>
+                      {task.estimated_minutes || 25} min{task.tag ? ` · ${task.tag}` : ''}
                     </Text>
                   </View>
                   <View style={[styles.taskStatePill, { backgroundColor: done ? '#10B98115' : colors.cardAlt }]}>
@@ -681,88 +717,60 @@ export const CalendarScreen = () => {
                 />
               </View>
 
-              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>COURSE</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.coursePicker}>
-                {subjects.map((subject) => {
-                  const selected = taskForm.subjectId === subject.id;
-                  return (
-                    <TouchableOpacity
-                      key={subject.id}
-                      style={[
-                        styles.courseChip,
-                        { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + '12' : colors.cardAlt }
-                      ]}
-                      onPress={() => setTaskForm({
-                        ...taskForm,
-                        subjectId: subject.id,
-                        priority: subject.priority || taskForm.priority,
-                        difficultyRating: subject.difficulty || taskForm.difficultyRating,
-                      })}
-                    >
-                      <Text style={{ color: selected ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>{subject.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
-              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 16 }]}>DATE</Text>
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 10 }]}>DURATION (MINUTES)</Text>
               <TextInput
-                value={taskForm.deadline}
-                onChangeText={(v) => setTaskForm({ ...taskForm, deadline: v })}
-                placeholder="YYYY-MM-DD"
+                keyboardType="numeric"
+                value={String(taskForm.estimatedMinutes)}
+                onChangeText={(v) => setTaskForm({ ...taskForm, estimatedMinutes: v.replace(/[^0-9]/g, '') })}
+                placeholder="e.g. 45"
                 placeholderTextColor={colors.textLight}
-                style={[styles.fullDateInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.bold }]}
-                autoComplete="off"
-                autoCorrect={false}
+                style={[styles.fullDateInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.bold, marginBottom: 10 }]}
               />
-
-              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>DURATION</Text>
               <View style={styles.quickRow}>
                 {DURATION_OPTIONS.map((minutes) => (
                   <TouchableOpacity
                     key={minutes}
                     style={[
                       styles.quickBtn,
-                      { borderColor: taskForm.estimatedMinutes === minutes ? colors.primary : colors.border, backgroundColor: taskForm.estimatedMinutes === minutes ? colors.primary + '12' : 'transparent' }
+                      { borderColor: Number(taskForm.estimatedMinutes) === minutes ? colors.primary : colors.border, backgroundColor: Number(taskForm.estimatedMinutes) === minutes ? colors.primary + '12' : 'transparent' }
                     ]}
-                    onPress={() => setTaskForm({ ...taskForm, estimatedMinutes: minutes })}
+                    onPress={() => setTaskForm({ ...taskForm, estimatedMinutes: String(minutes) })}
                   >
-                    <Text style={{ color: taskForm.estimatedMinutes === minutes ? colors.primary : colors.textLight, fontFamily: fonts.bold }}>{minutes}m</Text>
+                    <Text style={{ color: Number(taskForm.estimatedMinutes) === minutes ? colors.primary : colors.textLight, fontFamily: fonts.bold }}>{minutes}m</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 16 }]}>TYPE</Text>
-              <View style={styles.typeWrap}>
-                {TASK_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.typeChip,
-                      { borderColor: taskForm.tag === type ? colors.primary : colors.border, backgroundColor: taskForm.tag === type ? colors.primary + '12' : 'transparent' }
-                    ]}
-                    onPress={() => setTaskForm({ ...taskForm, tag: type })}
-                  >
-                    <Text style={{ color: taskForm.tag === type ? colors.primary : colors.textDark, fontFamily: fonts.medium }}>{type}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 16 }]}>DESCRIPTION</Text>
+              <TextInput
+                value={taskForm.tag}
+                onChangeText={(v) => setTaskForm({ ...taskForm, tag: v })}
+                placeholder="e.g. Chapter 4 exercises or revision"
+                placeholderTextColor={colors.textLight}
+                maxLength={60}
+                style={[styles.fullDateInput, { backgroundColor: colors.cardAlt, color: colors.textDark, fontFamily: fonts.bold }]}
+              />
 
               <View style={styles.quickRowWithTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>PRIORITY</Text>
                   <View style={styles.quickRow}>
-                    {[1, 2, 3].map((p) => (
-                      <TouchableOpacity
-                        key={p}
-                        style={[styles.quickBtn, { borderColor: taskForm.priority === p ? colors.primary : colors.border }]}
-                        onPress={() => setTaskForm({ ...taskForm, priority: p })}
-                      >
-                        <Text style={{ color: taskForm.priority === p ? colors.primary : colors.textLight, fontFamily: fonts.bold }}>{p === 1 ? 'H' : p === 2 ? 'M' : 'L'}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {[1, 2, 3].map((p) => {
+                      const flagColor = p === 1 ? '#F43F5E' : p === 2 ? '#F59E0B' : '#10B981';
+                      const isSel = taskForm.priority === p;
+                      return (
+                        <TouchableOpacity
+                          key={p}
+                          style={[styles.quickBtn, { borderColor: isSel ? flagColor : colors.border, backgroundColor: isSel ? flagColor + '12' : 'transparent' }]}
+                          onPress={() => setTaskForm({ ...taskForm, priority: p })}
+                        >
+                          <Ionicons name="flag" size={18} color={flagColor} />
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 </View>
+                
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>DIFFICULTY</Text>
                   <View style={styles.quickRow}>
@@ -778,6 +786,16 @@ export const CalendarScreen = () => {
                   </View>
                 </View>
               </View>
+
+              <Text style={[styles.miniLabel, { color: colors.textLight, fontFamily: fonts.bold, marginTop: 4 }]}>DATE</Text>
+              <TouchableOpacity 
+                onPress={() => setShowDatePicker(true)}
+                style={[styles.fullDateInput, { backgroundColor: colors.cardAlt, justifyContent: 'center' }]}
+              >
+                <Text style={{ color: taskForm.deadline ? colors.textDark : colors.textLight, fontFamily: fonts.bold }}>
+                  {taskForm.deadline ? formatDateDisplay(taskForm.deadline) : 'Select Date'}
+                </Text>
+              </TouchableOpacity>
             </ScrollView>
 
             <View style={styles.taskModalActions}>
@@ -789,24 +807,33 @@ export const CalendarScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
+
+          <DatePickerModal
+            visible={showDatePicker}
+            onClose={() => setShowDatePicker(false)}
+            selectedDate={taskForm.deadline}
+            onSelect={(date) => setTaskForm({ ...taskForm, deadline: date })}
+          />
         </View>
       </Modal>
 
-      <DailyCheckinModal 
-        visible={showPlanWizard} 
-        onClose={() => setShowPlanWizard(false)} 
-        selectedDate={new Date(year, month, selectedDay).toISOString().split('T')[0]}
+      <DailyCheckinModal
+        visible={showPlanWizard}
+        onClose={() => setShowPlanWizard(false)}
+        selectedDate={selectedDateKey}
       />
 
       {/* Floating Action Button for Plan Generation */}
       {isTrulyToday && (
-        <View style={{ position: 'absolute', bottom: 30, right: 25, flexDirection: 'column', gap: 12 }}>
-          <TouchableOpacity onPress={() => setShowPlanWizard(true)}>
-            <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.magicFabInner}>
-              <MaterialCommunityIcons name="brain" size={28} color="#FFF" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.magicFab}
+          activeOpacity={0.85}
+          onPress={() => setShowPlanWizard(true)}
+        >
+          <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.magicFabInner}>
+            <MaterialCommunityIcons name="brain" size={36} color="#FFF" />
+          </LinearGradient>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -937,18 +964,19 @@ const styles = StyleSheet.create({
   magicFab: {
     position: 'absolute',
     bottom: 30,
-    right: 30,
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    elevation: 10,
+    right: 24,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    elevation: 12,
     shadowColor: '#6366F1',
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
   },
   magicFabInner: {
     flex: 1,
-    borderRadius: 33,
+    borderRadius: 38,
     justifyContent: 'center',
     alignItems: 'center',
   }

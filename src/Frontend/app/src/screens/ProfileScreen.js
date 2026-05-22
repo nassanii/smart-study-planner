@@ -72,14 +72,15 @@ export const ProfileScreen = () => {
       <View style={[styles.menuGrp, { backgroundColor: colors.surface, borderColor: colors.border }]}>
          {[
            { icon: 'person-outline', title: 'Edit Profile', sub: 'Name, email, photo', val: null, action: () => navigate('edit_profile') },
+           { icon: 'library-outline', title: 'Manage Courses', sub: 'Add, edit, or remove courses', val: null, action: () => navigate('courses') },
            { icon: 'calendar-outline', title: 'Final Exam', sub: 'Your study target date', val: user?.deadline || 'Not set', action: () => navigate('edit_profile') },
            { icon: 'lock-closed-outline', title: 'Change Password', sub: 'Update your security', val: null, action: () => navigate('change_password') },
            { icon: 'link-outline', title: 'Connected Accounts', sub: 'Google, Apple', val: '2', action: () => {} }
-         ].map((item, idx) => (
+         ].map((item, idx, arr) => (
            <TouchableOpacity
              key={idx}
              onPress={item.action}
-             style={[styles.menuRow, idx < 3 && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+             style={[styles.menuRow, idx < arr.length - 1 && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
            >
               <View style={[styles.iconBox, { backgroundColor: colors.cardAlt }]}>
                  <Ionicons name={item.icon} size={18} color={colors.textDark} />

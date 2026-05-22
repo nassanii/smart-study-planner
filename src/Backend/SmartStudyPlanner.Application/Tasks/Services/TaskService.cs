@@ -87,6 +87,9 @@ public class TaskService : ITaskService
             EstimatedMinutes = dto.EstimatedMinutes,
             Status = StudyTaskStatus.Upcoming,
             Deadline = dto.Deadline,
+            StartTime = dto.StartTime,
+            TaskType = dto.TaskType,
+            IsManual = dto.IsManual,
             Tag = dto.Tag,
             DaysSinceLastStudy = 0,
             ConsecutiveDaysStudied = 0,
@@ -140,6 +143,9 @@ public class TaskService : ITaskService
         if (dto.DifficultyRating.HasValue) t.DifficultyRating = dto.DifficultyRating.Value;
         if (dto.EstimatedMinutes.HasValue) t.EstimatedMinutes = dto.EstimatedMinutes.Value;
         if (dto.Deadline.HasValue) t.Deadline = dto.Deadline;
+        if (dto.StartTime.HasValue) t.StartTime = dto.StartTime;
+        if (dto.TaskType.HasValue) t.TaskType = dto.TaskType.Value;
+        if (dto.IsManual.HasValue) t.IsManual = dto.IsManual.Value;
         if (dto.Tag is not null) t.Tag = dto.Tag;
         if (dto.Status.HasValue) t.Status = dto.Status.Value;
         t.UpdatedAt = _time.GetUtcNow();
@@ -209,6 +215,9 @@ public class TaskService : ITaskService
         ConsecutiveDaysStudied = t.ConsecutiveDaysStudied,
         Status = t.Status,
         Deadline = t.Deadline,
+        StartTime = t.StartTime,
+        TaskType = t.TaskType,
+        IsManual = t.IsManual,
         Tag = t.Tag,
         CompletedAt = t.CompletedAt,
         CreatedAt = t.CreatedAt,

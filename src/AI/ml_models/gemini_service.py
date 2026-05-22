@@ -18,6 +18,7 @@ async def generate_intelligent_schedule(
     available_slots: List[Dict[str, Any]],
     deadline: str,
     mode: str,
+    fixed_blocks: List[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Build a rich prompt with ML context and send to Gemini 1.5 Flash.
@@ -72,21 +73,38 @@ async def generate_intelligent_schedule(
     - All Available Subjects: {json.dumps(subjects, indent=2)}
     - Pending Tasks (Master List): {json.dumps(tasks_to_plan, indent=2)}
     - Available Study Blocks: {json.dumps(available_slots, indent=2)}
+    - FIXED MANUAL BLOCKS (USER ALREADY COMMITTED — DO NOT MODIFY OR OVERLAP): {json.dumps(fixed_blocks or [], indent=2)}
     - Global Deadline: {deadline}
     - DAYS REMAINING UNTIL DEADLINE: {days_remaining}
+
+    [HARD RULE — Fixed Manual Blocks]
+    If "FIXED MANUAL BLOCKS" is non-empty, those entries are SACRED:
+    - You MUST include each one VERBATIM in the output (same start_time, duration, subject).
+    - You MUST NOT schedule any other slot that overlaps a fixed block's time range.
+    - You may schedule new AI study sessions BEFORE or AFTER each fixed block within the available study blocks.
+    - Treat the fixed block as already-blocked time (like a break) when distributing remaining sessions.
     
     [STRICT SCHEDULING RULES - DO NOT DEVIATE]
     1. **Real Data Integrity**:
-       - You MUST use the REAL names of the subjects from the "All Available Subjects" list. 
+       - You MUST use the REAL names of the subjects from the "All Available Subjects" list.
        - DO NOT use generic names like "Subject 1" or "Study Block".
        - If a subject has pending tasks in the "Pending Tasks" list, prioritize those tasks and use their IDs.
-       - If a subject has NO pending tasks, ONLY schedule ONE session (max 50m) for 'General Review' if it needs study time. DO NOT schedule multiple sessions for task-less subjects unless their exam is in < 7 days.
-    
+       - If a subject has NO pending tasks, you may still allocate multiple 50-minute "General Review" sessions for it — especially when its exam date is close or there is unused time in the available study blocks.
+
     2. **Autonomous Session Estimation**:
-       - Decided how much time each task/subject needs today.
+       - Decide how much time each task/subject needs today.
        - For pending tasks: The REMAINING time needed is roughly (estimated_minutes - actual_minutes).
        - Adjust your time estimate using the per-subject `difficulty_factor` from the ML CONTEXT.
        - SPLIT your total estimation into discrete sessions of MAXIMUM 50 minutes each.
+
+    2b. **FILL THE AVAILABLE WINDOW (CRITICAL)**:
+       - Treat each entry in "Available Study Blocks" as a continuous window the user has committed to studying.
+       - You MUST cover that window with 50/10 sessions until it runs out, only stopping early if `is_exhausted` is true (then leave the last 30+ minutes as rest).
+       - If pending tasks don't need all of the time, distribute the remainder as "General Review" sessions across the subjects, rotating fairly (round-robin), prioritising:
+            1. Subjects with the soonest `exam_date`
+            2. Subjects with the highest `priority`
+            3. Subjects with the highest `days_since_last_study`
+       - DO NOT leave large empty stretches inside an available window unless the user is exhausted.
     
     3. **The Balancing Rules (CRITICAL)**:
        - **ROTATION RULE**: If a task has `days_since_last_study` > 3, it is a TOP priority today.
@@ -142,7 +160,11 @@ async def generate_intelligent_schedule(
                 response_mime_type="application/json"
             ),
         )
-        data = json.loads(response.text)
+        try:
+            data = json.loads(response.text)
+        except json.JSONDecodeError as jde:
+            print(f"JSON decode failed. Response text was:\n{response.text}")
+            raise jde
         
         # Post-process: Remove trailing break if present
         if data.get("scheduled_slots") and data["scheduled_slots"][-1].get("activity_type") == "break":
@@ -151,65 +173,167 @@ async def generate_intelligent_schedule(
         return data
     except Exception as e:
         print(f"Gemini API Error: {e}")
-        return generate_heuristic_fallback(tasks_to_plan, subjects, available_slots)
+        return generate_heuristic_fallback(tasks_to_plan, subjects, available_slots, fixed_blocks)
 
 
-def generate_heuristic_fallback(tasks, subjects, slots) -> Dict[str, Any]:
+def _parse_hhmm(s):
+    try:
+        h, m = map(int, str(s).split(':')[:2])
+        return h * 60 + m
+    except Exception:
+        return None
+
+
+def generate_heuristic_fallback(tasks, subjects, slots, fixed_blocks=None) -> Dict[str, Any]:
     """
-    Generates a simple 50/10 schedule based on heuristics when the AI fails.
+    Generates a 50/10 schedule that fills each available study block from start to end.
+    Honors fixed_blocks (manually-committed user time) as inviolable anchors.
     """
+    fixed_blocks = fixed_blocks or []
     scheduled = []
-    
-    # 1. Simple task prioritization
-    pending_tasks = sorted(tasks, key=lambda x: x.get("priority", 2), reverse=True)
-    
-    # 2. Fill slots
-    for slot in slots:
-        start_time_str = slot.get("startTime", "08:00")
-        try:
-            h, m = map(int, start_time_str.split(':'))
-            current_time = h * 60 + m
-        except:
-            current_time = 480 # 08:00
-            
-        for task in pending_tasks:
-            if task.get("_done"): continue
-            
-            # Study Session (50m)
-            h_str = f"{current_time // 60:02d}:{current_time % 60:02d}"
+
+    pending_tasks = sorted(tasks or [], key=lambda x: x.get("priority", 2))  # 1=High first
+    review_pool = []
+    for s in subjects or []:
+        review_pool.append({
+            "id": None,
+            "subject": s.get("name", "Study"),
+            "subject_id": s.get("id"),
+        })
+
+    pending_idx = 0
+    review_idx = 0
+
+    def next_study_item():
+        nonlocal pending_idx, review_idx
+        if pending_idx < len(pending_tasks):
+            t = pending_tasks[pending_idx]
+            pending_idx += 1
+            return {
+                "subject": t.get("subject", "Study"),
+                "task_id": t.get("id"),
+                "subject_id": t.get("subject_id"),
+            }
+        if review_pool:
+            item = review_pool[review_idx % len(review_pool)]
+            review_idx += 1
+            return {
+                "subject": f"{item['subject']} (Review)",
+                "task_id": None,
+                "subject_id": item["subject_id"],
+            }
+        return None
+
+    fixed_by_start = {}
+    for fb in fixed_blocks:
+        start = _parse_hhmm(fb.get("start_time"))
+        if start is None:
+            continue
+        fixed_by_start[start] = fb
+
+    for slot in slots or []:
+        start_min = _parse_hhmm(slot.get("start_time") or slot.get("startTime"))
+        end_min = _parse_hhmm(slot.get("end_time") or slot.get("endTime"))
+        if start_min is None or end_min is None or end_min <= start_min:
+            continue
+
+        cursor = start_min
+        if cursor % 30 != 0:
+            cursor += (30 - cursor % 30)
+
+        while cursor < end_min:
+            fb = fixed_by_start.get(cursor)
+            if fb:
+                duration = int(fb.get("duration_minutes") or 50)
+                if cursor + duration > end_min:
+                    break
+                scheduled.append({
+                    "time_slot": f"{cursor // 60:02d}:{cursor % 60:02d}",
+                    "subject": fb.get("subject", "Study"),
+                    "adjusted_duration_minutes": duration,
+                    "activity_type": "study",
+                    "task_id": fb.get("task_id"),
+                    "subject_id": None,
+                })
+                cursor += duration
+                if cursor + 10 < end_min:
+                    scheduled.append({
+                        "time_slot": f"{cursor // 60:02d}:{cursor % 60:02d}",
+                        "subject": "Break",
+                        "adjusted_duration_minutes": 10,
+                        "activity_type": "break",
+                        "task_id": None,
+                        "subject_id": None,
+                    })
+                    cursor += 10
+                continue
+
+            next_fixed = min(
+                (t for t in fixed_by_start if t > cursor and t < cursor + 50),
+                default=None,
+            )
+            if next_fixed is not None:
+                gap = next_fixed - cursor
+                if gap < 20:
+                    cursor = next_fixed
+                    continue
+                item = next_study_item()
+                if not item:
+                    break
+                scheduled.append({
+                    "time_slot": f"{cursor // 60:02d}:{cursor % 60:02d}",
+                    "subject": item["subject"],
+                    "adjusted_duration_minutes": gap,
+                    "activity_type": "study",
+                    "task_id": item["task_id"],
+                    "subject_id": item["subject_id"],
+                })
+                cursor = next_fixed
+                continue
+
+            if cursor + 50 > end_min:
+                remaining = end_min - cursor
+                if remaining >= 20:
+                    item = next_study_item()
+                    if item:
+                        scheduled.append({
+                            "time_slot": f"{cursor // 60:02d}:{cursor % 60:02d}",
+                            "subject": item["subject"],
+                            "adjusted_duration_minutes": remaining,
+                            "activity_type": "study",
+                            "task_id": item["task_id"],
+                            "subject_id": item["subject_id"],
+                        })
+                break
+
+            item = next_study_item()
+            if not item:
+                break
             scheduled.append({
-                "time_slot": h_str,
-                "subject": task.get("subject", "Study"),
+                "time_slot": f"{cursor // 60:02d}:{cursor % 60:02d}",
+                "subject": item["subject"],
                 "adjusted_duration_minutes": 50,
                 "activity_type": "study",
-                "task_id": task.get("id"),
-                "subject_id": task.get("subject_id")
+                "task_id": item["task_id"],
+                "subject_id": item["subject_id"],
             })
-            
-            # Break (10m)
-            current_time += 50
-            h_str = f"{current_time // 60:02d}:{current_time % 60:02d}"
-            scheduled.append({
-                "time_slot": h_str,
-                "subject": "Break",
-                "adjusted_duration_minutes": 10,
-                "activity_type": "break",
-                "task_id": None,
-                "subject_id": None
-            })
-            
-            current_time += 10
-            task["_done"] = True
-            
-            # Simple limit: 4 tasks per slot to avoid overflow
-            if len(scheduled) > 8: break
-            
-    # Post-process: Remove trailing break
+            cursor += 50
+            if cursor + 10 <= end_min and cursor < end_min:
+                scheduled.append({
+                    "time_slot": f"{cursor // 60:02d}:{cursor % 60:02d}",
+                    "subject": "Break",
+                    "adjusted_duration_minutes": 10,
+                    "activity_type": "break",
+                    "task_id": None,
+                    "subject_id": None,
+                })
+                cursor += 10
+
     if scheduled and scheduled[-1].get("activity_type") == "break":
         scheduled.pop()
 
     return {
         "scheduled_slots": scheduled,
         "postponed_tasks": [],
-        "ai_message": "Heuristic Mode: I've prepared a basic 50/10 schedule for you while the AI is warming up!"
+        "ai_message": "Heuristic Mode: I've prepared a 50/10 schedule that fills your day. The smart AI couldn't be reached this time."
     }

@@ -25,7 +25,11 @@ export const OnboardingScreen = () => {
   const [initialTaskTitle, setInitialTaskTitle] = useState('');
   const [initialTaskMinutes, setInitialTaskMinutes] = useState(45);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const getLocalToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const todayStr = getLocalToday();
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [slots, setSlots] = useState([]);
 

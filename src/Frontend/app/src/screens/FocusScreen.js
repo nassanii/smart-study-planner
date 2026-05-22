@@ -1,12 +1,13 @@
 import { extractErrorMessage } from '../services/errors';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Modal, ScrollView } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAI } from '../context/ai_context';
 import { useAppNavigation } from '../context/navigation_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { showAlert } from '../services/dialogs';
+import { showAlert, showConfirm } from '../services/dialogs';
+import { scheduleApi } from '../services/api';
 
 import { useFocus } from '../context/focus_context';
 
@@ -15,7 +16,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export const FocusScreen = () => {
   const { colors, fonts } = useTheme();
   const { navigationParams, clearParams, activeTab } = useAppNavigation();
-  const { subjects, tasks, startFocusSession } = useAI();
+  const { subjects, tasks, latestSchedule, startFocusSession } = useAI();
   const {
     mode, setMode,
     timeLeft, setTimeLeft,
@@ -43,6 +44,112 @@ export const FocusScreen = () => {
   const [showUpNextModal, setShowUpNextModal] = useState(false);
   const [nextSlotPreview, setNextSlotPreview] = useState(null);
   const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [showBlockPicker, setShowBlockPicker] = useState(false);
+
+  const resolveSubjectId = (slotSubjectId, rawName) => {
+    if (slotSubjectId) return slotSubjectId;
+    if (!rawName) return null;
+    // Strip "(Review)", "(Part 1)", "(Revision)" etc. for matching against course names
+    const clean = String(rawName).replace(/\s*\(.*?\)\s*$/g, '').trim().toLowerCase();
+    const exact = subjects.find((s) => (s.name || '').trim().toLowerCase() === clean);
+    if (exact) return exact.id;
+    // Loose contains match as last resort
+    const loose = subjects.find((s) => clean.includes((s.name || '').trim().toLowerCase()));
+    return loose?.id || null;
+  };
+
+  const todayBlocks = useMemo(() => {
+    const blocks = [];
+    const todayKey = new Date().toISOString().split('T')[0];
+
+    const slots = latestSchedule?.aiSchedule?.scheduled_slots || [];
+    const slotStatusesMap = latestSchedule?.slot_statuses || latestSchedule?.slotStatuses || {};
+    slots.forEach((slot, idx) => {
+      if (slot.activity_type === 'break') return;
+      const status = slotStatusesMap[idx]?.status;
+      if (status === 'completed') return;
+      blocks.push({
+        key: `ai-${idx}`,
+        time: slot.time_slot,
+        title: slot.subject,
+        topic: slot.activity_type === 'review' ? 'Revision' : 'Study',
+        duration: slot.adjusted_duration_minutes || 50,
+        subjectId: resolveSubjectId(slot.subject_id, slot.subject),
+        subjectName: slot.subject,
+        taskId: slot.task_id,
+        source: 'AI',
+      });
+    });
+
+    tasks.forEach((t) => {
+      if (!t.start_time) return;
+      const dStr = String(t.deadline || '').split('T')[0];
+      if (dStr !== todayKey) return;
+      if (t.status === 'done') return;
+      const subjectName = subjects.find((s) => s.id === t.subject_id)?.name || t.title;
+      blocks.push({
+        key: `manual-${t.id}`,
+        time: String(t.start_time).slice(0, 5),
+        title: t.title,
+        topic: t.tag?.startsWith('event:') ? t.tag.slice('event:'.length) : t.tag,
+        duration: t.estimated_minutes || 45,
+        subjectId: t.subject_id,
+        subjectName,
+        taskId: t.id,
+        source: 'Manual',
+      });
+    });
+
+    return blocks.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+  }, [latestSchedule, tasks, subjects]);
+
+  const pickBlock = (block) => {
+    // Study blocks always run in Focus mode — reset in case we were on Break
+    setMode('Focus');
+    setSelectedSubjectId(block.subjectId);
+    setPlannedSubjectName(block.subjectName);
+    setSelectedTaskId(block.taskId || null);
+    setIsActive(false);
+    setActiveSession(null);
+    const seconds = (block.duration || 25) * 60;
+    setInitialDuration(seconds);
+    setTimeLeft(seconds);
+    setShowBlockPicker(false);
+  };
+
+  const hasSessionInProgress = () => {
+    if (activeSession) return true;
+    if (isActive) return true;
+    // Timer has counted down from its initial value -> session was started
+    if (initialDuration > 0 && timeLeft > 0 && timeLeft < initialDuration) return true;
+    // Studied seconds have accumulated
+    if ((sessionElapsedSeconds || 0) > 0) return true;
+    return false;
+  };
+
+  const openBlockPicker = () => {
+    if (hasSessionInProgress()) {
+      showConfirm({
+        title: 'Session in progress',
+        message: 'You have an active study session. End it first or continue with the current block?',
+        confirmText: 'End Session',
+        cancelText: 'Continue',
+        destructive: true,
+        onConfirm: () => {
+          setIsActive(false);
+          if (activeSession) {
+            setShowRatingModal(true);
+          } else {
+            // No backend session - just reset locally so the picker opens with a clean slate
+            resetTimer();
+            setShowBlockPicker(true);
+          }
+        },
+      });
+      return;
+    }
+    setShowBlockPicker(true);
+  };
 
   // Auto-pause when leaving the focus tab
   useEffect(() => {
@@ -76,6 +183,12 @@ export const FocusScreen = () => {
   const toggleTimer = async () => {
     if (isActive) {
       setIsActive(false);
+      return;
+    }
+
+    // If the timer is mid-session (counted down but not finished), just resume — don't restart.
+    if (initialDuration > 0 && timeLeft > 0 && timeLeft < initialDuration) {
+      setIsActive(true);
       return;
     }
 
@@ -149,7 +262,8 @@ export const FocusScreen = () => {
   const submitRating = async (rating) => {
     setFocusRating(rating);
     try {
-      await completeSession(rating);
+      // Finish Study button completes the focus session AND marks the task done
+      await completeSession(rating, null, true);
       setShowRatingModal(false);
       setFocusRating(0);
       triggerUpNextFlow();
@@ -176,12 +290,15 @@ export const FocusScreen = () => {
   const startNextSlot = async () => {
     if (!nextSlotPreview) return;
     setShowUpNextModal(false);
+    const isBreakSlot = nextSlotPreview.activity_type === 'break' || nextSlotPreview.subject === 'Break';
     try {
       await startSession({
         taskId: nextSlotPreview.task_id,
-        subjectId: nextSlotPreview.subject_id,
+        // For study slots, resolve subjectId so "math 2 (Review)" → math 2's id
+        subjectId: isBreakSlot ? null : resolveSubjectId(nextSlotPreview.subject_id, nextSlotPreview.subject),
         duration: nextSlotPreview.adjusted_duration_minutes,
         subjectName: nextSlotPreview.subject,
+        mode: isBreakSlot ? 'Break' : 'Focus',
         scheduleContext: {
           slots: scheduleSlots,
           startIndex: currentSlotIndex + 1
@@ -190,6 +307,24 @@ export const FocusScreen = () => {
       });
     } catch (err) {
       showAlert('Auto-start failed', err.message);
+    }
+  };
+
+  const skipNextSlot = async () => {
+    const skipIdx = (currentSlotIndex ?? -1) + 1;
+    setSlotStatuses((prev) => ({ ...prev, [skipIdx]: { status: 'completed', reason: 'skipped' } }));
+    if (latestSchedule?.id) {
+      scheduleApi.updateSlotStatus(latestSchedule.id, skipIdx, { status: 'completed', reason: 'skipped' }).catch(() => {});
+    }
+    setCurrentSlotIndex(skipIdx);
+    // Look for the next non-completed slot to show
+    const nextIdx = skipIdx + 1;
+    if (scheduleSlots && nextIdx < scheduleSlots.length) {
+      setNextSlotPreview(scheduleSlots[nextIdx]);
+    } else {
+      setShowUpNextModal(false);
+      setNextSlotPreview(null);
+      resetTimer();
     }
   };
 
@@ -248,71 +383,39 @@ export const FocusScreen = () => {
           </View>
         </View>
 
-        {!activeSession && mode === 'Focus' && subjects.length > 0 && (
+        {mode === 'Focus' && (
           <>
-            <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>COURSE</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 18 }}>
-              {subjects.map(s => {
-                const isSelected = selectedSubjectId === s.id;
-                return (
-                  <TouchableOpacity
-                    key={s.id}
-                    onPress={() => { setSelectedSubjectId(s.id); setPlannedSubjectName(s.name); setSelectedTaskId(null); }}
-                    style={[styles.chip, {
-                      borderColor: isSelected ? colors.primary : colors.border,
-                      backgroundColor: isSelected ? colors.primary + '15' : 'transparent'
-                    }]}
-                  >
-                    <Text style={{ color: isSelected ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>{s.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>STUDY BLOCK</Text>
+            <TouchableOpacity
+              onPress={openBlockPicker}
+              style={[styles.blockPickerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                {(() => {
+                  const hasBlock = plannedSubjectName && plannedSubjectName !== 'Break';
+                  return (
+                    <>
+                      <Text style={{
+                        color: hasBlock ? colors.textDark : colors.textLight,
+                        fontFamily: fonts.bold,
+                        fontSize: 15,
+                        textAlign: 'center',
+                      }} numberOfLines={1}>
+                        {hasBlock ? plannedSubjectName : 'Pick a block to start'}
+                      </Text>
+                      {hasBlock && (
+                        <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                          {Math.round((initialDuration || 0) / 60)} min
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
+              </View>
+              <Ionicons name="chevron-down" size={20} color={colors.textLight} style={{ position: 'absolute', right: 16 }} />
+            </TouchableOpacity>
           </>
         )}
-
-        {upcomingTasksForSubject.length > 0 && (
-          <>
-            <Text style={[styles.fieldLabel, { color: colors.textLight, fontFamily: fonts.semiBold }]}>TASK (OPTIONAL)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 22 }}>
-              <TouchableOpacity
-                onPress={() => setSelectedTaskId(null)}
-                style={[styles.chip, {
-                  borderColor: selectedTaskId === null ? colors.primary : colors.border,
-                  backgroundColor: selectedTaskId === null ? colors.primary + '15' : 'transparent'
-                }]}
-              >
-                <Text style={{ color: selectedTaskId === null ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>None</Text>
-              </TouchableOpacity>
-              {upcomingTasksForSubject.map(t => (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => setSelectedTaskId(t.id)}
-                  style={[styles.chip, {
-                    borderColor: selectedTaskId === t.id ? colors.primary : colors.border,
-                    backgroundColor: selectedTaskId === t.id ? colors.primary + '15' : 'transparent'
-                  }]}
-                >
-                  <Text style={{ color: selectedTaskId === t.id ? colors.primary : colors.textDark, fontFamily: fonts.bold }}>
-                    {t.title ? (t.title.length > 15 ? t.title.slice(0, 12) + '...' : t.title) : `#${t.id}`} · D{t.difficulty_rating}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        <View style={[styles.modeSelector, { backgroundColor: colors.cardAlt, justifyContent: 'center' }]}>
-           {Object.keys(MODE_DURATIONS).map(m => {
-             const isSel = mode === m;
-             if (!isSel) return null; // Only show current mode
-             return (
-               <View key={m} style={[styles.modeBtn, { backgroundColor: colors.surface, width: '100%' }]}>
-                  <Text style={[styles.modeText, { color: colors.primary, fontFamily: fonts.bold }]}>{m === 'Focus' ? '🎯 Focus Session' : '☕ Rest Break'}</Text>
-               </View>
-             );
-           })}
-        </View>
 
         <View style={[styles.timerCircle, { borderColor: 'rgba(107, 92, 231, 0.08)' }]}>
           <LinearGradient colors={isActive ? ['rgba(107, 92, 231, 0.03)', 'transparent'] : ['transparent', 'transparent']} style={styles.circleInner}>
@@ -329,29 +432,6 @@ export const FocusScreen = () => {
           </LinearGradient>
         </View>
 
-        {isActive && (
-          <View style={{ gap: 10, marginBottom: 12 }}>
-            <TouchableOpacity
-              style={[styles.finishBtn, { backgroundColor: colors.surface, borderColor: isOvertime ? '#F43F5E' : colors.primary }]}
-              onPress={handleFinishManual}
-            >
-              <Ionicons name="stop-circle" size={20} color={isOvertime ? '#F43F5E' : colors.primary} />
-              <Text style={[styles.finishBtnText, { color: isOvertime ? '#F43F5E' : colors.primary, fontFamily: fonts.bold }]}>
-                Finish {mode === 'Focus' ? 'Study' : 'Break'}
-              </Text>
-            </TouchableOpacity>
-            {mode === 'Focus' && (
-              <TouchableOpacity
-                style={[styles.switchBtn, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
-                onPress={() => setShowSwitchModal(true)}
-              >
-                <Ionicons name="swap-horizontal" size={18} color={colors.primary} />
-                <Text style={[styles.switchBtnText, { color: colors.primary, fontFamily: fonts.bold }]}>Log time and switch course</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
         <View style={styles.controls}>
           <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={resetTimer}>
             <MaterialCommunityIcons name="reload" size={24} color={colors.textDark} />
@@ -359,8 +439,15 @@ export const FocusScreen = () => {
 
           <TouchableOpacity style={styles.playButton} onPress={toggleTimer} activeOpacity={0.8}>
             <LinearGradient colors={[colors.primary, '#8575F3']} style={styles.playGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Ionicons name={isActive ? "pause" : "play"} size={36} color="#FFF" style={{ marginLeft: isActive ? 0 : 4 }} />
+              <Ionicons name={isActive ? "pause" : "play"} size={26} color="#FFF" style={{ marginLeft: isActive ? 0 : 3 }} />
             </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.smallBtn, { backgroundColor: colors.surface, borderColor: isOvertime ? '#F43F5E' : '#10B981' }]}
+            onPress={handleFinishManual}
+          >
+            <Ionicons name="stop-circle" size={26} color={isOvertime ? '#F43F5E' : '#10B981'} />
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.smallBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleSnooze} disabled={!activeSession}>
@@ -407,6 +494,52 @@ export const FocusScreen = () => {
                </TouchableOpacity>
             </View>
          </View>
+      </Modal>
+
+      <Modal visible={showBlockPicker} transparent animationType="slide" onRequestClose={() => setShowBlockPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 0 }]}>Pick a Study Block</Text>
+              <TouchableOpacity onPress={() => setShowBlockPicker(false)}>
+                <Ionicons name="close" size={26} color={colors.textDark} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.modalSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
+              Today's planned blocks — AI generated and manual.
+            </Text>
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              {todayBlocks.length === 0 ? (
+                <Text style={{ textAlign: 'center', color: colors.textLight, fontFamily: fonts.medium, padding: 28 }}>
+                  No study blocks for today. Generate a plan or add one manually.
+                </Text>
+              ) : todayBlocks.map((b) => (
+                <TouchableOpacity
+                  key={b.key}
+                  onPress={() => pickBlock(b)}
+                  style={[styles.blockRow, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}
+                >
+                  <View style={{ width: 56 }}>
+                    <Text style={{ color: colors.textLight, fontFamily: fonts.bold, fontSize: 13 }}>{b.time}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 15 }} numberOfLines={1}>
+                      {b.title}
+                    </Text>
+                    <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                      {b.duration} min · {b.topic || b.source}
+                    </Text>
+                  </View>
+                  <View style={[styles.blockSourceBadge, { backgroundColor: b.source === 'AI' ? colors.primary + '20' : '#10B98120' }]}>
+                    <Text style={{ color: b.source === 'AI' ? colors.primary : '#10B981', fontFamily: fonts.bold, fontSize: 10 }}>
+                      {b.source}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       <Modal visible={showSwitchModal} transparent animationType="slide" onRequestClose={() => setShowSwitchModal(false)}>
@@ -489,12 +622,20 @@ export const FocusScreen = () => {
                </View>
 
                <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.primary }]} onPress={startNextSlot}>
-                  <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>Start Next Block</Text>
+                  <Text style={{ color: '#FFF', fontFamily: fonts.bold }}>
+                    {nextSlotPreview?.subject === 'Break' ? 'Start Break' : 'Start Session'}
+                  </Text>
                </TouchableOpacity>
 
-               <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowUpNextModal(false); }}>
-                  <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>I'll start later</Text>
-               </TouchableOpacity>
+               {nextSlotPreview?.subject === 'Break' ? (
+                  <TouchableOpacity style={styles.cancelBtn} onPress={skipNextSlot}>
+                     <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>Skip Break</Text>
+                  </TouchableOpacity>
+               ) : (
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowUpNextModal(false); }}>
+                     <Text style={[styles.cancelText, { color: colors.textLight, fontFamily: fonts.bold }]}>I'll start later</Text>
+                  </TouchableOpacity>
+               )}
             </View>
          </View>
       </Modal>
@@ -550,6 +691,9 @@ const styles = StyleSheet.create({
   sessionBadgeText: { fontSize: 12 },
   fieldLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 10, opacity: 0.6, alignSelf: 'flex-start' },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, marginRight: 10 },
+  blockPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, marginBottom: 18 },
+  blockRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
+  blockSourceBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   modeSelector: { flexDirection: 'row', borderRadius: 24, padding: 5, marginBottom: 30, width: '100%' },
   modeBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 18 },
   modeText: { fontSize: 14 },
@@ -592,7 +736,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: 24,
   },
-  controls: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 30, marginBottom: 35 },
+  controls: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 18, marginBottom: 35 },
   finishBtn: {
     flexDirection: 'row',
     alignSelf: 'center',
@@ -620,8 +764,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   switchBtnText: { fontSize: 13 },
-  playButton: { width: 88, height: 88, borderRadius: 44, elevation: 10, shadowColor: '#6B5CE7', shadowOpacity: 0.35, shadowRadius: 15, shadowOffset: { width: 0, height: 10 } },
-  playGradient: { flex: 1, borderRadius: 44, justifyContent: 'center', alignItems: 'center' },
+  playButton: { width: 60, height: 60, borderRadius: 30, elevation: 6, shadowColor: '#6B5CE7', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  playGradient: { flex: 1, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
   smallBtn: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 1, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 },
   statsCard: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', padding: 20, borderRadius: 24, borderWidth: 1, elevation: 4, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 12 },
   dividerLine: { width: 1, height: '60%', alignSelf: 'center' },

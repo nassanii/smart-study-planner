@@ -10,6 +10,9 @@ public class UpdateTaskDto
     public short? DifficultyRating { get; set; }
     public int? EstimatedMinutes { get; set; }
     public DateOnly? Deadline { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TaskType? TaskType { get; set; }
+    public bool? IsManual { get; set; }
     public string? Tag { get; set; }
     public StudyTaskStatus? Status { get; set; }
 }

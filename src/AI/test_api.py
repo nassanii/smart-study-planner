@@ -28,16 +28,19 @@ cold_start_payload = {
             "id": 1, "subject": "Mathematics", "priority": 1,
             "difficulty_rating": 9, "days_since_last_study": 0,
             "consecutive_days_studied": 0,
+            "estimated_minutes": 45, "actual_minutes": 0
         },
         {
             "id": 2, "subject": "Physics", "priority": 2,
             "difficulty_rating": 8, "days_since_last_study": 1,
             "consecutive_days_studied": 0,
+            "estimated_minutes": 45, "actual_minutes": 0
         },
         {
             "id": 3, "subject": "History", "priority": 3,
             "difficulty_rating": 4, "days_since_last_study": 0,
             "consecutive_days_studied": 0,
+            "estimated_minutes": 45, "actual_minutes": 0
         },
     ],
     "available_slots": [
@@ -85,11 +88,13 @@ ml_payload = {
             "id": 1, "subject": "Mathematics", "priority": 1,
             "difficulty_rating": 9, "days_since_last_study": 0,
             "consecutive_days_studied": 2,
+            "estimated_minutes": 45, "actual_minutes": 0
         },
         {
             "id": 2, "subject": "Physics", "priority": 2,
             "difficulty_rating": 7, "days_since_last_study": 4,
             "consecutive_days_studied": 0,
+            "estimated_minutes": 45, "actual_minutes": 0
         },
     ],
     "available_slots": [

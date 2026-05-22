@@ -16,6 +16,9 @@ public class TaskDto
     public int ConsecutiveDaysStudied { get; set; }
     public StudyTaskStatus Status { get; set; }
     public DateOnly? Deadline { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TaskType TaskType { get; set; }
+    public bool IsManual { get; set; }
     public string? Tag { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
