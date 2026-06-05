@@ -81,27 +81,7 @@ public class UserService : IUserService
                 _db.Subjects.Add(subject);
             }
 
-            if (subject != null)
-            {
-                // Ensure the subject has at least one upcoming task
-                var hasTasks = await _db.StudyTasks.AnyAsync(t => t.UserId == userId && t.SubjectId == subject.Id, ct);
-                if (!hasTasks)
-                {
-                    _db.StudyTasks.Add(new StudyTask
-                    {
-                        UserId = userId,
-                        Subject = subject,
-                        Title = string.IsNullOrWhiteSpace(s.InitialTaskTitle) ? $"{s.Name} Introduction" : s.InitialTaskTitle,
-                        Status = SmartStudyPlanner.Domain.Enums.StudyTaskStatus.Upcoming,
-                        Priority = (SmartStudyPlanner.Domain.Enums.TaskPriority)s.Priority,
-                        DifficultyRating = s.Difficulty,
-                        EstimatedMinutes = s.EstimatedMinutes,
-                        IsManual = false,
-                        CreatedAt = _time.GetUtcNow(),
-                        UpdatedAt = _time.GetUtcNow()
-                    });
-                }
-            }
+
         }
 
         var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);

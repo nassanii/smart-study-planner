@@ -21,7 +21,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-        services.AddSingleton<SmartStudyPlanner.Application.Common.INotificationService, SmartStudyPlanner.Infrastructure.Services.FirebaseNotificationService>();
+        services.AddSingleton<SmartStudyPlanner.Application.Common.INotificationService, SmartStudyPlanner.Infrastructure.Services.ConsoleNotificationService>();
 
         services.AddHostedService<SmartStudyPlanner.Infrastructure.Services.NotificationSchedulerService>();
 

@@ -57,6 +57,5 @@
 
   <ItemGroup Label="Misc">
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
-    <PackageVersion Include="FirebaseAdmin" Version="3.0.1" />
   </ItemGroup>
 </Project>

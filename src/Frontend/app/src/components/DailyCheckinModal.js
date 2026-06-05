@@ -179,6 +179,21 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
    }, [visible, selectedDate]);
 
    const handleAddSlot = async () => {
+      const startMin = parseInt(newSlot.start.split(":")[0]) * 60 + parseInt(newSlot.start.split(":")[1]);
+      const endMin = parseInt(newSlot.end.split(":")[0]) * 60 + parseInt(newSlot.end.split(":")[1]);
+      
+      if (startMin >= endMin) {
+         showAlert("Invalid Time", "End time must be after start time.");
+         return;
+      }
+
+      // The user ONLY wants to prevent adding a slot with the exact same start time
+      const isSameStart = slots.some(s => s.startTime.startsWith(newSlot.start));
+      if (isSameStart) {
+         showAlert("Duplicate Start Time", "You already have a study block that starts at this exact time.");
+         return;
+      }
+
       try {
          const payload = {
             startTime: newSlot.start + ":00",
@@ -374,41 +389,64 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
                      <Ionicons name="time-outline" size={20} color={colors.primary} />
                      <Text style={[styles.label, { color: colors.textDark, fontFamily: fonts.bold }]}>Study Blocks</Text>
                   </View>
-                  <ScrollView style={styles.slotsList} horizontal showsHorizontalScrollIndicator={false}>
+                  <ScrollView style={[styles.slotsList, { maxHeight: 60 }]} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
                      {slots.map((s) => (
-                        <View key={s.id} style={[styles.slotChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                           <Text style={{ color: colors.textDark, fontFamily: fonts.medium, fontSize: 13 }}>
+                        <View key={s.id} style={[styles.slotChip, { 
+                           backgroundColor: colors.primary, 
+                           borderWidth: 0,
+                           borderRadius: 24, 
+                           paddingVertical: 10, 
+                           paddingHorizontal: 14,
+                           shadowColor: colors.primary,
+                           shadowOpacity: 0.3,
+                           shadowRadius: 6,
+                           shadowOffset: { width: 0, height: 3 },
+                           elevation: 3
+                        }]}>
+                           <Ionicons name="time" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                           <Text style={{ color: "#FFF", fontFamily: fonts.bold, fontSize: 15, letterSpacing: 0.5 }}>
                               {s.startTime.slice(0, 5)} - {s.endTime.slice(0, 5)}
                            </Text>
-                           <TouchableOpacity onPress={() => handleRemoveSlot(s.id)} style={{ marginLeft: 8 }}>
-                              <Ionicons name="close-circle" size={16} color={colors.textLight} />
+                           <TouchableOpacity 
+                              onPress={() => handleRemoveSlot(s.id)} 
+                              style={{ marginLeft: 12, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 12, padding: 4 }}
+                           >
+                              <Ionicons name="close" size={16} color="#FFF" />
                            </TouchableOpacity>
                         </View>
                      ))}
                   </ScrollView>
 
-                  <View style={styles.inlineForm}>
+                  <View style={[styles.inlineForm, { gap: 12, marginTop: 10 }]}>
                      <TouchableOpacity
-                        style={[styles.miniTimeBtn, { backgroundColor: colors.cardAlt }]}
+                        style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.cardAlt }}
                         onPress={() => {
                            setActiveSlotField("start");
                            setShowHourPicker(true);
                         }}
                      >
-                        <Text style={{ color: colors.textDark, fontSize: 12 }}>{newSlot.start}</Text>
+                        <Ionicons name="time-outline" size={18} color={colors.textLight} />
+                        <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 16 }}>{newSlot.start}</Text>
                      </TouchableOpacity>
-                     <Text style={{ color: colors.textLight }}>to</Text>
+
+                     <Text style={{ color: colors.textLight, fontFamily: fonts.bold, fontSize: 12 }}>TO</Text>
+
                      <TouchableOpacity
-                        style={[styles.miniTimeBtn, { backgroundColor: colors.cardAlt }]}
+                        style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.cardAlt }}
                         onPress={() => {
                            setActiveSlotField("end");
                            setShowHourPicker(true);
                         }}
                      >
-                        <Text style={{ color: colors.textDark, fontSize: 12 }}>{newSlot.end}</Text>
+                        <Ionicons name="time-outline" size={18} color={colors.textLight} />
+                        <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 16 }}>{newSlot.end}</Text>
                      </TouchableOpacity>
-                     <TouchableOpacity style={[styles.addBtnSmall, { backgroundColor: colors.primary }]} onPress={handleAddSlot}>
-                        <Ionicons name="add" size={20} color="#FFF" />
+
+                     <TouchableOpacity 
+                        style={{ width: 50, height: 50, borderRadius: 14, backgroundColor: colors.primary, justifyContent: "center", alignItems: "center", elevation: 2, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } }} 
+                        onPress={handleAddSlot}
+                     >
+                        <Ionicons name="add" size={26} color="#FFF" />
                      </TouchableOpacity>
                   </View>
 
@@ -633,29 +671,71 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
             </View>
          </Modal>
 
-         <Modal visible={showHourPicker} transparent animationType="fade">
-            <View style={styles.modalOverlaySecondary}>
-               <View style={{ backgroundColor: colors.surface, width: "80%", borderRadius: 20, padding: 20, maxHeight: "60%" }}>
-                  <Text style={{ fontFamily: fonts.bold, fontSize: 18, marginBottom: 15, textAlign: "center" }}>Select Hour</Text>
-                  <ScrollView>
-                     {hours.map((h) => (
-                        <TouchableOpacity
-                           key={h}
-                           style={{ paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.border, alignItems: "center" }}
-                           onPress={() => {
-                              setNewSlot({ ...newSlot, [activeSlotField]: h });
-                              setShowHourPicker(false);
-                           }}
-                        >
-                           <Text style={{ color: colors.textDark, fontFamily: fonts.medium, fontSize: 16 }}>{h}</Text>
-                        </TouchableOpacity>
-                     ))}
-                  </ScrollView>
+         <Modal visible={showHourPicker} transparent animationType="slide" onRequestClose={() => setShowHourPicker(false)}>
+            <View style={styles.overlay}>
+               <View style={[styles.durationPickerContent, { backgroundColor: colors.surface, maxHeight: "70%" }]}>
+                  <View style={styles.durationHeader}>
+                     <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 0 }]}>
+                        {activeSlotField === "start" ? "Start Time" : "End Time"}
+                     </Text>
+                     <TouchableOpacity onPress={() => setShowHourPicker(false)}>
+                        <Ionicons name="close" size={26} color={colors.textDark} />
+                     </TouchableOpacity>
+                  </View>
+                  <View style={{ flexDirection: "row", paddingHorizontal: 26, marginVertical: 14, alignItems: "center", height: 260 }}>
+                     <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, letterSpacing: 1, textAlign: "center", marginBottom: 6, color: colors.textLight, fontFamily: fonts.bold }}>HOUR</Text>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                           {Array.from({ length: 24 }, (_, h) => h).map((h) => {
+                              const currentHour = parseInt(newSlot[activeSlotField].split(":")[0], 10);
+                              const isSel = currentHour === h;
+                              return (
+                                 <TouchableOpacity
+                                    key={h}
+                                    onPress={() => {
+                                       const m = newSlot[activeSlotField].split(":")[1];
+                                       setNewSlot({ ...newSlot, [activeSlotField]: `${String(h).padStart(2, '0')}:${m}` });
+                                    }}
+                                    style={{ paddingVertical: 12, alignItems: "center", borderRadius: 8, backgroundColor: isSel ? colors.primary + "20" : "transparent" }}
+                                 >
+                                    <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
+                                       {String(h).padStart(2, "0")}
+                                    </Text>
+                                 </TouchableOpacity>
+                              );
+                           })}
+                        </ScrollView>
+                     </View>
+                     <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 22, marginHorizontal: 8 }}>:</Text>
+                     <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, letterSpacing: 1, textAlign: "center", marginBottom: 6, color: colors.textLight, fontFamily: fonts.bold }}>MIN</Text>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                           {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => {
+                              const currentMin = parseInt(newSlot[activeSlotField].split(":")[1], 10);
+                              const isSel = currentMin === m;
+                              return (
+                                 <TouchableOpacity
+                                    key={m}
+                                    onPress={() => {
+                                       const h = newSlot[activeSlotField].split(":")[0];
+                                       setNewSlot({ ...newSlot, [activeSlotField]: `${h}:${String(m).padStart(2, '0')}` });
+                                    }}
+                                    style={{ paddingVertical: 12, alignItems: "center", borderRadius: 8, backgroundColor: isSel ? colors.primary + "20" : "transparent" }}
+                                 >
+                                    <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
+                                       {String(m).padStart(2, "0")}
+                                    </Text>
+                                 </TouchableOpacity>
+                              );
+                           })}
+                        </ScrollView>
+                     </View>
+                  </View>
                   <TouchableOpacity
-                     style={{ marginTop: 15, padding: 15, backgroundColor: colors.border, borderRadius: 10, alignItems: "center" }}
                      onPress={() => setShowHourPicker(false)}
+                     style={[styles.generateBtn, { backgroundColor: colors.primary, marginHorizontal: 26, marginBottom: 26, marginTop: 0 }]}
                   >
-                     <Text style={{ color: colors.textDark, fontFamily: fonts.bold }}>Cancel</Text>
+                     <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>Done</Text>
                   </TouchableOpacity>
                </View>
             </View>

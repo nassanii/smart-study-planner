@@ -15,6 +15,7 @@ public interface IAppDbContext
     DbSet<AvailableSlot> AvailableSlots { get; }
     DbSet<AiSchedule> AiSchedules { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
+    DbSet<AppEvent> AppEvents { get; }
 
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity) where TEntity : class;
 

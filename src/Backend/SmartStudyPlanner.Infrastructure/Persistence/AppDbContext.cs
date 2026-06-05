@@ -18,6 +18,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<AvailableSlot> AvailableSlots => Set<AvailableSlot>();
     public DbSet<AiSchedule> AiSchedules => Set<AiSchedule>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AppEvent> AppEvents => Set<AppEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

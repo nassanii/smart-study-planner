@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import Toast from "react-native-toast-message";
 import { useAuth } from "./auth_context";
-import { tasksApi, behavioralLogsApi, subjectsApi, usersApi, focusApi, scheduleApi } from "../services/api";
+import { tasksApi, behavioralLogsApi, subjectsApi, usersApi, focusApi, scheduleApi, eventsApi } from "../services/api";
 import { pushNotification } from "../services/notifications_bus";
 
 const TASK_CREATED_TITLES = ["Mission Accepted", "Fresh Quest", "Game On, Scholar", "New Challenge"];
@@ -110,6 +110,20 @@ function mapScheduleFromApi(s) {
    };
 }
 
+function mapEventFromApi(e) {
+   if (!e) return null;
+   return {
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      date: e.date,
+      start_time: e.startTime || e.start_time,
+      estimated_minutes: e.estimatedMinutes || e.estimated_minutes,
+      priority: e.priority,
+      is_completed: e.isCompleted || e.is_completed,
+   };
+}
+
 // --- Provider ---
 
 const AIContext = createContext(null);
@@ -124,6 +138,7 @@ export const AIProvider = ({ children }) => {
    const { user, isAuthenticated, refreshUser } = useAuth();
 
    const [tasks, setTasks] = useState([]);
+   const [events, setEvents] = useState([]);
    const [subjects, setSubjects] = useState([]);
    const [behavioralLogs, setBehavioralLogs] = useState(emptyBehavioral);
    const [latestSchedule, setLatestSchedule] = useState(null);
@@ -163,16 +178,22 @@ export const AIProvider = ({ children }) => {
       setSubjects(remote.map(mapSubjectFromApi));
    }, []);
 
+   const reloadEvents = useCallback(async () => {
+      const remote = await eventsApi.list();
+      setEvents(remote.map(mapEventFromApi));
+   }, []);
+
    const reloadAll = useCallback(async () => {
       if (!isAuthenticated) return;
       setLoading(true);
       setError(null);
       try {
-         const [t, b, s, sched] = await Promise.all([
+         const [t, b, s, sched, ev] = await Promise.all([
             tasksApi.list("all"),
             behavioralLogsApi.today(),
             subjectsApi.list(),
             scheduleApi.today().catch(() => null),
+            eventsApi.list(),
          ]);
          setTasks(t.map(mapTaskFromApi));
          setBehavioralLogs({
@@ -182,6 +203,7 @@ export const AIProvider = ({ children }) => {
          });
          setSubjects(s.map(mapSubjectFromApi));
          setLatestSchedule(sched ? mapScheduleFromApi(sched) : null);
+         setEvents(ev.map(mapEventFromApi));
       } catch (err) {
          setError(err.response?.data?.title || err.message);
       } finally {
@@ -192,6 +214,7 @@ export const AIProvider = ({ children }) => {
    useEffect(() => {
       if (!isAuthenticated) {
          setTasks([]);
+         setEvents([]);
          setSubjects([]);
          setBehavioralLogs(emptyBehavioral);
          setLatestSchedule(null);
@@ -246,6 +269,23 @@ export const AIProvider = ({ children }) => {
       const updated = await tasksApi.update(id, payload);
       setTasks((prev) => prev.map((t) => (t.id === id ? mapTaskFromApi(updated) : t)));
       return updated;
+   }, []);
+
+   const addEvent = useCallback(async (payload) => {
+      const created = await eventsApi.create(payload);
+      setEvents((prev) => [...prev, mapEventFromApi(created)]);
+      return created;
+   }, []);
+
+   const updateEvent = useCallback(async (id, payload) => {
+      const updated = await eventsApi.update(id, payload);
+      setEvents((prev) => prev.map((e) => (e.id === id ? mapEventFromApi(updated) : e)));
+      return updated;
+   }, []);
+
+   const removeEvent = useCallback(async (id) => {
+      await eventsApi.remove(id);
+      setEvents((prev) => prev.filter((e) => e.id !== id));
    }, []);
 
    const addSubject = useCallback(async (payload) => {
@@ -348,6 +388,7 @@ export const AIProvider = ({ children }) => {
          value={{
             userData,
             tasks,
+            events,
             subjects,
             behavioralLogs,
             latestSchedule,
@@ -355,6 +396,7 @@ export const AIProvider = ({ children }) => {
             error,
             reloadAll,
             reloadTasks,
+            reloadEvents,
             reloadBehavioral,
             reloadSubjects,
             updateTaskDifficulty,
@@ -363,6 +405,9 @@ export const AIProvider = ({ children }) => {
             snoozeTask,
             removeTask,
             updateTask,
+            addEvent,
+            updateEvent,
+            removeEvent,
             completeOnboarding,
             startFocusSession,
             completeFocusSession,

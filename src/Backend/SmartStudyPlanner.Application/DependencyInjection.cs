@@ -15,6 +15,7 @@ using SmartStudyPlanner.Application.Schedule.Services;
 using SmartStudyPlanner.Application.Subjects.Services;
 using SmartStudyPlanner.Application.Tasks.Services;
 using SmartStudyPlanner.Application.Users.Services;
+using SmartStudyPlanner.Application.Events.Services;
 
 namespace SmartStudyPlanner.Application;
 
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IBehavioralLogService, BehavioralLogService>();
         services.AddScoped<IScheduleService, ScheduleService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<IEventService, EventService>();
         services.AddScoped<SchedulePayloadBuilder>();
 
         services.AddHttpClient<AiClient>((sp, client) =>

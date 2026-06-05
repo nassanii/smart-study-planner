@@ -10,11 +10,6 @@ import { extractErrorMessage } from '../services/errors';
 const DAYS_OF_WEEK = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const EVENT_TAG_PREFIX = 'event:';
-
-const isEvent = (t) => typeof t?.tag === 'string' && t.tag.startsWith(EVENT_TAG_PREFIX);
-const eventDescription = (t) => isEvent(t) ? t.tag.slice(EVENT_TAG_PREFIX.length) : '';
-
 const toLocalDate = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -37,33 +32,10 @@ const getWeekDates = (anchor) => {
   });
 };
 
-// Reads start time from a task. Prefers the new `start_time` field (HH:MM:SS) when present.
-// Falls back to legacy deadlines that embedded time after a 'T' delimiter.
-const parseEventTime = (taskOrDeadline) => {
-  // String input (legacy callers passing just the deadline)
-  if (typeof taskOrDeadline === 'string') {
-    if (!taskOrDeadline) return null;
-    const [date, time] = taskOrDeadline.split('T');
-    if (!date) return null;
-    const [hStr = '0', mStr = '0'] = (time || '').split(':');
-    return { date, hour: parseInt(hStr, 10) || 0, minute: parseInt(mStr, 10) || 0 };
-  }
-  // Task object
-  const t = taskOrDeadline;
-  if (!t) return null;
-  const dateStr = String(t.deadline || '').split('T')[0];
-  if (!dateStr) return null;
-  if (t.start_time) {
-    const [hStr = '0', mStr = '0'] = String(t.start_time).split(':');
-    return { date: dateStr, hour: parseInt(hStr, 10) || 0, minute: parseInt(mStr, 10) || 0 };
-  }
-  // Legacy fallback
-  if (String(t.deadline || '').includes('T')) {
-    const [, time] = String(t.deadline).split('T');
-    const [hStr = '0', mStr = '0'] = (time || '').split(':');
-    return { date: dateStr, hour: parseInt(hStr, 10) || 0, minute: parseInt(mStr, 10) || 0 };
-  }
-  return { date: dateStr, hour: 0, minute: 0 };
+const parseEventTime = (e) => {
+  if (!e || !e.start_time) return { date: e?.date || '', hour: 0, minute: 0 };
+  const [hStr = '0', mStr = '0'] = String(e.start_time).split(':');
+  return { date: e.date, hour: parseInt(hStr, 10) || 0, minute: parseInt(mStr, 10) || 0 };
 };
 
 const priorityColor = (p) => Number(p) === 1 ? '#F43F5E' : Number(p) === 3 ? '#10B981' : '#F59E0B';
@@ -73,7 +45,7 @@ const DAY_CELL_WIDTH = 56;
 
 export const EventsScreen = () => {
   const { colors, fonts } = useTheme();
-  const { tasks, subjects, addTask, updateTask, removeTask, completeTask, addSubject, reloadAll } = useAI();
+  const { events: aiEvents, addEvent, updateEvent, removeEvent, reloadAll } = useAI();
   const { navigate } = useAppNavigation();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -134,39 +106,24 @@ export const EventsScreen = () => {
     setSelectedDate(newDate);
   };
 
-  const events = useMemo(() => {
-    return tasks.filter((t) => {
-      if (!isEvent(t)) return false;
-      const parsed = parseEventTime(t);
-      if (!parsed || parsed.date !== selectedDateStr) return false;
-      if (tab === 'completed') return t.status === 'done';
-      return t.status !== 'done';
+  const displayEvents = useMemo(() => {
+    return aiEvents.filter((e) => {
+      if (e.date !== selectedDateStr) return false;
+      if (tab === 'completed') return e.is_completed;
+      return !e.is_completed;
     });
-  }, [tasks, selectedDateStr, tab]);
+  }, [aiEvents, selectedDateStr, tab]);
 
   const eventsByHour = useMemo(() => {
     const byHour = {};
-    for (const event of events) {
+    for (const event of displayEvents) {
       const parsed = parseEventTime(event);
       if (!parsed) continue;
       if (!byHour[parsed.hour]) byHour[parsed.hour] = [];
       byHour[parsed.hour].push(event);
     }
     return byHour;
-  }, [events]);
-
-  const resolvedSubject = useMemo(() => {
-    return subjects.find((s) => s.name?.trim().toLowerCase() === 'general tasks') || subjects[0] || null;
-  }, [subjects]);
-
-  const ensureSubjectId = async () => {
-    if (resolvedSubject?.id) return resolvedSubject.id;
-    try {
-      const created = await addSubject({ name: 'General Tasks', difficulty: 5, priority: 2 });
-      if (created?.id) return created.id;
-    } catch (_) {}
-    return null;
-  };
+  }, [displayEvents]);
 
   const openEventModal = (event = null, hour = null) => {
     setEditingEvent(event);
@@ -181,7 +138,7 @@ export const EventsScreen = () => {
         endHour: Math.floor(endMin / 60),
         endMinute: endMin % 60,
         priority: event.priority || 2,
-        description: eventDescription(event),
+        description: event.description || '',
       });
     } else {
       const defaultHour = hour ?? new Date().getHours();
@@ -207,33 +164,23 @@ export const EventsScreen = () => {
 
     setBusy(true);
     try {
-      const subjectId = await ensureSubjectId();
-      if (!subjectId) {
-        showAlert('Add a Course First', 'Please add at least one course before creating events.');
-        return;
-      }
-
       const hh = String(eventForm.startHour).padStart(2, '0');
       const mm = String(eventForm.startMinute).padStart(2, '0');
       const startTime = `${hh}:${mm}:00`;
-      const tag = `${EVENT_TAG_PREFIX}${eventForm.description}`;
+      
       const payload = {
-        subjectId,
         title: eventForm.title.trim(),
+        description: eventForm.description,
+        date: selectedDateStr,
+        startTime,
         estimatedMinutes: endMin - startMin,
         priority: Number(eventForm.priority) || 2,
-        difficultyRating: editingEvent?.difficulty_rating || resolvedSubject?.difficulty || 5,
-        deadline: selectedDateStr,
-        startTime,
-        taskType: 1, // Personal (events are personal items)
-        isManual: true,
-        tag,
       };
 
       if (editingEvent) {
-        await updateTask(editingEvent.id, payload);
+        await updateEvent(editingEvent.id, payload);
       } else {
-        await addTask(payload);
+        await addEvent(payload);
       }
       setShowEventModal(false);
     } catch (err) {
@@ -249,12 +196,12 @@ export const EventsScreen = () => {
       message: `Delete "${event.title}"?`,
       confirmText: 'Delete',
       destructive: true,
-      onConfirm: () => removeTask(event.id).catch((err) => showAlert('Error', extractErrorMessage(err))),
+      onConfirm: () => removeEvent(event.id).catch((err) => showAlert('Error', extractErrorMessage(err))),
     });
   };
 
   const handleCompleteEvent = (event) => {
-    completeTask(event.id, event.estimated_minutes || 25).catch((err) => showAlert('Error', extractErrorMessage(err)));
+    updateEvent(event.id, { isCompleted: true }).catch((err) => showAlert('Error', extractErrorMessage(err)));
   };
 
   return (
@@ -359,9 +306,9 @@ export const EventsScreen = () => {
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.eventTitle, { color, fontFamily: fonts.bold }]} numberOfLines={1}>{event.title}</Text>
-                        {eventDescription(event) ? (
+                        {event.description ? (
                           <Text style={[styles.eventDesc, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
-                            {eventDescription(event)}
+                            {event.description}
                           </Text>
                         ) : null}
                         <Text style={[styles.eventMeta, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
@@ -373,7 +320,7 @@ export const EventsScreen = () => {
                         onPress={() => tab === 'scheduled' ? handleCompleteEvent(event) : null}
                         style={[styles.eventPlay, { borderColor: color }]}
                       >
-                        <Ionicons name={event.status === 'done' ? 'checkmark' : 'play'} size={14} color={color} />
+                        <Ionicons name={event.is_completed ? 'checkmark' : 'play'} size={14} color={color} />
                       </TouchableOpacity>
                     </TouchableOpacity>
                   );

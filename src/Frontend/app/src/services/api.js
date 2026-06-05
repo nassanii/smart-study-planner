@@ -32,6 +32,14 @@ export const tasksApi = {
   remove: (id) => apiClient.delete(`/tasks/${id}`).then(r => r.data),
 };
 
+export const eventsApi = {
+  list: () => apiClient.get('/events').then(r => r.data),
+  get: (id) => apiClient.get(`/events/${id}`).then(r => r.data),
+  create: (payload) => apiClient.post('/events', payload).then(r => r.data),
+  update: (id, payload) => apiClient.put(`/events/${id}`, payload).then(r => r.data),
+  remove: (id) => apiClient.delete(`/events/${id}`).then(r => r.data),
+};
+
 export const focusApi = {
   list: (params = {}) => apiClient.get('/focus-sessions', { params }).then(r => r.data),
   start: (payload) => apiClient.post('/focus-sessions', payload).then(r => r.data),
