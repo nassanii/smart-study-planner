@@ -183,7 +183,8 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
       }
    };
 
-   const hours = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, "0")}:00`);
+   const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, h) => h), []);
+   const minuteOptions = useMemo(() => [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], []);
 
    useEffect(() => {
       if (visible) {
@@ -261,6 +262,46 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
          setLoadingMode(null);
       }
    };
+
+   const renderTimeColumn = (label, values, selectedValue, onSelect) => (
+      <View style={styles.timePickerColumn}>
+         <Text style={[styles.timePickerColumnLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>
+            {label}
+         </Text>
+         <ScrollView
+            showsVerticalScrollIndicator={false}
+            style={[styles.timePickerScroll, { backgroundColor: colors.cardAlt }]}
+            contentContainerStyle={styles.timePickerScrollContent}
+         >
+            {values.map((value) => {
+               const isSelected = selectedValue === value;
+               return (
+                  <TouchableOpacity
+                     key={value}
+                     onPress={() => onSelect(value)}
+                     style={[
+                        styles.timePickerOption,
+                        { backgroundColor: isSelected ? colors.primary + "18" : "transparent" },
+                     ]}
+                  >
+                     <Text
+                        style={[
+                           styles.timePickerOptionText,
+                           {
+                              color: isSelected ? colors.primary : colors.textDark,
+                              fontFamily: fonts.bold,
+                              opacity: isSelected ? 1 : 0.72,
+                           },
+                        ]}
+                     >
+                        {String(value).padStart(2, "0")}
+                     </Text>
+                  </TouchableOpacity>
+               );
+            })}
+         </ScrollView>
+      </View>
+   );
 
    if (!visible) return null;
 
@@ -524,61 +565,36 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
          />
 
          <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
-            <View style={styles.overlay}>
-               <View style={[styles.durationPickerContent, { backgroundColor: colors.surface, maxHeight: "70%" }]}>
-                  <View style={styles.durationHeader}>
-                     <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 0 }]}>Start Time</Text>
-                     <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                        <Ionicons name="close" size={26} color={colors.textDark} />
+            <View style={styles.timePickerOverlay}>
+               <View style={[styles.timePickerContent, { backgroundColor: colors.surface }]}>
+                  <View style={[styles.timePickerHeader, { borderBottomColor: colors.border }]}>
+                     <Text style={[styles.timePickerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Start Time</Text>
+                     <TouchableOpacity
+                        onPress={() => setShowTimePicker(false)}
+                        style={[styles.timePickerClose, { backgroundColor: colors.cardAlt }]}
+                     >
+                        <Ionicons name="close" size={22} color={colors.textDark} />
                      </TouchableOpacity>
                   </View>
-                  <View style={{ flexDirection: "row", paddingHorizontal: 26, marginVertical: 14, alignItems: "center", height: 260 }}>
-                     <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, letterSpacing: 1, textAlign: "center", marginBottom: 6, color: colors.textLight, fontFamily: fonts.bold }}>HOUR</Text>
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                           {Array.from({ length: 24 }, (_, h) => h).map((h) => {
-                              const isSel = manualForm.startHour === h;
-                              return (
-                                 <TouchableOpacity
-                                    key={h}
-                                    onPress={() => setManualForm({ ...manualForm, startHour: h, startMinute: manualForm.startMinute || 0 })}
-                                    style={{ paddingVertical: 12, alignItems: "center", borderRadius: 8, backgroundColor: isSel ? colors.primary + "20" : "transparent" }}
-                                 >
-                                    <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
-                                       {String(h).padStart(2, "0")}
-                                    </Text>
-                                 </TouchableOpacity>
-                              );
-                           })}
-                        </ScrollView>
+                  <View style={styles.timePickerBody}>
+                     {renderTimeColumn("Hour", hourOptions, manualForm.startHour ?? 9, (h) =>
+                        setManualForm({ ...manualForm, startHour: h, startMinute: manualForm.startMinute || 0 })
+                     )}
+                     <View style={styles.timePickerSeparator}>
+                        <Text style={[styles.timePickerSeparatorText, { color: colors.textDark, fontFamily: fonts.bold }]}>:</Text>
                      </View>
-                     <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 22, marginHorizontal: 8 }}>:</Text>
-                     <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, letterSpacing: 1, textAlign: "center", marginBottom: 6, color: colors.textLight, fontFamily: fonts.bold }}>MIN</Text>
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                           {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => {
-                              const isSel = (manualForm.startMinute || 0) === m;
-                              return (
-                                 <TouchableOpacity
-                                    key={m}
-                                    onPress={() => setManualForm({ ...manualForm, startMinute: m, startHour: manualForm.startHour ?? 9 })}
-                                    style={{ paddingVertical: 12, alignItems: "center", borderRadius: 8, backgroundColor: isSel ? colors.primary + "20" : "transparent" }}
-                                 >
-                                    <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
-                                       {String(m).padStart(2, "0")}
-                                    </Text>
-                                 </TouchableOpacity>
-                              );
-                           })}
-                        </ScrollView>
-                     </View>
+                     {renderTimeColumn("Min", minuteOptions, manualForm.startMinute || 0, (m) =>
+                        setManualForm({ ...manualForm, startMinute: m, startHour: manualForm.startHour ?? 9 })
+                     )}
                   </View>
-                  <TouchableOpacity
-                     onPress={() => setShowTimePicker(false)}
-                     style={[styles.generateBtn, { backgroundColor: colors.primary, marginHorizontal: 26, marginBottom: 26, marginTop: 0 }]}
-                  >
-                     <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>Done</Text>
-                  </TouchableOpacity>
+                  <View style={styles.timePickerFooter}>
+                     <TouchableOpacity
+                        onPress={() => setShowTimePicker(false)}
+                        style={[styles.generateBtn, styles.timePickerDone, { backgroundColor: colors.primary }]}
+                     >
+                        <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>Done</Text>
+                     </TouchableOpacity>
+                  </View>
                </View>
             </View>
          </Modal>
@@ -690,71 +706,40 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
          </Modal>
 
          <Modal visible={showHourPicker} transparent animationType="slide" onRequestClose={() => setShowHourPicker(false)}>
-            <View style={styles.overlay}>
-               <View style={[styles.durationPickerContent, { backgroundColor: colors.surface, maxHeight: "70%" }]}>
-                  <View style={styles.durationHeader}>
-                     <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 0 }]}>
+            <View style={styles.timePickerOverlay}>
+               <View style={[styles.timePickerContent, { backgroundColor: colors.surface }]}>
+                  <View style={[styles.timePickerHeader, { borderBottomColor: colors.border }]}>
+                     <Text style={[styles.timePickerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>
                         {activeSlotField === "start" ? "Start Time" : "End Time"}
                      </Text>
-                     <TouchableOpacity onPress={() => setShowHourPicker(false)}>
-                        <Ionicons name="close" size={26} color={colors.textDark} />
+                     <TouchableOpacity
+                        onPress={() => setShowHourPicker(false)}
+                        style={[styles.timePickerClose, { backgroundColor: colors.cardAlt }]}
+                     >
+                        <Ionicons name="close" size={22} color={colors.textDark} />
                      </TouchableOpacity>
                   </View>
-                  <View style={{ flexDirection: "row", paddingHorizontal: 26, marginVertical: 14, alignItems: "center", height: 260 }}>
-                     <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, letterSpacing: 1, textAlign: "center", marginBottom: 6, color: colors.textLight, fontFamily: fonts.bold }}>HOUR</Text>
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                           {Array.from({ length: 24 }, (_, h) => h).map((h) => {
-                              const currentHour = parseInt(newSlot[activeSlotField].split(":")[0], 10);
-                              const isSel = currentHour === h;
-                              return (
-                                 <TouchableOpacity
-                                    key={h}
-                                    onPress={() => {
-                                       const m = newSlot[activeSlotField].split(":")[1];
-                                       setNewSlot({ ...newSlot, [activeSlotField]: `${String(h).padStart(2, '0')}:${m}` });
-                                    }}
-                                    style={{ paddingVertical: 12, alignItems: "center", borderRadius: 8, backgroundColor: isSel ? colors.primary + "20" : "transparent" }}
-                                 >
-                                    <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
-                                       {String(h).padStart(2, "0")}
-                                    </Text>
-                                 </TouchableOpacity>
-                              );
-                           })}
-                        </ScrollView>
+                  <View style={styles.timePickerBody}>
+                     {renderTimeColumn("Hour", hourOptions, parseInt(newSlot[activeSlotField].split(":")[0], 10), (h) => {
+                        const m = newSlot[activeSlotField].split(":")[1];
+                        setNewSlot({ ...newSlot, [activeSlotField]: `${String(h).padStart(2, "0")}:${m}` });
+                     })}
+                     <View style={styles.timePickerSeparator}>
+                        <Text style={[styles.timePickerSeparatorText, { color: colors.textDark, fontFamily: fonts.bold }]}>:</Text>
                      </View>
-                     <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 22, marginHorizontal: 8 }}>:</Text>
-                     <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, letterSpacing: 1, textAlign: "center", marginBottom: 6, color: colors.textLight, fontFamily: fonts.bold }}>MIN</Text>
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                           {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => {
-                              const currentMin = parseInt(newSlot[activeSlotField].split(":")[1], 10);
-                              const isSel = currentMin === m;
-                              return (
-                                 <TouchableOpacity
-                                    key={m}
-                                    onPress={() => {
-                                       const h = newSlot[activeSlotField].split(":")[0];
-                                       setNewSlot({ ...newSlot, [activeSlotField]: `${h}:${String(m).padStart(2, '0')}` });
-                                    }}
-                                    style={{ paddingVertical: 12, alignItems: "center", borderRadius: 8, backgroundColor: isSel ? colors.primary + "20" : "transparent" }}
-                                 >
-                                    <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
-                                       {String(m).padStart(2, "0")}
-                                    </Text>
-                                 </TouchableOpacity>
-                              );
-                           })}
-                        </ScrollView>
-                     </View>
+                     {renderTimeColumn("Min", minuteOptions, parseInt(newSlot[activeSlotField].split(":")[1], 10), (m) => {
+                        const h = newSlot[activeSlotField].split(":")[0];
+                        setNewSlot({ ...newSlot, [activeSlotField]: `${h}:${String(m).padStart(2, "0")}` });
+                     })}
                   </View>
-                  <TouchableOpacity
-                     onPress={() => setShowHourPicker(false)}
-                     style={[styles.generateBtn, { backgroundColor: colors.primary, marginHorizontal: 26, marginBottom: 26, marginTop: 0 }]}
-                  >
-                     <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>Done</Text>
-                  </TouchableOpacity>
+                  <View style={styles.timePickerFooter}>
+                     <TouchableOpacity
+                        onPress={() => setShowHourPicker(false)}
+                        style={[styles.generateBtn, styles.timePickerDone, { backgroundColor: colors.primary }]}
+                     >
+                        <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>Done</Text>
+                     </TouchableOpacity>
+                  </View>
                </View>
             </View>
          </Modal>
@@ -976,6 +961,83 @@ const styles = StyleSheet.create({
    durationPickerContent: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20 },
    durationHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 26, paddingBottom: 6 },
    wheelLens: { position: "absolute", borderRadius: 14, borderLeftWidth: 1, borderRightWidth: 1 },
+   timePickerOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.56)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 24,
+   },
+   timePickerContent: {
+      width: "100%",
+      maxWidth: 520,
+      maxHeight: "82%",
+      borderRadius: 24,
+      overflow: "hidden",
+   },
+   timePickerHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+   },
+   timePickerTitle: { fontSize: 20 },
+   timePickerClose: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: "center",
+      alignItems: "center",
+   },
+   timePickerBody: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      gap: 12,
+      height: 300,
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 12,
+   },
+   timePickerColumn: { flex: 1, minWidth: 0 },
+   timePickerColumnLabel: {
+      fontSize: 11,
+      textAlign: "center",
+      marginBottom: 8,
+      textTransform: "uppercase",
+   },
+   timePickerScroll: {
+      flex: 1,
+      borderRadius: 16,
+   },
+   timePickerScrollContent: { padding: 6 },
+   timePickerOption: {
+      minHeight: 42,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+      marginVertical: 2,
+   },
+   timePickerOptionText: { fontSize: 17 },
+   timePickerSeparator: {
+      width: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 20,
+   },
+   timePickerSeparatorText: { fontSize: 24 },
+   timePickerFooter: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 20,
+   },
+   timePickerDone: {
+      marginTop: 0,
+      marginHorizontal: 0,
+      marginBottom: 0,
+   },
    priorityRow: { flexDirection: "row", gap: 8 },
    prioBtn: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
 });
