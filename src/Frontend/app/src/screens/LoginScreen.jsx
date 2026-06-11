@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAuth } from '../context/auth_context';
+import { authApi } from '../services/api';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppNavigation } from '../context/navigation_context';
@@ -30,11 +31,14 @@ export const LoginScreen = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const handleSubmit = async () => {
     if (submitting) return;
     setErrorMsg('');
+    setSuccessMsg('');
     if (!email || !password) {
       setErrorMsg('Email and password are required.');
       return;
@@ -71,6 +75,29 @@ export const LoginScreen = () => {
       setErrorMsg(extractErrorMessage(err));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (forgotSubmitting) return;
+
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setErrorMsg('Enter your email first, then request a reset link.');
+      return;
+    }
+
+    setForgotSubmitting(true);
+    try {
+      await authApi.forgotPassword({ email: trimmedEmail });
+      setSuccessMsg('If this email exists, a reset code has been sent.');
+    } catch (err) {
+      setErrorMsg(extractErrorMessage(err));
+    } finally {
+      setForgotSubmitting(false);
     }
   };
 
@@ -222,8 +249,20 @@ export const LoginScreen = () => {
                     </View>
                     <Text style={[styles.checkText, { color: colors.textLight, fontFamily: fonts.medium }]}>Remember me</Text>
                 </TouchableOpacity>
+                <TouchableOpacity onPress={handleForgotPassword} disabled={forgotSubmitting}>
+                   <Text style={[styles.forgotText, { color: colors.primary, fontFamily: fonts.bold }]}>
+                     {forgotSubmitting ? 'Sending...' : 'Forgot password?'}
+                   </Text>
+                </TouchableOpacity>
              </View>
            )}
+
+           {successMsg ? (
+             <View style={[styles.successBox, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}>
+                <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                <Text style={[styles.successText, { color: '#166534', fontFamily: fonts.medium }]}>{successMsg}</Text>
+             </View>
+           ) : null}
 
            {errorMsg ? (
              <View style={[styles.errorBox, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
@@ -289,15 +328,18 @@ const styles = StyleSheet.create({
   label: { fontSize: 15, marginBottom: 12, marginLeft: 4, letterSpacing: 0.5 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, height: 64, borderRadius: 20, borderWidth: 0, marginBottom: 25, gap: 15 },
   input: { flex: 1, fontSize: 18, outlineStyle: 'none' },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 35, paddingHorizontal: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 35, paddingHorizontal: 4 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkbox: { width: 22, height: 22, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
   checkText: { fontSize: 14 },
+  forgotText: { fontSize: 14 },
   loginBtn: { height: 64, borderRadius: 20, overflow: 'hidden', marginBottom: 35, elevation: 8, shadowColor: '#6B5CE7', shadowOpacity: 0.3, shadowRadius: 15, shadowOffset: { width: 0, height: 8 } },
   gradientBtn: { flex: 1, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
   loginBtnText: { color: '#FFF', fontSize: 17 },
   footer: { alignItems: 'center' },
   footerText: { fontSize: 15 },
+  successBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 18 },
+  successText: { fontSize: 13, flex: 1, lineHeight: 18 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 18 },
   errorText: { fontSize: 13, flex: 1, lineHeight: 18 },
   eyeIcon: { padding: 5 }

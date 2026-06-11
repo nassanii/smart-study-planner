@@ -61,17 +61,54 @@ export const AuthProvider = ({ children }) => {
     })();
   }, []);
 
-  const pushTokenRegisteredRef = useRef(false);
+  const pushTokenRegistrationRef = useRef(null);
   useEffect(() => {
-    if (user && !user.pushToken && !pushTokenRegisteredRef.current) {
-      pushTokenRegisteredRef.current = true;
-      import('../services/notifications')
-        .then(({ registerPushTokenWithBackend }) => registerPushTokenWithBackend())
-        .catch((err) => {
-          pushTokenRegisteredRef.current = false;
-          console.log('[auth] error loading notification service', err);
-        });
+    if (!user) {
+      pushTokenRegistrationRef.current = null;
+      return;
     }
+
+    const registrationKey = `${user.userId}:${user.pushToken || 'no-token'}`;
+    if (pushTokenRegistrationRef.current === registrationKey) {
+      return;
+    }
+
+    let cancelled = false;
+    pushTokenRegistrationRef.current = registrationKey;
+
+    const persistPushToken = async (token) => {
+      if (!token || cancelled) {
+        if (!token) pushTokenRegistrationRef.current = null;
+        return;
+      }
+
+      pushTokenRegistrationRef.current = `${user.userId}:${token}`;
+      if (token === user.pushToken) return;
+
+      const updatedUser = { ...user, pushToken: token };
+      setUser((current) => (
+        current?.userId === user.userId ? { ...current, pushToken: token } : current
+      ));
+
+      const stored = await getTokens();
+      if (stored.accessToken && stored.user?.userId === user.userId) {
+        await setTokens({ ...stored, user: { ...stored.user, pushToken: token } });
+      }
+    };
+
+    import('../services/notifications')
+      .then(async ({ registerPushTokenWithBackend }) => {
+        const token = await registerPushTokenWithBackend(user.pushToken);
+        await persistPushToken(token);
+      })
+      .catch((err) => {
+        pushTokenRegistrationRef.current = null;
+        console.log('[auth] error loading notification service', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const login = useCallback(async (email, password) => {

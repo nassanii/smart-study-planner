@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using SmartStudyPlanner.Application.Auth.Dtos;
 using SmartStudyPlanner.Application.Auth.Models;
 using SmartStudyPlanner.Application.Common;
@@ -18,6 +21,8 @@ public class AuthService : IAuthService
     private readonly IAppDbContext _db;
     private readonly TimeProvider _time;
     private readonly JwtSettings _settings;
+    private readonly PasswordResetSettings _passwordReset;
+    private readonly IEmailSender _email;
     private readonly ILogger<AuthService> _log;
 
     public AuthService(
@@ -26,6 +31,8 @@ public class AuthService : IAuthService
         IAppDbContext db,
         TimeProvider time,
         IOptions<JwtSettings> settings,
+        IOptions<PasswordResetSettings> passwordReset,
+        IEmailSender email,
         ILogger<AuthService> log)
     {
         _users = users;
@@ -33,6 +40,8 @@ public class AuthService : IAuthService
         _db = db;
         _time = time;
         _settings = settings.Value;
+        _passwordReset = passwordReset.Value;
+        _email = email;
         _log = log;
     }
 
@@ -161,17 +170,99 @@ public class AuthService : IAuthService
         await RevokeChainAsync(userId, ct);
     }
 
-    public async Task<string?> ForgotPasswordStubAsync(string email, CancellationToken ct)
+    public async Task ForgotPasswordAsync(string email, CancellationToken ct)
     {
         var user = await _users.FindByEmailAsync(email);
         if (user is null)
         {
-            return null;
+            _log.LogInformation("Password reset requested for non-existing email {Email}.", email);
+            return;
+        }
+
+        var now = _time.GetUtcNow();
+        var code = GenerateResetCode();
+        var expiresAt = now.AddMinutes(Math.Max(1, _passwordReset.CodeExpiryMinutes));
+
+        var activeCodes = await _db.PasswordResetCodes
+            .Where(c => c.UserId == user.Id && c.ConsumedAt == null)
+            .ToListAsync(ct);
+
+        foreach (var activeCode in activeCodes)
+        {
+            activeCode.ConsumedAt = now;
+        }
+
+        _db.PasswordResetCodes.Add(new PasswordResetCode
+        {
+            UserId = user.Id,
+            CodeHash = HashResetCode(user, code),
+            ExpiresAt = expiresAt,
+            CreatedAt = now
+        });
+
+        await _db.SaveChangesAsync(ct);
+
+        var resetLink = BuildResetLink(user.Email ?? email);
+
+        await _email.SendAsync(new EmailMessage
+        {
+            ToEmail = user.Email ?? email,
+            ToName = user.Name,
+            Subject = "Reset your Smart Study password",
+            TextBody = BuildPasswordResetText(user.Name, code, resetLink, expiresAt),
+            HtmlBody = BuildPasswordResetHtml(user.Name, code, resetLink, expiresAt)
+        }, ct);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordDto dto, CancellationToken ct)
+    {
+        var user = await _users.FindByEmailAsync(dto.Email);
+        if (user is null)
+        {
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        var now = _time.GetUtcNow();
+        var resetCode = await _db.PasswordResetCodes
+            .Where(c => c.UserId == user.Id && c.ConsumedAt == null)
+            .OrderByDescending(c => c.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (resetCode is null || resetCode.ExpiresAt <= now)
+        {
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        var maxAttempts = Math.Max(1, _passwordReset.MaxCodeAttempts);
+        if (resetCode.AttemptCount >= maxAttempts)
+        {
+            resetCode.ConsumedAt = now;
+            await _db.SaveChangesAsync(ct);
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        if (!CodeMatches(resetCode.CodeHash, HashResetCode(user, dto.Code)))
+        {
+            resetCode.AttemptCount++;
+            if (resetCode.AttemptCount >= maxAttempts)
+            {
+                resetCode.ConsumedAt = now;
+            }
+
+            await _db.SaveChangesAsync(ct);
+            throw new ConflictException("Invalid or expired password reset code.");
         }
 
         var token = await _users.GeneratePasswordResetTokenAsync(user);
-        _log.LogWarning("Password reset token for {Email}: {Token}", email, token);
-        return token;
+        var result = await _users.ResetPasswordAsync(user, token, dto.NewPassword);
+        if (!result.Succeeded)
+        {
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        resetCode.ConsumedAt = now;
+        await _db.SaveChangesAsync(ct);
+        await RevokeChainAsync(user.Id, ct);
     }
 
     public async Task<UserMeDto> GetMeAsync(int userId, CancellationToken ct)
@@ -221,6 +312,92 @@ public class AuthService : IAuthService
         }
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    private string GenerateResetCode()
+    {
+        return RandomNumberGenerator.GetInt32(0, 100000).ToString("D5");
+    }
+
+    private string HashResetCode(ApplicationUser user, string code)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.SigningKey))
+        {
+            throw new InvalidOperationException("Jwt:SigningKey is not configured.");
+        }
+
+        var key = Encoding.UTF8.GetBytes(_settings.SigningKey);
+        var payload = $"{user.Id}:{user.SecurityStamp}:{code}";
+        using var hmac = new HMACSHA256(key);
+        return Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
+    }
+
+    private static bool CodeMatches(string expectedHash, string actualHash)
+    {
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(expectedHash),
+            Encoding.UTF8.GetBytes(actualHash));
+    }
+
+    private string BuildResetLink(string email)
+    {
+        if (string.IsNullOrWhiteSpace(_passwordReset.ResetUrl))
+        {
+            throw new InvalidOperationException("PasswordReset:ResetUrl is not configured.");
+        }
+
+        var separator = _passwordReset.ResetUrl.Contains('?') ? '&' : '?';
+        return $"{_passwordReset.ResetUrl}{separator}email={Uri.EscapeDataString(email)}";
+    }
+
+    private static string BuildPasswordResetText(string? name, string code, string resetLink, DateTimeOffset expiresAt)
+    {
+        var greeting = string.IsNullOrWhiteSpace(name) ? "Hi" : $"Hi {name}";
+        return $"""
+            {greeting},
+
+            We received a request to reset your Smart Study Planner password.
+
+            Your reset code is:
+            {code}
+
+            Open this link and enter the code to choose a new password:
+            {resetLink}
+
+            This code expires at {expiresAt:HH:mm} UTC.
+
+            If you did not request this, you can ignore this email.
+            """;
+    }
+
+    private static string BuildPasswordResetHtml(string? name, string code, string resetLink, DateTimeOffset expiresAt)
+    {
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(name) ? "there" : name);
+        var safeCode = WebUtility.HtmlEncode(code);
+        var safeLink = WebUtility.HtmlEncode(resetLink);
+
+        return $"""
+            <!doctype html>
+            <html lang="en">
+            <body style="margin:0;padding:0;background:#f7f5ff;font-family:Arial,sans-serif;color:#151522;">
+              <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
+                <div style="background:#ffffff;border-radius:18px;padding:28px;border:1px solid #ece8ff;">
+                  <h1 style="margin:0 0 12px;font-size:24px;">Reset your password</h1>
+                  <p style="font-size:16px;line-height:1.5;margin:0 0 18px;">Hi {safeName},</p>
+                  <p style="font-size:16px;line-height:1.5;margin:0 0 24px;">We received a request to reset your Smart Study Planner password.</p>
+                  <p style="font-size:14px;line-height:1.5;color:#6b6b7a;margin:0 0 8px;">Your reset code is:</p>
+                  <p style="font-size:34px;letter-spacing:8px;font-weight:700;margin:0 0 22px;color:#151522;">{safeCode}</p>
+                  <p style="margin:0 0 24px;">
+                    <a href="{safeLink}" style="display:inline-block;background:#6B5CE7;color:#ffffff;text-decoration:none;padding:14px 20px;border-radius:12px;font-weight:700;">Enter code and reset password</a>
+                  </p>
+                  <p style="font-size:13px;line-height:1.5;color:#6b6b7a;margin:0 0 8px;">This code expires at {expiresAt:HH:mm} UTC.</p>
+                  <p style="font-size:13px;line-height:1.5;color:#6b6b7a;margin:0 0 8px;">If the button does not work, copy and paste this link into your browser:</p>
+                  <p style="font-size:13px;line-height:1.5;word-break:break-all;margin:0;color:#6B5CE7;">{safeLink}</p>
+                </div>
+              </div>
+            </body>
+            </html>
+            """;
     }
 
     private static UserMeDto ToMeDto(ApplicationUser u) => new()

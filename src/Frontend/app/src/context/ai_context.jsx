@@ -3,6 +3,7 @@ import Toast from "react-native-toast-message";
 import { useAuth } from "./auth_context";
 import { tasksApi, behavioralLogsApi, subjectsApi, usersApi, focusApi, scheduleApi, eventsApi } from "../services/api";
 import { pushNotification } from "../services/notifications_bus";
+import { showLocalNotificationAsync } from "../services/notifications";
 
 const TASK_CREATED_TITLES = ["Mission Accepted", "Fresh Quest", "Game On, Scholar", "New Challenge"];
 const TASK_CREATED_BODIES = [
@@ -38,6 +39,7 @@ const fmt = (tpl, ...args) => args.reduce((s, a, i) => s.replace(`{${i}}`, a), t
 
 const showInAppNotification = (title, body) => {
    pushNotification(title, body);
+   showLocalNotificationAsync(title, body, { source: 'in-app-event' });
    Toast.show({
       type: 'success',
       text1: title,

@@ -24,6 +24,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
+        services.Configure<PasswordResetSettings>(configuration.GetSection("PasswordReset"));
         services.Configure<AiClientOptions>(configuration.GetSection("AiService"));
 
         services.AddSingleton(TimeProvider.System);

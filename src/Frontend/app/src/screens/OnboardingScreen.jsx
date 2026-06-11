@@ -7,12 +7,14 @@ import { useAI } from '../context/ai_context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { showError, showToast } from '../services/dialogs';
+import { useRouter } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const OnboardingScreen = () => {
   const { colors, fonts } = useTheme();
   const { completeOnboarding, userData } = useAI();
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Step 1 (display name + global deadline) is skipped — name comes from registration,
   // deadline is derived from the course's final/midterm date.
@@ -77,10 +79,15 @@ export const OnboardingScreen = () => {
     if (userData?.deadline && !deadline) setDeadline(userData.deadline);
   }, [userData]);
 
+  useEffect(() => {
+    if (userData?.isOnboarded) {
+      router.replace('/(tabs)/home');
+    }
+  }, [router, userData?.isOnboarded]);
+
   const handleNext = () => {
     if (step === 1) {
       if (!name.trim()) return showToast("Please enter your name", true);
-      if (!deadline) return showToast("Please select your semester or final deadline", true);
       setStep(2);
       return;
     }
@@ -95,9 +102,6 @@ export const OnboardingScreen = () => {
       }
       if (courses.length === 0) {
         return showToast("Add at least one course", true);
-      }
-      if (!semesterMidterm && !semesterFinal) {
-        return showToast("Pick a midterm or final date for the semester", true);
       }
       handleComplete(courses);
     }
@@ -127,11 +131,7 @@ export const OnboardingScreen = () => {
     try {
       const resolvedName = (name && name.trim()) || userData?.name || 'Student';
       // One midterm + final for the whole semester — applied to every course
-      const resolvedDeadline = deadline || semesterFinal || semesterMidterm || (() => {
-        const d = new Date();
-        d.setMonth(d.getMonth() + 6);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      })();
+      const resolvedDeadline = deadline || semesterFinal || semesterMidterm || null;
       await completeOnboarding({
         name: resolvedName,
         deadline: resolvedDeadline,
@@ -145,6 +145,7 @@ export const OnboardingScreen = () => {
         })),
         slots
       });
+      router.replace('/(tabs)/home');
     } catch (err) {
       setIsSubmitting(false);
       const detail = extractErrorMessage(err);
@@ -312,7 +313,7 @@ export const OnboardingScreen = () => {
 
       <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold, fontSize: 22 }]}>Semester Dates</Text>
       <Text style={[styles.subtitle, { color: colors.textLight, fontFamily: fonts.medium }]}>
-        Set once — applies to all your courses.
+        Optional — set once to apply to all your courses.
       </Text>
 
       <TouchableOpacity
@@ -322,7 +323,7 @@ export const OnboardingScreen = () => {
       >
         <View style={styles.inputHeader}>
            <Ionicons name="flag-outline" size={20} color={colors.accent.exam} />
-           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM DATE</Text>
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM DATE OPTIONAL</Text>
         </View>
         <Text
           style={[styles.input, {
@@ -346,7 +347,7 @@ export const OnboardingScreen = () => {
       >
         <View style={styles.inputHeader}>
            <Ionicons name="trophy-outline" size={20} color={colors.accent.exam} />
-           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL DATE</Text>
+           <Text style={[styles.label, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL DATE OPTIONAL</Text>
         </View>
         <Text
           style={[styles.input, {
@@ -484,14 +485,14 @@ export const OnboardingScreen = () => {
         visible={showMidtermPicker}
         onClose={() => setShowMidtermPicker(false)}
         selectedDate={semesterMidterm}
-        onSelect={(d) => setSemesterMidterm(d)}
+        onSelect={(d) => setSemesterMidterm(d || '')}
       />
 
       <DatePickerModal
         visible={showFinalPicker}
         onClose={() => setShowFinalPicker(false)}
         selectedDate={semesterFinal}
-        onSelect={(d) => setSemesterFinal(d)}
+        onSelect={(d) => setSemesterFinal(d || '')}
       />
 
       <Modal visible={isSubmitting} transparent>

@@ -58,8 +58,16 @@ public class AuthController : ControllerBase
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto, CancellationToken ct)
     {
-        await _auth.ForgotPasswordStubAsync(dto.Email, ct);
+        await _auth.ForgotPasswordAsync(dto.Email, ct);
         return Accepted();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto, CancellationToken ct)
+    {
+        await _auth.ResetPasswordAsync(dto, ct);
+        return NoContent();
     }
 
     [Authorize]

@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SmartStudyPlanner.Application.Common;
 using SmartStudyPlanner.Application.Identity;
 using SmartStudyPlanner.Application.Persistence;
 using SmartStudyPlanner.Infrastructure.Persistence;
+using SmartStudyPlanner.Infrastructure.Services;
 
 namespace SmartStudyPlanner.Infrastructure;
 
@@ -21,9 +23,29 @@ public static class DependencyInjection
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-        services.AddSingleton<SmartStudyPlanner.Application.Common.INotificationService, SmartStudyPlanner.Infrastructure.Services.ConsoleNotificationService>();
+        services.Configure<SmtpEmailOptions>(configuration.GetSection("Email:Smtp"));
+        var smtpEnabled = bool.TryParse(configuration["Email:Smtp:Enabled"], out var smtpIsEnabled) && smtpIsEnabled;
+        if (smtpEnabled)
+        {
+            services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        }
+        else
+        {
+            services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+        }
 
-        services.AddHostedService<SmartStudyPlanner.Infrastructure.Services.NotificationSchedulerService>();
+        services.Configure<FirebaseNotificationOptions>(configuration.GetSection("Firebase"));
+        var firebaseEnabled = bool.TryParse(configuration["Firebase:Enabled"], out var enabled) && enabled;
+        if (firebaseEnabled)
+        {
+            services.AddSingleton<SmartStudyPlanner.Application.Common.INotificationService, FirebaseNotificationService>();
+        }
+        else
+        {
+            services.AddSingleton<SmartStudyPlanner.Application.Common.INotificationService, ConsoleNotificationService>();
+        }
+
+        services.AddHostedService<NotificationSchedulerService>();
 
         services.AddIdentityCore<ApplicationUser>(options =>
             {

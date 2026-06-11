@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/theme';
 
@@ -68,7 +68,14 @@ export const DatePickerModal = ({ visible, onClose, onSelect, selectedDate }) =>
   };
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.overlay]}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={styles.overlay}>
       <View style={[styles.content, { backgroundColor: colors.surface }]}>
         <View style={styles.quickRow}>
           <TouchableOpacity style={[styles.quickBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]} onPress={() => handleQuickSelect(0)}>
@@ -138,7 +145,8 @@ export const DatePickerModal = ({ visible, onClose, onSelect, selectedDate }) =>
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+      </View>
+    </Modal>
   );
 };
 

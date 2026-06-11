@@ -16,6 +16,7 @@ public interface IAppDbContext
     DbSet<AiSchedule> AiSchedules { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<AppEvent> AppEvents { get; }
+    DbSet<PasswordResetCode> PasswordResetCodes { get; }
 
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity) where TEntity : class;
 

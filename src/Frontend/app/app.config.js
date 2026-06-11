@@ -26,6 +26,7 @@ module.exports = {
     android: {
       package: "com.smartstudyplanner.app",
       ...(googleServicesFile ? { googleServicesFile } : {}),
+      permissions: ["POST_NOTIFICATIONS"],
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff",

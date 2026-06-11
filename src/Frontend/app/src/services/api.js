@@ -5,6 +5,8 @@ export const authApi = {
   login: (payload) => apiClient.post('/auth/login', payload, { skipAuth: true }).then(r => r.data),
   logout: (refreshToken) => apiClient.post('/auth/logout', { refreshToken }).then(r => r.data),
   me: () => apiClient.get('/auth/me').then(r => r.data),
+  forgotPassword: (payload) => apiClient.post('/auth/forgot-password', payload, { skipAuth: true }).then(r => r.data),
+  resetPassword: (payload) => apiClient.post('/auth/reset-password', payload, { skipAuth: true }).then(r => r.data),
   changePassword: (payload) => apiClient.post('/auth/change-password', payload).then(r => r.data),
 };
 

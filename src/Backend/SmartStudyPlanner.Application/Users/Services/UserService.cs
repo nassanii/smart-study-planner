@@ -107,6 +107,7 @@ public class UserService : IUserService
         var user = await _users.FindByIdAsync(userId.ToString())
             ?? throw new NotFoundException("User", userId);
 
+        pushToken = pushToken.Trim();
         if (user.PushToken == pushToken) return;
 
         user.PushToken = pushToken;

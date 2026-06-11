@@ -51,10 +51,6 @@ export const CoursesScreen = () => {
   };
 
   const saveSemesterDates = async () => {
-    if (!semesterMidterm && !semesterFinal) {
-      showAlert('Pick a date', 'Set a midterm or final date before saving.');
-      return;
-    }
     setSavingSemester(true);
     try {
       for (const s of subjects) {
@@ -391,7 +387,7 @@ export const CoursesScreen = () => {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.semesterTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Semester Dates</Text>
                 <Text style={[styles.semesterSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                  Applied to every course at once.
+                  Optional, applied to every course at once.
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setShowSemesterModal(false)} style={styles.semesterClose}>
@@ -408,7 +404,7 @@ export const CoursesScreen = () => {
                 <Ionicons name="flag" size={18} color="#F59E0B" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.semesterFieldLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM</Text>
+                <Text style={[styles.semesterFieldLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>MIDTERM OPTIONAL</Text>
                 <Text style={[styles.semesterFieldValue, {
                   color: semesterMidterm ? colors.textDark : colors.textLight,
                   fontFamily: fonts.bold,
@@ -434,7 +430,7 @@ export const CoursesScreen = () => {
                 <Ionicons name="trophy" size={18} color="#EF4444" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.semesterFieldLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL</Text>
+                <Text style={[styles.semesterFieldLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>FINAL OPTIONAL</Text>
                 <Text style={[styles.semesterFieldValue, {
                   color: semesterFinal ? colors.textDark : colors.textLight,
                   fontFamily: fonts.bold,

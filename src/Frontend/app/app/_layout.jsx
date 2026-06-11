@@ -27,8 +27,9 @@ function AuthGuard({ children }) {
   useEffect(() => {
     if (hydrating) return;
 
-    const inAuthGroup = segments[0] === 'login';
-    if (!isAuthenticated && !inAuthGroup) {
+    const publicRoutes = ['login', 'reset_password'];
+    const isPublicRoute = publicRoutes.includes(segments[0]);
+    if (!isAuthenticated && !isPublicRoute) {
       // Redirect to login if the user is unauthenticated and not already on the login screen
       router.replace('/login');
     }
