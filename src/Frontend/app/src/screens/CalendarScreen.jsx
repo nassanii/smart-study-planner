@@ -120,7 +120,9 @@ export const CalendarScreen = () => {
         });
       })
       .catch(() => setSelectedDaySchedule(null));
-  }, [selectedDay, year, month]);
+    // Re-fetch when a new plan is generated (latestSchedule.id changes) so a regenerate
+    // immediately replaces the day's slots instead of showing the stale previous plan.
+  }, [selectedDay, year, month, latestSchedule?.id]);
 
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
