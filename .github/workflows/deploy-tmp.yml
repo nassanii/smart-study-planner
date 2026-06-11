@@ -18,11 +18,11 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.TMP_SSH_KEY }}" > ~/.ssh/tmp_deploy_key
           chmod 600 ~/.ssh/tmp_deploy_key
-          ssh-keyscan -H "${{ secrets.TMP_SSH_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -T 30 -H "${{ secrets.TMP_SSH_HOST }}" >> ~/.ssh/known_hosts || true
 
       - name: Sync source to server
         run: |
-          ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+          ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
             'mkdir -p /TMP/smart-study-planner/source'
           rsync -az --delete \
             --exclude '.git' \
@@ -30,7 +30,7 @@ jobs:
             --exclude '.dev-logs' \
             --exclude 'src/Frontend/app/android/.gradle' \
             --exclude 'src/Frontend/app/android/app/build' \
-            -e "ssh -i ~/.ssh/tmp_deploy_key" \
+            -e "ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30" \
             ./ "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/TMP/smart-study-planner/source/"
 
       - name: Sync runtime environment
@@ -100,13 +100,13 @@ jobs:
             write_env "Firebase__CredentialPath" "/runtime/firebase-service-account.json"
           fi
 
-          ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+          ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
             'mkdir -p /TMP/smart-study-planner/runtime && touch /TMP/smart-study-planner/runtime/.env && chmod 600 /TMP/smart-study-planner/runtime/.env'
 
           if [[ -s "$runtime_env" ]]; then
-            scp -i ~/.ssh/tmp_deploy_key "$runtime_env" \
+            scp -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "$runtime_env" \
               "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/tmp/smart-study-runtime.env"
-            ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+            ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
               'set -euo pipefail
                env_file=/TMP/smart-study-planner/runtime/.env
                tmp_file="$(mktemp)"
@@ -123,13 +123,13 @@ jobs:
           fi
 
           if [[ -s "$firebase_json" ]]; then
-            scp -i ~/.ssh/tmp_deploy_key "$firebase_json" \
+            scp -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "$firebase_json" \
               "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/TMP/smart-study-planner/runtime/firebase-service-account.json"
-            ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+            ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
               'chmod 600 /TMP/smart-study-planner/runtime/firebase-service-account.json'
           fi
 
       - name: Deploy
         run: |
-          ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+          ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
             'cd /TMP/smart-study-planner/source && bash deploy/tmp/deploy-remote.sh'
