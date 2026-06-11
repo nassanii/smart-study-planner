@@ -17,23 +17,15 @@ export const ProfileScreen = () => {
   const fullName = user?.name || 'Student';
   const email = user?.email || '';
 
-  const handleLogout = () => {
-    showConfirm({
-      title: 'Log out',
-      message: 'Are you sure you want to sign out?',
-      confirmText: 'Log out',
-      destructive: true,
-      onConfirm: async () => {
-        setLoggingOut(true);
-        try {
-          await logout();
-        } catch (e) {
-          showAlert('Logout error', e.message || 'Could not log out.');
-        } finally {
-          setLoggingOut(false);
-        }
-      },
-    });
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } catch (e) {
+      showAlert('Logout error', e.message || 'Could not log out.');
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (

@@ -466,14 +466,11 @@ export const CalendarScreen = () => {
               const priorityColor = (p) => Number(p) === 1 ? '#F43F5E' : Number(p) === 3 ? '#10B981' : '#F59E0B';
               return (
                 <View key={task.id} style={[styles.dayTaskRow, { borderBottomColor: colors.border }]}>
-                  <TouchableOpacity
-                    accessibilityLabel={done ? `${task.title} completed` : `Complete ${task.title}`}
-                    disabled={done}
+                  <View
                     style={[styles.taskCheck, { backgroundColor: done ? '#10B981' : colors.cardAlt }]}
-                    onPress={() => handleCompleteCalendarTask(task)}
                   >
                     <Ionicons name={done ? 'checkmark' : 'ellipse-outline'} size={16} color={done ? '#FFF' : colors.textLight} />
-                  </TouchableOpacity>
+                  </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Ionicons name="flag" size={16} color={priorityColor(task.priority)} />

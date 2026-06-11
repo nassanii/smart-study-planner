@@ -1,52 +1,70 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useState } from 'react';
+import { useRouter, useLocalSearchParams, useSegments } from 'expo-router';
 
 const NavigationContext = createContext(null);
-const TAB_PERSIST_KEY = 'ssp.activeTab';
-const PRIMARY_TABS = ['home', 'calendar', 'tasks', 'focus', 'profile'];
 
 export const NavigationProvider = ({ children }) => {
-  const [activeTab, _setActiveTab] = useState('home');
-  const [navigationParams, setNavigationParams] = useState({});
+  const router = useRouter();
+  const localParams = useLocalSearchParams();
+  const segments = useSegments();
+
   const [lastCompletedSession, setLastCompletedSession] = useState(null);
-  const [navHydrating, setNavHydrating] = useState(true);
+  const [navHydrating] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const savedTab = await AsyncStorage.getItem(TAB_PERSIST_KEY);
-        if (savedTab && PRIMARY_TABS.includes(savedTab)) {
-          _setActiveTab(savedTab);
-        }
-      } catch (err) {
-        console.warn('Failed to load active tab:', err);
-      } finally {
-        setNavHydrating(false);
-      }
-    })();
-  }, []);
+  // Derive the active tab from the current route segments
+  // e.g. /(tabs)/home -> segments will be ['(tabs)', 'home']
+  const activeTab = segments[segments.length - 1] || 'home';
 
-  const setActiveTab = async (tabId) => {
-    _setActiveTab(tabId);
-    if (!PRIMARY_TABS.includes(tabId)) return;
-    try {
-      await AsyncStorage.setItem(TAB_PERSIST_KEY, tabId);
-    } catch (err) {
-      console.warn('Failed to save active tab:', err);
+  // Expose the current local search params as navigationParams for backward compatibility
+  const navigationParams = localParams;
+
+  const setActiveTab = (tabId) => {
+    const tabRoutes = ['home', 'calendar', 'tasks', 'focus', 'profile'];
+    if (tabRoutes.includes(tabId)) {
+      router.replace(`/(tabs)/${tabId}`);
+    } else {
+      router.replace(`/${tabId}`);
     }
   };
 
   const navigate = (tabId, params = {}) => {
-    setActiveTab(tabId);
-    setNavigationParams(params);
+    const tabRoutes = ['home', 'calendar', 'tasks', 'focus', 'profile'];
+    let targetPath = '';
+    if (tabRoutes.includes(tabId)) {
+      targetPath = `/(tabs)/${tabId}`;
+    } else {
+      targetPath = `/${tabId}`;
+    }
+
+    // Convert all params to string since Expo Router parameters in query are stringified
+    const stringifiedParams = {};
+    Object.keys(params).forEach((key) => {
+      stringifiedParams[key] = String(params[key]);
+    });
+
+    router.push({
+      pathname: targetPath,
+      params: stringifiedParams,
+    });
   };
 
   const clearParams = () => {
-    setNavigationParams({});
+    // URL-based routing automatically isolates params per route, so this can be a no-op
   };
 
   return (
-    <NavigationContext.Provider value={{ activeTab, setActiveTab, navigate, navigationParams, clearParams, lastCompletedSession, setLastCompletedSession, navHydrating }}>
+    <NavigationContext.Provider
+      value={{
+        activeTab,
+        setActiveTab,
+        navigate,
+        navigationParams,
+        clearParams,
+        lastCompletedSession,
+        setLastCompletedSession,
+        navHydrating,
+      }}
+    >
       {children}
     </NavigationContext.Provider>
   );

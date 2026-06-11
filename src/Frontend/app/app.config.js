@@ -8,6 +8,7 @@ module.exports = {
   expo: {
     name: "Smart Study Planner",
     slug: "smart-study-planner",
+    scheme: "smartstudyplanner",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -43,6 +44,7 @@ module.exports = {
           color: "#ffffff",
         },
       ],
+      "expo-router",
     ],
     extra: {
       apiBaseUrl: "http://localhost:5080/api/v1",
