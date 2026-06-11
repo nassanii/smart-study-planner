@@ -1,0 +1,57 @@
+{
+    "generated_at": "Thu Jun 11 17:42:44 +03 2026",
+    "subjects": [
+        {
+            "subject_id": 1,
+            "name": "Mathematics",
+            "performance_plot": "/Users/abdurrahmannassani/Documents/Projects/smart-study-planner/src/AI/reports/user_123/subject_1_performance.png",
+            "error_dist_plot": "/Users/abdurrahmannassani/Documents/Projects/smart-study-planner/src/AI/reports/user_123/subject_1_error_dist.png",
+            "outliers": [
+                {
+                    "task_id": 1024,
+                    "estimated": 60.0,
+                    "actual": 54.0,
+                    "error": -14.42500000000004
+                },
+                {
+                    "task_id": 1033,
+                    "estimated": 30.0,
+                    "actual": 26.0,
+                    "error": -10.400000000000013
+                },
+                {
+                    "task_id": 1011,
+                    "estimated": 30.0,
+                    "actual": 45.0,
+                    "error": 8.599999999999987
+                }
+            ]
+        },
+        {
+            "subject_id": 2,
+            "name": "Programming",
+            "performance_plot": "/Users/abdurrahmannassani/Documents/Projects/smart-study-planner/src/AI/reports/user_123/subject_2_performance.png",
+            "error_dist_plot": "/Users/abdurrahmannassani/Documents/Projects/smart-study-planner/src/AI/reports/user_123/subject_2_error_dist.png",
+            "outliers": [
+                {
+                    "task_id": 2010,
+                    "estimated": 90.0,
+                    "actual": 135.0,
+                    "error": 62.3344324069713
+                },
+                {
+                    "task_id": 2030,
+                    "estimated": 120.0,
+                    "actual": 156.0,
+                    "error": 61.40697126707492
+                },
+                {
+                    "task_id": 2050,
+                    "estimated": 60.0,
+                    "actual": 98.0,
+                    "error": 47.26189354686767
+                }
+            ]
+        }
+    ]
+}

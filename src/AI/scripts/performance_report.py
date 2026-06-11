@@ -1,6 +1,8 @@
 import os
 import sys
 import json
+import sqlite3
+import argparse
 import numpy as np
 from typing import List, Dict
 
@@ -10,8 +12,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.visualizer import plot_difficulty_performance, plot_residual_distribution
 
 REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Backend", "SmartStudyPlanner.Api", "smart_study_planner.db"))
 
-def generate_user_report(user_id: int, recent_tasks: List[dict]):
+def generate_user_report(user_id: str, recent_tasks: List[dict]):
     """
     Generates performance graphs and error analysis for a user.
     """
@@ -35,7 +38,7 @@ def generate_user_report(user_id: int, recent_tasks: List[dict]):
     
     for sid, data in tasks_by_subject.items():
         if len(data["est"]) < 3:
-            print(f" Skipping Subject {sid}: Not enough data for error distribution.")
+            print(f" Skipping Subject {sid} ({data['name']}): Not enough data for error distribution (minimum 3 required).")
             continue
             
         # --- Regression & Outlier Data ---
@@ -93,22 +96,52 @@ def generate_user_report(user_id: int, recent_tasks: List[dict]):
         
     print(f"\n DONE: Report generated in {user_report_dir}")
 
-if __name__ == "__main__":
-    # Test Data with high variance for interesting graphs
-    test_user_id = 999
-    # Subject 1: Mathematics (Consistent pace)
-    test_tasks = [
-        {"id": 100+i, "subject_id": 1, "subject": "Mathematics", "estimated": 60, "actual": 70 + (i*2), "status": "completed"} 
-        for i in range(10)
-    ]
-    # Subject 2: Programming (High variability / Large Errors)
-    test_tasks += [
-        {"id": 201, "subject_id": 2, "subject": "Programming", "estimated": 60, "actual": 120, "status": "completed"}, # HUGE OUTLIER
-        {"id": 202, "subject_id": 2, "subject": "Programming", "estimated": 60, "actual": 65, "status": "completed"},
-        {"id": 203, "subject_id": 2, "subject": "Programming", "estimated": 60, "actual": 50, "status": "completed"},
-        {"id": 204, "subject_id": 2, "subject": "Programming", "estimated": 90, "actual": 95, "status": "completed"},
-        {"id": 205, "subject_id": 2, "subject": "Programming", "estimated": 90, "actual": 150, "status": "completed"}, # OUTLIER
-        {"id": 206, "subject_id": 2, "subject": "Programming", "estimated": 30, "actual": 45, "status": "completed"},
-    ]
+def main():
+    parser = argparse.ArgumentParser(description="Generate a visual performance report for a real user.")
+    parser.add_argument("--user_id", type=str, required=True, help="ID of the user in the database")
+    args = parser.parse_args()
+
+    print(f"\n========================================================")
+    print(f"📊 GENERATING VISUAL REPORT FOR REAL USER ID: {args.user_id}")
+    print(f"========================================================")
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+    except Exception as e:
+        print(f"❌ Error connecting to database at {DB_PATH}: {e}")
+        sys.exit(1)
+
+    # Fetch completed tasks for this user
+    cursor.execute("""
+        SELECT t.id, t.subject_id, s.name, t.estimated_minutes, t.actual_minutes, t.status
+        FROM study_tasks t
+        JOIN subjects s ON t.subject_id = s.id
+        WHERE t.user_id = ? AND t.status = 2 AND t.estimated_minutes > 0 AND t.actual_minutes IS NOT NULL
+    """, (args.user_id,))
     
-    generate_user_report(test_user_id, test_tasks)
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        print(f"❌ No completed tasks found in database for User ID {args.user_id}.")
+        print("Please make sure the User ID is correct and they have completed study tasks.")
+        sys.exit(0)
+
+    # Convert to the format expected by generate_user_report
+    tasks = []
+    for row in rows:
+        task_id, subj_id, subj_name, est, act, status = row
+        tasks.append({
+            "id": task_id,
+            "subject_id": subj_id,
+            "subject": subj_name,
+            "estimated": est,
+            "actual": act,
+            "status": "completed" if status == 2 else "pending"
+        })
+
+    generate_user_report(args.user_id, tasks)
+
+if __name__ == "__main__":
+    main()

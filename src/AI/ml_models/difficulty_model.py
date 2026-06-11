@@ -67,7 +67,7 @@ def load_or_train_difficulty(
                 
                 # Evaluate on training data
                 y_pred = model.predict(X_train)
-                residuals = np.abs(np.array(y_train) - y_pred)
+                residuals = np.abs(np.array(y_train) - y_pred)  
                 
                 mae = float(mean_absolute_error(y_train, y_pred))
                 r2 = float(r2_score(y_train, y_pred))
