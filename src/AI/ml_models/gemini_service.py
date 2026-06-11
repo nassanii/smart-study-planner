@@ -55,9 +55,6 @@ async def generate_intelligent_schedule(
         diff_lines.append(f"    - Subject {sid} ({name}): {factor} ({note})")
     difficulty_block = "\n".join(diff_lines) if diff_lines else "    - No subject data yet"
 
-    # We use the latest available Flash model for speed, cost, and JSON generation abilities
-    model = genai.GenerativeModel("gemini-flash-latest")
-
     prompt = f"""
     You are a professional Academic Scheduler AI.
     Your task is to generate a HIGHLY STRUCTURED study plan using the 50/10 Interval Method.
@@ -147,28 +144,37 @@ async def generate_intelligent_schedule(
     }}
     """
 
-    try:
-        # Use async generation and enforce JSON return type
-        response = await model.generate_content_async(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json"
-            ),
-        )
+    # Fastest current Flash models, in priority order. The "-latest" aliases auto-update
+    # so they never point at a retired model. Each call is capped with a short timeout, and
+    # on any failure (e.g. a transient 503 "high demand") we try the next model, then fall
+    # back to a deterministic heuristic schedule. This guarantees the request never hangs.
+    model_candidates = ["gemini-flash-latest", "gemini-flash-lite-latest"]
+    request_timeout_seconds = 20
+    generation_config = genai.GenerationConfig(response_mime_type="application/json")
+
+    last_error = None
+    for model_name in model_candidates:
         try:
+            model = genai.GenerativeModel(model_name)
+            response = await model.generate_content_async(
+                prompt,
+                generation_config=generation_config,
+                request_options={"timeout": request_timeout_seconds},
+            )
             data = json.loads(response.text)
-        except json.JSONDecodeError as jde:
-            print(f"JSON decode failed. Response text was:\n{response.text}")
-            raise jde
-        
-        # Post-process: Remove trailing break if present
-        if data.get("scheduled_slots") and data["scheduled_slots"][-1].get("activity_type") == "break":
-            data["scheduled_slots"].pop()
-            
-        return data
-    except Exception as e:
-        print(f"Gemini API Error: {e}")
-        return generate_heuristic_fallback(subjects, available_slots, fixed_blocks)
+
+            # Post-process: Remove trailing break if present
+            if data.get("scheduled_slots") and data["scheduled_slots"][-1].get("activity_type") == "break":
+                data["scheduled_slots"].pop()
+
+            return data
+        except Exception as e:
+            last_error = e
+            print(f"Gemini API Error on {model_name}: {e}")
+            continue
+
+    print(f"All Gemini models failed (last error: {last_error}). Using heuristic fallback.")
+    return generate_heuristic_fallback(subjects, available_slots, fixed_blocks)
 
 
 def _parse_hhmm(s):
