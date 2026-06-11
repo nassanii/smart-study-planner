@@ -48,7 +48,10 @@ public static class DependencyInjection
             var baseUrl = opts.BaseUrl.EndsWith('/') ? opts.BaseUrl : opts.BaseUrl + "/";
             client.BaseAddress = new Uri(baseUrl);
             client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
-        }).AddPolicyHandler(BuildRetryPolicy());
+        }).AddPolicyHandler(request =>
+            IsAiScheduleGeneration(request)
+                ? Policy.NoOpAsync<HttpResponseMessage>()
+                : BuildRetryPolicy());
 
         services.AddTransient<IAiClient>(sp => sp.GetRequiredService<AiClient>());
 
@@ -61,4 +64,8 @@ public static class DependencyInjection
         HttpPolicyExtensions
             .HandleTransientHttpError()
             .WaitAndRetryAsync(3, attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 250)));
+
+    private static bool IsAiScheduleGeneration(HttpRequestMessage request) =>
+        request.Method == HttpMethod.Post
+        && request.RequestUri?.ToString().Contains("optimize-schedule", StringComparison.OrdinalIgnoreCase) == true;
 }

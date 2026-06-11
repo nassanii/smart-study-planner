@@ -150,7 +150,7 @@ wait_metro() {
 }
 
 ensure_ai_deps() {
-  if ! (cd "$AI_DIR" && python3 -c "import uvicorn, fastapi" >/dev/null 2>&1); then
+  if ! (cd "$AI_DIR" && python3 -c "import uvicorn, fastapi; from google import genai" >/dev/null 2>&1); then
     log "Installing AI dependencies..."
     (cd "$AI_DIR" && python3 -m pip install -r requirements.txt)
   fi

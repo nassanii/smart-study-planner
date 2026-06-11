@@ -28,6 +28,20 @@ const getLocalTodayDateString = () => {
    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+const timeToMinutes = (value) => {
+   const [hStr, mStr] = String(value || "").split(":");
+   const hours = Number.parseInt(hStr, 10);
+   const minutes = Number.parseInt(mStr, 10);
+   if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+   return hours * 60 + minutes;
+};
+
+const formatSlotRange = (slot) => {
+   const start = String(slot.startTime || slot.start_time || "").slice(0, 5);
+   const end = String(slot.endTime || slot.end_time || "").slice(0, 5);
+   return `${start} - ${end}`;
+};
+
 export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
    const { colors, fonts } = useTheme();
    const { subjects, tasks, generateSchedule, userData, addTask, addSubject } = useAI();
@@ -179,18 +193,22 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
    }, [visible, selectedDate]);
 
    const handleAddSlot = async () => {
-      const startMin = parseInt(newSlot.start.split(":")[0]) * 60 + parseInt(newSlot.start.split(":")[1]);
-      const endMin = parseInt(newSlot.end.split(":")[0]) * 60 + parseInt(newSlot.end.split(":")[1]);
+      const startMin = timeToMinutes(newSlot.start);
+      const endMin = timeToMinutes(newSlot.end);
       
-      if (startMin >= endMin) {
+      if (startMin === null || endMin === null || startMin >= endMin) {
          showAlert("Invalid Time", "End time must be after start time.");
          return;
       }
 
-      // The user ONLY wants to prevent adding a slot with the exact same start time
-      const isSameStart = slots.some(s => s.startTime.startsWith(newSlot.start));
-      if (isSameStart) {
-         showAlert("Duplicate Start Time", "You already have a study block that starts at this exact time.");
+      const overlappingSlot = slots.find((s) => {
+         const existingStart = timeToMinutes(s.startTime || s.start_time);
+         const existingEnd = timeToMinutes(s.endTime || s.end_time);
+         if (existingStart === null || existingEnd === null) return false;
+         return startMin < existingEnd && endMin > existingStart;
+      });
+      if (overlappingSlot) {
+         showAlert("Time Conflict", `This block overlaps with ${formatSlotRange(overlappingSlot)}. Pick a different time.`);
          return;
       }
 

@@ -31,7 +31,7 @@ services:
       Jwt__Audience: smart-study-planner-tmp-clients
       Jwt__SigningKey: ${TMP_JWT_SIGNING_KEY}
       AiService__BaseUrl: http://tmp-smart-ai:8000/api/v1/
-      AiService__TimeoutSeconds: "90"
+      AiService__TimeoutSeconds: "25"
       Seed__Token: ${SEED_TOKEN:-}
       Seed__UserEmail: ${SEED_USER_EMAIL:-}
       Seed__UserPassword: ${SEED_USER_PASSWORD:-}

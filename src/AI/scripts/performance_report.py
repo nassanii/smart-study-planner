@@ -4,7 +4,13 @@ import json
 import sqlite3
 import argparse
 import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 from typing import List, Dict
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Add parent directory to path so we can import our modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,6 +19,57 @@ from utils.visualizer import plot_difficulty_performance, plot_residual_distribu
 
 REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Backend", "SmartStudyPlanner.Api", "smart_study_planner.db"))
+
+def save_metrics_matrix(rows: List[dict], save_path: str):
+    """
+    Saves a screenshot-friendly metrics matrix as an image.
+    """
+    if not rows:
+        return
+
+    columns = ["Subject", "Samples", "MAE", "RMSE", "R2", "Bias"]
+    table_rows = [
+        [
+            row["subject"],
+            row["samples"],
+            f"{row['mae']:.2f}",
+            f"{row['rmse']:.2f}",
+            f"{row['r2']:.3f}",
+            f"{row['bias']:+.2f}",
+        ]
+        for row in rows
+    ]
+
+    fig_height = max(3.2, 0.55 * len(table_rows) + 1.4)
+    fig, ax = plt.subplots(figsize=(13, fig_height))
+    ax.axis("off")
+    ax.set_title("Dynamic Model Performance Matrix", fontsize=16, fontweight="bold", pad=18)
+
+    table = ax.table(
+        cellText=table_rows,
+        colLabels=columns,
+        loc="center",
+        cellLoc="center",
+        colLoc="center",
+        colWidths=[0.44, 0.10, 0.11, 0.11, 0.11, 0.11],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9.5)
+    table.scale(1, 1.45)
+
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_facecolor("#1F2937")
+            cell.set_text_props(color="white", weight="bold")
+        elif row % 2 == 0:
+            cell.set_facecolor("#F3F4F6")
+        else:
+            cell.set_facecolor("#FFFFFF")
+        cell.set_edgecolor("#D1D5DB")
+
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
 
 def generate_user_report(user_id: str, recent_tasks: List[dict]):
     """
@@ -35,6 +92,7 @@ def generate_user_report(user_id: str, recent_tasks: List[dict]):
             
     # 2. Generate graphs for each subject
     report_metadata = {"generated_at": str(os.popen("date").read().strip()), "subjects": []}
+    matrix_rows = []
     
     for sid, data in tasks_by_subject.items():
         if len(data["est"]) < 3:
@@ -49,6 +107,10 @@ def generate_user_report(user_id: str, recent_tasks: List[dict]):
         y_pred = slope * x + intercept
         residuals = y - y_pred
         abs_errors = np.abs(residuals)
+        mae = mean_absolute_error(y, y_pred)
+        rmse = np.sqrt(mean_squared_error(y, y_pred))
+        r2 = r2_score(y, y_pred)
+        bias = float(np.mean(residuals))
         
         # Sort and pick top 3 outliers for visualization
         error_indices = np.argsort(abs_errors)[::-1]
@@ -86,9 +148,39 @@ def generate_user_report(user_id: str, recent_tasks: List[dict]):
             "name": data["name"],
             "performance_plot": perf_path,
             "error_dist_plot": dist_path,
-            "outliers": top_outliers
+            "outliers": top_outliers,
+            "metrics": {
+                "samples": len(data["est"]),
+                "mae": round(float(mae), 3),
+                "rmse": round(float(rmse), 3),
+                "r2": round(float(r2), 3),
+                "bias": round(float(bias), 3)
+            }
+        })
+        matrix_rows.append({
+            "subject": data["name"],
+            "samples": len(data["est"]),
+            "mae": float(mae),
+            "rmse": float(rmse),
+            "r2": float(r2),
+            "bias": float(bias)
         })
         print(f" Generated analysis for {data['name']} -> {user_report_dir}")
+
+    if matrix_rows:
+        matrix_png = os.path.join(user_report_dir, "dynamic_model_performance_matrix.png")
+        matrix_csv = os.path.join(user_report_dir, "dynamic_model_performance_matrix.csv")
+        save_metrics_matrix(matrix_rows, matrix_png)
+        with open(matrix_csv, "w") as f:
+            f.write("subject,samples,mae,rmse,r2,bias\n")
+            for row in matrix_rows:
+                f.write(
+                    f"{row['subject']},{row['samples']},{row['mae']:.4f},"
+                    f"{row['rmse']:.4f},{row['r2']:.4f},{row['bias']:.4f}\n"
+                )
+        report_metadata["dynamic_matrix_plot"] = matrix_png
+        report_metadata["dynamic_matrix_csv"] = matrix_csv
+        print(f" Generated dynamic performance matrix -> {matrix_png}")
 
     # 3. Save report summary
     with open(os.path.join(user_report_dir, "report_summary.json"), "w") as f:

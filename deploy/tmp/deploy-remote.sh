@@ -191,6 +191,29 @@ if [[ "$seed_ok" != "1" ]]; then
   exit 1
 fi
 
+# AI smoke test: time one real schedule generation and surface its source
+# (ai:<model> vs heuristic) in the deploy log. Warn-only — a Gemini hiccup
+# must not fail the deploy.
+ai_payload='{"user_id":424242,"deadline":"2026-12-31","raw_history":{"recent_tasks":[{"subject_id":1,"estimated":60,"actual":70,"status":"completed"}],"behavioral_logs":{"snooze_count_today":1,"last_focus_ratings":[4,3,4],"study_hours_today":2.5}},"subjects":[{"id":1,"name":"Mathematics","difficulty":4,"priority":1,"exam_date":"2026-12-20"},{"id":2,"name":"Physics","difficulty":3,"priority":2,"exam_date":"2026-12-25"}],"available_slots":[{"start_time":"16:00","end_time":"20:00"}],"fixed_blocks":[]}'
+
+ai_smoke_start=$(date +%s)
+ai_smoke_response=$(docker run --rm --network lisan_default curlimages/curl:8.10.1 \
+  -fsS --max-time 60 -H 'Content-Type: application/json' \
+  -X POST "http://tmp-smart-ai:8000/api/v1/optimize-schedule" \
+  -d "$ai_payload" || true)
+ai_smoke_elapsed=$(( $(date +%s) - ai_smoke_start ))
+
+ai_smoke_source=$(printf '%s' "$ai_smoke_response" | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("ai_schedule", {}).get("source", "unknown"))
+except Exception:
+    print("unparseable")' 2>/dev/null || echo unparseable)
+
+echo "AI_SMOKE elapsed=${ai_smoke_elapsed}s source=${ai_smoke_source}"
+if [[ "$ai_smoke_source" != ai:* ]]; then
+  echo "WARNING: AI smoke test did not return a real AI schedule (source=$ai_smoke_source)." >&2
+fi
+
 echo "TMP_FRONT_URL=$FRONT_URL"
 echo "TMP_API_HEALTH=$API_URL/health"
 echo "TMP_AI_URL=$AI_URL"

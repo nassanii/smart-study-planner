@@ -1,12 +1,113 @@
-import os
+import asyncio
 import json
+import os
+import time
 from datetime import datetime
-import google.generativeai as genai
 from typing import List, Dict, Any
+
 from dotenv import load_dotenv
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 
 # Load environment variables
 load_dotenv(override=True)
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _model_candidates() -> List[str]:
+    raw = os.getenv(
+        "GEMINI_MODEL_CANDIDATES",
+        "gemini-flash-lite-latest,gemini-flash-latest",
+    )
+    models = [model.strip() for model in raw.split(",") if model.strip()]
+    return models or ["gemini-flash-lite-latest"]
+
+
+def _json_compact(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return int((time.monotonic() - started_at) * 1000)
+
+
+# Fast Flash models, in priority order. Lite is tried first because schedule
+# generation is mostly structured JSON formatting, so lower latency matters more
+# than extra reasoning depth here.
+MODEL_CANDIDATES = _model_candidates()
+REQUEST_TIMEOUT_MS = _env_int("GEMINI_REQUEST_TIMEOUT_MS", 8_000)
+TOTAL_TIMEOUT_SECONDS = _env_float("GEMINI_TOTAL_TIMEOUT_SECONDS", 12.0)
+
+# DNS pre-flight: some networks (e.g. firewalls that filter AI services) blackhole
+# the Gemini host. A capped TCP check means those networks get the heuristic
+# schedule quickly instead of hanging through every model's timeout.
+GEMINI_HOST = "generativelanguage.googleapis.com"
+PREFLIGHT_TIMEOUT_SECONDS = _env_float("GEMINI_PREFLIGHT_TIMEOUT_SECONDS", 1.5)
+PREFLIGHT_CACHE_SECONDS = _env_float("GEMINI_PREFLIGHT_CACHE_SECONDS", 60.0)
+
+_preflight_cache = {"ok": None, "checked_at": 0.0}
+_client_cache = {"key": None, "client": None}
+
+
+async def _gemini_reachable() -> bool:
+    now = time.monotonic()
+    if (
+        _preflight_cache["ok"] is not None
+        and now - _preflight_cache["checked_at"] < PREFLIGHT_CACHE_SECONDS
+    ):
+        return _preflight_cache["ok"]
+    writer = None
+    try:
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(GEMINI_HOST, 443),
+            timeout=PREFLIGHT_TIMEOUT_SECONDS,
+        )
+        ok = True
+    except Exception:
+        ok = False
+    finally:
+        if writer is not None:
+            writer.close()
+            await writer.wait_closed()
+    _preflight_cache["ok"] = ok
+    _preflight_cache["checked_at"] = time.monotonic()
+    return ok
+
+
+def _get_client(api_key: str) -> genai.Client:
+    # Reuse one client per key so connections pool, but pick up .env key swaps.
+    if _client_cache["client"] is None or _client_cache["key"] != api_key:
+        _client_cache["client"] = genai.Client(api_key=api_key)
+        _client_cache["key"] = api_key
+    return _client_cache["client"]
+
+
+def _is_thinking_rejection(error: Exception) -> bool:
+    api_error_types = tuple(
+        error_type
+        for error_type in (
+            getattr(genai_errors, "ClientError", None),
+            getattr(genai_errors, "APIError", None),
+        )
+        if error_type is not None
+    )
+    if api_error_types and not isinstance(error, api_error_types):
+        return False
+    msg = str(error).lower()
+    return "thinking" in msg or "budget" in msg
 
 
 async def generate_intelligent_schedule(
@@ -20,7 +121,8 @@ async def generate_intelligent_schedule(
     fixed_blocks: List[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Build a rich prompt with ML context and send to Gemini 1.5 Flash.
+    Build a rich prompt with ML context and send it to the fastest available
+    Gemini Flash model (thinking disabled), falling back to a heuristic plan.
     """
 
     # Reload to catch .env updates without restarting server automatically
@@ -31,8 +133,7 @@ async def generate_intelligent_schedule(
         return {
             "error": "Gemini API key is missing. Please add it to the .env file."
         }
-
-    genai.configure(api_key=api_key)
+    started_at = time.monotonic()
 
     # Calculate days remaining
     try:
@@ -55,6 +156,10 @@ async def generate_intelligent_schedule(
         diff_lines.append(f"    - Subject {sid} ({name}): {factor} ({note})")
     difficulty_block = "\n".join(diff_lines) if diff_lines else "    - No subject data yet"
 
+    subjects_json = _json_compact(subjects)
+    available_slots_json = _json_compact(available_slots)
+    fixed_blocks_json = _json_compact(fixed_blocks or [])
+
     prompt = f"""
     You are a professional Academic Scheduler AI.
     Your task is to generate a HIGHLY STRUCTURED study plan using the 50/10 Interval Method.
@@ -66,9 +171,9 @@ async def generate_intelligent_schedule(
 {difficulty_block}
 
     [CONTEXT]
-    - All Available Subjects: {json.dumps(subjects, indent=2)}
-    - Available Study Blocks: {json.dumps(available_slots, indent=2)}
-    - FIXED MANUAL BLOCKS (USER ALREADY COMMITTED — DO NOT MODIFY OR OVERLAP): {json.dumps(fixed_blocks or [], indent=2)}
+    - All Available Subjects: {subjects_json}
+    - Available Study Blocks: {available_slots_json}
+    - FIXED MANUAL BLOCKS (USER ALREADY COMMITTED — DO NOT MODIFY OR OVERLAP): {fixed_blocks_json}
     - Global Deadline: {deadline}
     - DAYS REMAINING UNTIL DEADLINE: {days_remaining}
 
@@ -144,39 +249,87 @@ async def generate_intelligent_schedule(
     }}
     """
 
-    # Fastest current Flash models, in priority order. The "-latest" aliases auto-update
-    # so they never point at a retired model. Each call is capped with a short timeout, and
-    # on any failure (e.g. a transient 503 "high demand") we try the next model, then fall
-    # back to a deterministic heuristic schedule. This guarantees the request never hangs.
-    model_candidates = ["gemini-flash-latest", "gemini-flash-lite-latest"]
-    request_timeout_seconds = 20
-    generation_config = genai.GenerationConfig(response_mime_type="application/json")
+    # Skip the API entirely (and go straight to the heuristic) when the Gemini host
+    # can't even be resolved — otherwise every model attempt burns its full timeout.
+    if not await _gemini_reachable():
+        print(
+            f"[SCHEDULE SOURCE] source=heuristic (cannot resolve {GEMINI_HOST} — "
+            f"network blocks Gemini; skipped API calls) elapsed_ms={_elapsed_ms(started_at)}"
+        )
+        return generate_heuristic_fallback(subjects, available_slots, fixed_blocks)
 
+    client = _get_client(api_key)
+
+    # Each call is capped with a short timeout, and on any failure (e.g. a transient
+    # 503 "high demand") we try the next model, then fall back to a deterministic
+    # heuristic schedule. This guarantees the request never hangs.
+    #
+    # Flash models spend hidden "thinking" tokens by default, which multiplies
+    # latency several times over on a fully-specified JSON task like this one, so the
+    # first attempt per model disables thinking. If the "-latest" alias ever moves to
+    # a model that rejects that knob, we retry once with the model's default config.
     last_error = None
-    for model_name in model_candidates:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = await model.generate_content_async(
-                prompt,
-                generation_config=generation_config,
-                request_options={"timeout": request_timeout_seconds},
-            )
-            data = json.loads(response.text)
+    for model_name in MODEL_CANDIDATES:
+        for thinking_off in (True, False):
+            remaining_budget = TOTAL_TIMEOUT_SECONDS - (time.monotonic() - started_at)
+            if remaining_budget <= 0:
+                print(
+                    "[SCHEDULE SOURCE] source=heuristic "
+                    f"(Gemini budget exceeded before {model_name}) "
+                    f"elapsed_ms={_elapsed_ms(started_at)}"
+                )
+                return generate_heuristic_fallback(subjects, available_slots, fixed_blocks)
+            call_timeout_ms = max(1_000, min(REQUEST_TIMEOUT_MS, int(remaining_budget * 1000)))
+            config_kwargs = {
+                "response_mime_type": "application/json",
+                "http_options": genai_types.HttpOptions(
+                    timeout=call_timeout_ms,
+                    retry_options=genai_types.HttpRetryOptions(attempts=1),
+                ),
+            }
+            if thinking_off:
+                config_kwargs["thinking_config"] = genai_types.ThinkingConfig(
+                    thinking_budget=0
+                )
+            try:
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=genai_types.GenerateContentConfig(**config_kwargs),
+                    ),
+                    timeout=max(1.0, remaining_budget),
+                )
+                data = json.loads(response.text)
 
-            # Post-process: Remove trailing break if present
-            if data.get("scheduled_slots") and data["scheduled_slots"][-1].get("activity_type") == "break":
-                data["scheduled_slots"].pop()
+                # Post-process: Remove trailing break if present
+                if data.get("scheduled_slots") and data["scheduled_slots"][-1].get("activity_type") == "break":
+                    data["scheduled_slots"].pop()
 
-            # Tag the source so the backend/app can tell a real AI plan from the fallback.
-            data["source"] = f"ai:{model_name}"
-            print(f"[SCHEDULE SOURCE] source=ai model={model_name}")
-            return data
-        except Exception as e:
-            last_error = e
-            print(f"Gemini API Error on {model_name}: {e}")
-            continue
+                # Tag the source so the backend/app can tell a real AI plan from the fallback.
+                data["source"] = f"ai:{model_name}"
+                print(
+                    f"[SCHEDULE SOURCE] source=ai model={model_name} "
+                    f"thinking={'off' if thinking_off else 'default'} "
+                    f"elapsed_ms={_elapsed_ms(started_at)}"
+                )
+                return data
+            except Exception as e:
+                last_error = e
+                print(
+                    f"Gemini API Error on {model_name} "
+                    f"(thinking={'off' if thinking_off else 'default'}, "
+                    f"timeout_ms={call_timeout_ms}, elapsed_ms={_elapsed_ms(started_at)}): {e}"
+                )
+                if thinking_off and _is_thinking_rejection(e):
+                    continue  # retry this model with its default thinking config
+                break  # anything else: move on to the next model
 
-    print(f"[SCHEDULE SOURCE] source=heuristic (all Gemini models failed; last error: {last_error})")
+    print(
+        "[SCHEDULE SOURCE] source=heuristic "
+        f"(all Gemini models failed; last error: {last_error}) "
+        f"elapsed_ms={_elapsed_ms(started_at)}"
+    )
     return generate_heuristic_fallback(subjects, available_slots, fixed_blocks)
 
 

@@ -17,6 +17,8 @@ API_PORT="${API_PORT:-5080}"
 METRO_PORT="${METRO_PORT:-8081}"
 IOS_BUNDLE_ID="${IOS_BUNDLE_ID:-com.smartstudyplanner.app}"
 TARGET_DEVICE="${TARGET_DEVICE:-${DEVICE:-simulator}}"
+REMOTE_API_BASE_URL="${REMOTE_API_BASE_URL:-https://api.smart-study-project.187-77-109-189.sslip.io/api/v1}"
+USE_LOCAL_SERVICES="${USE_LOCAL_SERVICES:-}"
 
 export ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT:-Development}"
 export ASPNETCORE_URLS="http://0.0.0.0:$API_PORT"
@@ -34,15 +36,24 @@ LAN_IP="${LAN_IP:-$(detect_lan_ip)}"
 
 if [[ -z "${EXPO_PUBLIC_API_BASE_URL:-}" ]]; then
   if [[ "$TARGET_DEVICE" == "phone" ]]; then
-    if [[ -z "$LAN_IP" ]]; then
-      err "Could not detect LAN IP. Set LAN_IP=your.mac.ip and run again."
-      exit 1
+    export EXPO_PUBLIC_API_BASE_URL="$REMOTE_API_BASE_URL"
+    USE_LOCAL_SERVICES="${USE_LOCAL_SERVICES:-0}"
+    if [[ -n "$LAN_IP" ]]; then
+      export REACT_NATIVE_PACKAGER_HOSTNAME="${REACT_NATIVE_PACKAGER_HOSTNAME:-$LAN_IP}"
     fi
-    export EXPO_PUBLIC_API_BASE_URL="http://$LAN_IP:$API_PORT/api/v1"
-    export REACT_NATIVE_PACKAGER_HOSTNAME="${REACT_NATIVE_PACKAGER_HOSTNAME:-$LAN_IP}"
   else
     export EXPO_PUBLIC_API_BASE_URL="http://localhost:$API_PORT/api/v1"
+    USE_LOCAL_SERVICES="${USE_LOCAL_SERVICES:-1}"
   fi
+else
+  case "$EXPO_PUBLIC_API_BASE_URL" in
+    http://localhost:*|http://127.0.0.1:*|http://"$LAN_IP":*)
+      USE_LOCAL_SERVICES="${USE_LOCAL_SERVICES:-1}"
+      ;;
+    *)
+      USE_LOCAL_SERVICES="${USE_LOCAL_SERVICES:-0}"
+      ;;
+  esac
 fi
 
 GREEN=$'\033[0;32m'
@@ -133,7 +144,7 @@ wait_metro() {
 }
 
 ensure_ai_deps() {
-  if ! (cd "$AI_DIR" && python3 -c "import uvicorn, fastapi" >/dev/null 2>&1); then
+  if ! (cd "$AI_DIR" && python3 -c "import uvicorn, fastapi; from google import genai" >/dev/null 2>&1); then
     log "Installing AI dependencies..."
     (cd "$AI_DIR" && python3 -m pip install -r requirements.txt)
   fi
@@ -224,33 +235,42 @@ open_or_build_ios_app() {
 main() {
   mkdir -p "$LOG_DIR"
 
-  require_cmd dotnet
-  require_cmd python3
   require_cmd npm
   require_cmd npx
-  require_cmd curl
   require_cmd lsof
 
-  ensure_ai_deps
+  if [[ "$USE_LOCAL_SERVICES" == "1" ]]; then
+    require_cmd dotnet
+    require_cmd python3
+    require_cmd curl
+    ensure_ai_deps
+  fi
+
   ensure_frontend_deps
   ensure_ios_project
 
-  kill_port "$AI_PORT"
-  kill_port "$API_PORT"
   kill_port "$METRO_PORT"
 
-  log "Backend URL: http://localhost:$API_PORT"
-  log "AI URL:      http://localhost:$AI_PORT"
   log "Expo API:    $EXPO_PUBLIC_API_BASE_URL"
 
-  start_bg "AI engine" "$AI_DIR" "$LOG_DIR/ai.log" \
-    python3 -m uvicorn main:app --host 0.0.0.0 --port "$AI_PORT"
+  if [[ "$USE_LOCAL_SERVICES" == "1" ]]; then
+    kill_port "$AI_PORT"
+    kill_port "$API_PORT"
 
-  start_bg "Backend API" "$BACKEND_DIR" "$LOG_DIR/backend.log" \
-    dotnet run --no-launch-profile
+    log "Backend URL: http://localhost:$API_PORT"
+    log "AI URL:      http://localhost:$AI_PORT"
 
-  wait_url "AI engine" "http://localhost:$AI_PORT/" "$LOG_DIR/ai.log" "${PIDS[0]}"
-  wait_url "Backend API" "http://localhost:$API_PORT/health" "$LOG_DIR/backend.log" "${PIDS[1]}"
+    start_bg "AI engine" "$AI_DIR" "$LOG_DIR/ai.log" \
+      python3 -m uvicorn main:app --host 0.0.0.0 --port "$AI_PORT"
+
+    start_bg "Backend API" "$BACKEND_DIR" "$LOG_DIR/backend.log" \
+      dotnet run --no-launch-profile
+
+    wait_url "AI engine" "http://localhost:$AI_PORT/" "$LOG_DIR/ai.log" "${PIDS[0]}"
+    wait_url "Backend API" "http://localhost:$API_PORT/health" "$LOG_DIR/backend.log" "${PIDS[1]}"
+  else
+    log "Using remote server API. Local Backend and AI services will not be started."
+  fi
 
   if [[ "$TARGET_DEVICE" == "phone" ]]; then
     run_phone_app
