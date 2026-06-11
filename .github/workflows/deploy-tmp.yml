@@ -22,16 +22,35 @@ jobs:
 
       - name: Sync source to server
         run: |
-          ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
-            'mkdir -p /TMP/smart-study-planner/source'
-          rsync -az --delete \
-            --exclude '.git' \
-            --exclude 'node_modules' \
-            --exclude '.dev-logs' \
-            --exclude 'src/Frontend/app/android/.gradle' \
-            --exclude 'src/Frontend/app/android/app/build' \
-            -e "ssh -i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30" \
-            ./ "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/TMP/smart-study-planner/source/"
+          remote="${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}"
+          ssh_opts="-i ~/.ssh/tmp_deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30"
+
+          for attempt in {1..5}; do
+            if ssh $ssh_opts "$remote" 'mkdir -p /TMP/smart-study-planner/source'; then
+              break
+            fi
+            if [[ "$attempt" == "5" ]]; then
+              exit 1
+            fi
+            sleep 20
+          done
+
+          for attempt in {1..5}; do
+            if rsync -az --delete \
+              --exclude '.git' \
+              --exclude 'node_modules' \
+              --exclude '.dev-logs' \
+              --exclude 'src/Frontend/app/android/.gradle' \
+              --exclude 'src/Frontend/app/android/app/build' \
+              -e "ssh $ssh_opts" \
+              ./ "$remote:/TMP/smart-study-planner/source/"; then
+              break
+            fi
+            if [[ "$attempt" == "5" ]]; then
+              exit 1
+            fi
+            sleep 20
+          done
 
       - name: Sync runtime environment
         env:
