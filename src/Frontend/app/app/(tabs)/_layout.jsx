@@ -1,6 +1,7 @@
 import React from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { SafeAreaView, View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/theme/theme';
 import { BottomNavigation } from '../../src/components/BottomNavigation';
 
@@ -15,7 +16,7 @@ export default function TabsLayout() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.content}>

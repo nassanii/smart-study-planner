@@ -10,6 +10,7 @@ public interface IAuthService
     Task LogoutAsync(string refreshToken, CancellationToken ct);
     Task ChangePasswordAsync(int userId, ChangePasswordDto dto, CancellationToken ct);
     Task ForgotPasswordAsync(string email, CancellationToken ct);
+    Task VerifyResetCodeAsync(VerifyResetCodeDto dto, CancellationToken ct);
     Task ResetPasswordAsync(ResetPasswordDto dto, CancellationToken ct);
     Task<UserMeDto> GetMeAsync(int userId, CancellationToken ct);
 }

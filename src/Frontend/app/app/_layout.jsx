@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Font from 'expo-font';
 import { purgeWebCaches } from '../src/services/cache_buster';
 import {
@@ -27,7 +28,7 @@ function AuthGuard({ children }) {
   useEffect(() => {
     if (hydrating) return;
 
-    const publicRoutes = ['login', 'reset_password'];
+    const publicRoutes = ['login', 'forgot_password', 'reset_password'];
     const isPublicRoute = publicRoutes.includes(segments[0]);
     if (!isAuthenticated && !isPublicRoute) {
       // Redirect to login if the user is unauthenticated and not already on the login screen
@@ -67,22 +68,24 @@ export default function RootLayout() {
   }
 
   return (
-    <NavigationProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <AIProvider>
-            <FocusProvider>
-              <AuthGuard>
-                <Stack screenOptions={{ headerShown: false }} />
-                <AppDialogHost />
-                <GlobalLoader />
-                <Toast />
-              </AuthGuard>
-            </FocusProvider>
-          </AIProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </NavigationProvider>
+    <SafeAreaProvider>
+      <NavigationProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AIProvider>
+              <FocusProvider>
+                <AuthGuard>
+                  <Stack screenOptions={{ headerShown: false }} />
+                  <AppDialogHost />
+                  <GlobalLoader />
+                  <Toast />
+                </AuthGuard>
+              </FocusProvider>
+            </AIProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </NavigationProvider>
+    </SafeAreaProvider>
   );
 }
 

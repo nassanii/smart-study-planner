@@ -13,15 +13,16 @@ import {
 } from 'react-native';
 import { useTheme } from '../theme/theme';
 import { useAuth } from '../context/auth_context';
-import { authApi } from '../services/api';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppNavigation } from '../context/navigation_context';
+import { useRouter } from 'expo-router';
 
 export const LoginScreen = () => {
   const { colors, fonts } = useTheme();
   const { login, register } = useAuth();
   const { setActiveTab } = useAppNavigation();
+  const router = useRouter();
   const [loginMode, setLoginMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,14 +32,11 @@ export const LoginScreen = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
 
   const handleSubmit = async () => {
     if (submitting) return;
     setErrorMsg('');
-    setSuccessMsg('');
     if (!email || !password) {
       setErrorMsg('Email and password are required.');
       return;
@@ -78,27 +76,8 @@ export const LoginScreen = () => {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (forgotSubmitting) return;
-
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      setErrorMsg('Enter your email first, then request a reset link.');
-      return;
-    }
-
-    setForgotSubmitting(true);
-    try {
-      await authApi.forgotPassword({ email: trimmedEmail });
-      setSuccessMsg('If this email exists, a reset code has been sent.');
-    } catch (err) {
-      setErrorMsg(extractErrorMessage(err));
-    } finally {
-      setForgotSubmitting(false);
-    }
+  const handleForgotPassword = () => {
+    router.push('/forgot_password');
   };
 
   return (
@@ -249,20 +228,13 @@ export const LoginScreen = () => {
                     </View>
                     <Text style={[styles.checkText, { color: colors.textLight, fontFamily: fonts.medium }]}>Remember me</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleForgotPassword} disabled={forgotSubmitting}>
+                <TouchableOpacity onPress={handleForgotPassword}>
                    <Text style={[styles.forgotText, { color: colors.primary, fontFamily: fonts.bold }]}>
-                     {forgotSubmitting ? 'Sending...' : 'Forgot password?'}
+                     Forgot password?
                    </Text>
                 </TouchableOpacity>
              </View>
            )}
-
-           {successMsg ? (
-             <View style={[styles.successBox, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}>
-                <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
-                <Text style={[styles.successText, { color: '#166534', fontFamily: fonts.medium }]}>{successMsg}</Text>
-             </View>
-           ) : null}
 
            {errorMsg ? (
              <View style={[styles.errorBox, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
@@ -338,8 +310,6 @@ const styles = StyleSheet.create({
   loginBtnText: { color: '#FFF', fontSize: 17 },
   footer: { alignItems: 'center' },
   footerText: { fontSize: 15 },
-  successBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 18 },
-  successText: { fontSize: 13, flex: 1, lineHeight: 18 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 18 },
   errorText: { fontSize: 13, flex: 1, lineHeight: 18 },
   eyeIcon: { padding: 5 }

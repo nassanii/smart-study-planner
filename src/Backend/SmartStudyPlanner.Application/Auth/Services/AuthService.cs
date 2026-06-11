@@ -222,36 +222,7 @@ public class AuthService : IAuthService
             throw new ConflictException("Invalid or expired password reset code.");
         }
 
-        var now = _time.GetUtcNow();
-        var resetCode = await _db.PasswordResetCodes
-            .Where(c => c.UserId == user.Id && c.ConsumedAt == null)
-            .OrderByDescending(c => c.CreatedAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (resetCode is null || resetCode.ExpiresAt <= now)
-        {
-            throw new ConflictException("Invalid or expired password reset code.");
-        }
-
-        var maxAttempts = Math.Max(1, _passwordReset.MaxCodeAttempts);
-        if (resetCode.AttemptCount >= maxAttempts)
-        {
-            resetCode.ConsumedAt = now;
-            await _db.SaveChangesAsync(ct);
-            throw new ConflictException("Invalid or expired password reset code.");
-        }
-
-        if (!CodeMatches(resetCode.CodeHash, HashResetCode(user, dto.Code)))
-        {
-            resetCode.AttemptCount++;
-            if (resetCode.AttemptCount >= maxAttempts)
-            {
-                resetCode.ConsumedAt = now;
-            }
-
-            await _db.SaveChangesAsync(ct);
-            throw new ConflictException("Invalid or expired password reset code.");
-        }
+        var resetCode = await GetValidResetCodeAsync(user, dto.Code, ct);
 
         var token = await _users.GeneratePasswordResetTokenAsync(user);
         var result = await _users.ResetPasswordAsync(user, token, dto.NewPassword);
@@ -260,9 +231,20 @@ public class AuthService : IAuthService
             throw new ConflictException("Invalid or expired password reset code.");
         }
 
-        resetCode.ConsumedAt = now;
+        resetCode.ConsumedAt = _time.GetUtcNow();
         await _db.SaveChangesAsync(ct);
         await RevokeChainAsync(user.Id, ct);
+    }
+
+    public async Task VerifyResetCodeAsync(VerifyResetCodeDto dto, CancellationToken ct)
+    {
+        var user = await _users.FindByEmailAsync(dto.Email);
+        if (user is null)
+        {
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        await GetValidResetCodeAsync(user, dto.Code, ct);
     }
 
     public async Task<UserMeDto> GetMeAsync(int userId, CancellationToken ct)
@@ -317,6 +299,49 @@ public class AuthService : IAuthService
     private string GenerateResetCode()
     {
         return RandomNumberGenerator.GetInt32(0, 100000).ToString("D5");
+    }
+
+    private async Task<PasswordResetCode> GetValidResetCodeAsync(ApplicationUser user, string code, CancellationToken ct)
+    {
+        var now = _time.GetUtcNow();
+        var resetCode = await _db.PasswordResetCodes
+            .Where(c => c.UserId == user.Id && c.ConsumedAt == null)
+            .OrderByDescending(c => c.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (resetCode is null)
+        {
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        if (resetCode.ExpiresAt <= now)
+        {
+            resetCode.ConsumedAt = now;
+            await _db.SaveChangesAsync(ct);
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        var maxAttempts = Math.Max(1, _passwordReset.MaxCodeAttempts);
+        if (resetCode.AttemptCount >= maxAttempts)
+        {
+            resetCode.ConsumedAt = now;
+            await _db.SaveChangesAsync(ct);
+            throw new ConflictException("Invalid or expired password reset code.");
+        }
+
+        if (CodeMatches(resetCode.CodeHash, HashResetCode(user, code)))
+        {
+            return resetCode;
+        }
+
+        resetCode.AttemptCount++;
+        if (resetCode.AttemptCount >= maxAttempts)
+        {
+            resetCode.ConsumedAt = now;
+        }
+
+        await _db.SaveChangesAsync(ct);
+        throw new ConflictException("Invalid or expired password reset code.");
     }
 
     private string HashResetCode(ApplicationUser user, string code)
