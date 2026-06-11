@@ -42,6 +42,24 @@ const priorityColor = (p) => Number(p) === 1 ? '#F43F5E' : Number(p) === 3 ? '#1
 
 const HOUR_ROW_HEIGHT = 70;
 const DAY_CELL_WIDTH = 56;
+const TIMELINE_LEFT = 78;
+const TIMELINE_RIGHT = 18;
+
+const eventStartMinutes = (event) => {
+  const parsed = parseEventTime(event);
+  return parsed.hour * 60 + parsed.minute;
+};
+
+const formatMinutes = (minutes) => {
+  const clamped = Math.max(0, Math.min(24 * 60 - 1, minutes));
+  return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
+};
+
+const eventRangeText = (event) => {
+  const start = eventStartMinutes(event);
+  const duration = Number(event.estimated_minutes) || 60;
+  return `${formatMinutes(start)} - ${formatMinutes(start + duration)}`;
+};
 
 export const EventsScreen = () => {
   const { colors, fonts } = useTheme();
@@ -111,19 +129,8 @@ export const EventsScreen = () => {
       if (e.date !== selectedDateStr) return false;
       if (tab === 'completed') return e.is_completed;
       return !e.is_completed;
-    });
+    }).sort((a, b) => eventStartMinutes(a) - eventStartMinutes(b));
   }, [aiEvents, selectedDateStr, tab]);
-
-  const eventsByHour = useMemo(() => {
-    const byHour = {};
-    for (const event of displayEvents) {
-      const parsed = parseEventTime(event);
-      if (!parsed) continue;
-      if (!byHour[parsed.hour]) byHour[parsed.hour] = [];
-      byHour[parsed.hour].push(event);
-    }
-    return byHour;
-  }, [displayEvents]);
 
   const openEventModal = (event = null, hour = null) => {
     setEditingEvent(event);
@@ -142,12 +149,14 @@ export const EventsScreen = () => {
       });
     } else {
       const defaultHour = hour ?? new Date().getHours();
+      const startMin = Math.min(defaultHour * 60, 23 * 60);
+      const endMin = Math.min(startMin + 60, 23 * 60 + 55);
       setEventForm({
         title: '',
-        startHour: defaultHour,
+        startHour: Math.floor(startMin / 60),
         startMinute: 0,
-        endHour: Math.min(defaultHour + 1, 23),
-        endMinute: 0,
+        endHour: Math.floor(endMin / 60),
+        endMinute: endMin % 60,
         priority: 2,
         description: '',
       });
@@ -161,6 +170,17 @@ export const EventsScreen = () => {
     const startMin = eventForm.startHour * 60 + eventForm.startMinute;
     const endMin = eventForm.endHour * 60 + eventForm.endMinute;
     if (endMin <= startMin) return showAlert('Invalid Time', 'End time must be after start time.');
+
+    const conflict = aiEvents.find((event) => {
+      if (event.date !== selectedDateStr || event.is_completed) return false;
+      if (editingEvent && event.id === editingEvent.id) return false;
+      const existingStart = eventStartMinutes(event);
+      const existingEnd = existingStart + (Number(event.estimated_minutes) || 60);
+      return startMin < existingEnd && endMin > existingStart;
+    });
+    if (conflict) {
+      return showAlert('Time Conflict', `"${conflict.title}" already uses ${eventRangeText(conflict)}. Pick another time.`);
+    }
 
     setBusy(true);
     try {
@@ -274,8 +294,8 @@ export const EventsScreen = () => {
           setTimeout(() => timelineRef.current?.scrollTo({ y: offset, animated: false }), 80);
         }}
       >
+        <View style={styles.timelineWrap}>
         {Array.from({ length: 24 }, (_, h) => {
-          const hourEvents = eventsByHour[h] || [];
           const isToday = toLocalDate(now) === selectedDateStr;
           const isCurrentHour = isToday && h === now.getHours();
           const nowOffset = (now.getMinutes() / 60) * HOUR_ROW_HEIGHT;
@@ -287,7 +307,7 @@ export const EventsScreen = () => {
               }]}>{formatHour(h)}</Text>
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => hourEvents.length === 0 && openEventModal(null, h)}
+                onPress={() => openEventModal(null, h)}
                 style={styles.hourBody}
               >
                 {isCurrentHour && (
@@ -296,39 +316,56 @@ export const EventsScreen = () => {
                     <View style={styles.nowLine} />
                   </View>
                 )}
-                {hourEvents.map((event) => {
-                  const color = priorityColor(event.priority);
-                  return (
-                    <TouchableOpacity
-                      key={event.id}
-                      onPress={() => openEventModal(event)}
-                      style={[styles.eventBlock, { borderColor: color, backgroundColor: color + '15' }]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.eventTitle, { color, fontFamily: fonts.bold }]} numberOfLines={1}>{event.title}</Text>
-                        {event.description ? (
-                          <Text style={[styles.eventDesc, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
-                            {event.description}
-                          </Text>
-                        ) : null}
-                        <Text style={[styles.eventMeta, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
-                          {String(parseEventTime(event)?.hour ?? 0).padStart(2, '0')}:
-                          {String(parseEventTime(event)?.minute ?? 0).padStart(2, '0')} · {event.estimated_minutes || 60} min
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => tab === 'scheduled' ? handleCompleteEvent(event) : null}
-                        style={[styles.eventPlay, { borderColor: color }]}
-                      >
-                        <Ionicons name={event.is_completed ? 'checkmark' : 'play'} size={14} color={color} />
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  );
-                })}
               </TouchableOpacity>
             </View>
           );
         })}
+        <View pointerEvents="box-none" style={styles.eventsLayer}>
+          {displayEvents.map((event) => {
+            const color = priorityColor(event.priority);
+            const start = eventStartMinutes(event);
+            const duration = Number(event.estimated_minutes) || 60;
+            const top = (start / 60) * HOUR_ROW_HEIGHT + 4;
+            const height = Math.max(52, (duration / 60) * HOUR_ROW_HEIGHT - 8);
+            return (
+              <TouchableOpacity
+                key={event.id}
+                activeOpacity={0.88}
+                onPress={() => openEventModal(event)}
+                style={[
+                  styles.eventBlock,
+                  {
+                    top,
+                    height,
+                    borderLeftColor: color,
+                    backgroundColor: color + '12',
+                    shadowColor: color,
+                  },
+                ]}
+              >
+                <View style={[styles.eventAccent, { backgroundColor: color }]} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.eventTitle, { color, fontFamily: fonts.bold }]} numberOfLines={1}>{event.title}</Text>
+                  <Text style={[styles.eventMeta, { color: colors.textLight, fontFamily: fonts.bold }]} numberOfLines={1}>
+                    {eventRangeText(event)} · {event.estimated_minutes || 60} min
+                  </Text>
+                  {event.description ? (
+                    <Text style={[styles.eventDesc, { color: colors.textLight, fontFamily: fonts.medium }]} numberOfLines={1}>
+                      {event.description}
+                    </Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  onPress={() => tab === 'scheduled' ? handleCompleteEvent(event) : null}
+                  style={[styles.eventPlay, { borderColor: color }]}
+                >
+                  <Ionicons name={event.is_completed ? 'checkmark' : 'play'} size={14} color={color} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        </View>
       </ScrollView>
 
       <Modal visible={showEventModal} transparent animationType="slide" onRequestClose={() => setShowEventModal(false)}>
@@ -519,13 +556,16 @@ const styles = StyleSheet.create({
   tabsRow: { flexDirection: 'row', borderBottomWidth: 1, marginHorizontal: 14, marginBottom: 6 },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText: { fontSize: 14 },
+  timelineWrap: { position: 'relative', minHeight: HOUR_ROW_HEIGHT * 24 },
   hourRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, minHeight: HOUR_ROW_HEIGHT, borderTopWidth: 1 },
   hourLabel: { width: 50, fontSize: 12, paddingTop: 6 },
   hourBody: { flex: 1, minHeight: HOUR_ROW_HEIGHT, paddingVertical: 4, position: 'relative' },
   nowIndicator: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', zIndex: 2 },
   nowDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#F87171', marginLeft: -5 },
   nowLine: { flex: 1, height: 2, backgroundColor: '#F87171' },
-  eventBlock: { flexDirection: 'row', alignItems: 'center', padding: 12, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 14, marginBottom: 6 },
+  eventsLayer: { position: 'absolute', top: 0, left: TIMELINE_LEFT, right: TIMELINE_RIGHT, bottom: 0 },
+  eventBlock: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 5, borderRadius: 14, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  eventAccent: { width: 8, height: 8, borderRadius: 4, marginRight: 9 },
   eventTitle: { fontSize: 14 },
   eventDesc: { fontSize: 12, marginTop: 2 },
   eventMeta: { fontSize: 11, marginTop: 2 },

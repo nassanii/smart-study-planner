@@ -2,7 +2,7 @@ import { extractErrorMessage } from "../services/errors";
 import React, { useMemo, useState, useEffect, useRef } from "react";
 
 
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from "react-native";
+import { ActivityIndicator, Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from "react-native";
 import { useTheme } from "../theme/theme";
 import { useAI } from "../context/ai_context";
 import { useAppNavigation } from "../context/navigation_context";
@@ -41,6 +41,12 @@ const formatSlotRange = (slot) => {
    const end = String(slot.endTime || slot.end_time || "").slice(0, 5);
    return `${start} - ${end}`;
 };
+
+const AI_GENERATION_STEPS = [
+   "Reading your recent study behavior",
+   "Balancing courses, deadlines, and priorities",
+   "Building today's focus flow",
+];
 
 export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
    const { colors, fonts } = useTheme();
@@ -311,11 +317,49 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
             <View style={[styles.container, { backgroundColor: colors.background }]}>
                <View style={styles.modalHeader}>
                   <Text style={[styles.title, { color: colors.textDark, fontFamily: fonts.bold }]}>Create Plan</Text>
-                  <TouchableOpacity onPress={onClose}>
+                  <TouchableOpacity
+                     onPress={onClose}
+                     disabled={loadingMode === "generating"}
+                     style={{ opacity: loadingMode === "generating" ? 0.35 : 1 }}
+                  >
                      <Ionicons name="close" size={24} color={colors.textLight} />
                   </TouchableOpacity>
                </View>
 
+               {loadingMode === "generating" ? (
+                  <View style={styles.aiGeneratingWrap}>
+                     <LinearGradient
+                        colors={[colors.primary, "#8B5CF6"]}
+                        style={styles.aiGeneratingIcon}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                     >
+                        <MaterialCommunityIcons name="brain" size={34} color="#FFF" />
+                     </LinearGradient>
+                     <Text style={[styles.aiGeneratingTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>
+                        Your AI plan is being created
+                     </Text>
+                     <Text style={[styles.aiGeneratingText, { color: colors.textLight, fontFamily: fonts.medium }]}>
+                        We are reading your behavior, open blocks, courses, and deadlines.
+                     </Text>
+                     <View style={styles.aiSteps}>
+                        {AI_GENERATION_STEPS.map((step, idx) => (
+                           <View key={step} style={[styles.aiStepRow, { backgroundColor: colors.cardAlt }]}>
+                              <View style={[styles.aiStepDot, { backgroundColor: idx === 0 ? colors.primary : colors.primary + "33" }]}>
+                                 {idx === 0 ? (
+                                    <ActivityIndicator size="small" color="#FFF" />
+                                 ) : (
+                                    <Ionicons name="checkmark" size={13} color={colors.primary} />
+                                 )}
+                              </View>
+                              <Text style={[styles.aiStepText, { color: colors.textDark, fontFamily: fonts.bold }]}>
+                                 {step}
+                              </Text>
+                           </View>
+                        ))}
+                     </View>
+                  </View>
+               ) : (
                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
                   <View style={[styles.modeTabs, { backgroundColor: colors.cardAlt }]}>
                      <TouchableOpacity
@@ -554,6 +598,7 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
                   </>
                   )}
                </ScrollView>
+               )}
             </View>
          </View>
 
@@ -762,6 +807,60 @@ const styles = StyleSheet.create({
    title: {
       fontSize: 24,
       marginBottom: 8,
+   },
+   aiGeneratingWrap: {
+      paddingHorizontal: 28,
+      paddingTop: 30,
+      paddingBottom: 44,
+      alignItems: "center",
+   },
+   aiGeneratingIcon: {
+      width: 78,
+      height: 78,
+      borderRadius: 24,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 22,
+      shadowColor: "#6B5CE7",
+      shadowOpacity: 0.24,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 5,
+   },
+   aiGeneratingTitle: {
+      fontSize: 24,
+      textAlign: "center",
+      marginBottom: 8,
+   },
+   aiGeneratingText: {
+      fontSize: 14,
+      lineHeight: 20,
+      textAlign: "center",
+      maxWidth: 310,
+      marginBottom: 22,
+   },
+   aiSteps: {
+      width: "100%",
+      gap: 10,
+   },
+   aiStepRow: {
+      minHeight: 54,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      flexDirection: "row",
+      alignItems: "center",
+   },
+   aiStepDot: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+   },
+   aiStepText: {
+      flex: 1,
+      fontSize: 13,
    },
    subtitle: {
       fontSize: 15,
