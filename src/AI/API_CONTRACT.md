@@ -28,16 +28,7 @@
       "study_hours_today": 4.5
     }
   },
-  "current_tasks_to_plan": [
-    {
-      "id": 1,
-      "subject": "Computer Science",
-      "priority": 1,
-      "difficulty_rating": 8,
-      "days_since_last_study": 1,
-      "consecutive_days_studied": 2
-    }
-  ],
+
   "available_slots": [
     {
       "start_time": "08:00",
@@ -63,13 +54,7 @@
 | `.snooze_count_today` | `int` | How many times student snoozed today |
 | `.last_focus_ratings` | `List[int]` | Recent focus self-ratings (1–5) |
 | `.study_hours_today` | `float` | Total hours studied today |
-| **current_tasks_to_plan[]** | | Tasks the AI must schedule today |
-| `.id` | `int` | Task ID |
-| `.subject` | `string` | Subject name |
-| `.priority` | `int` | Priority level |
-| `.difficulty_rating` | `int` | User-rated difficulty (1–10) |
-| `.days_since_last_study` | `int` | Days since this subject was last studied |
-| `.consecutive_days_studied` | `int` | Consecutive days this subject has been studied |
+
 | **available_slots[]** | | Time windows the student is free |
 | `.start_time` | `string` | Slot start, format `HH:MM` |
 | `.end_time` | `string` | Slot end, format `HH:MM` |

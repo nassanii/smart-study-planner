@@ -13,7 +13,6 @@ async def generate_intelligent_schedule(
     burnout_score: float,
     difficulty_factors: Dict[int, float],
     is_exhausted: bool,
-    tasks_to_plan: List[Dict[str, Any]],
     subjects: List[Dict[str, Any]],
     available_slots: List[Dict[str, Any]],
     deadline: str,
@@ -44,16 +43,16 @@ async def generate_intelligent_schedule(
 
     # --- Build per-subject difficulty context lines ---
     diff_lines = []
-    for task in tasks_to_plan:
-        tid = task.get("id")
-        subject = task.get("subject", "Unknown")
-        factor = difficulty_factors.get(tid, 1.0)
+    for subject in subjects:
+        sid = subject.get("id")
+        name = subject.get("name", "Unknown")
+        factor = difficulty_factors.get(sid, 1.0)
         pct = round((factor - 1.0) * 100)
         if pct >= 0:
             note = f"{pct}% longer than estimated"
         else:
             note = f"{abs(pct)}% faster than estimated"
-        diff_lines.append(f"    - Task {tid} ({subject}): {factor} ({note})")
+        diff_lines.append(f"    - Subject {sid} ({name}): {factor} ({note})")
     difficulty_block = "\n".join(diff_lines) if diff_lines else "    - No subject data yet"
 
     # We use the latest available Flash model for speed, cost, and JSON generation abilities
@@ -71,7 +70,6 @@ async def generate_intelligent_schedule(
 
     [CONTEXT]
     - All Available Subjects: {json.dumps(subjects, indent=2)}
-    - Pending Tasks (Master List): {json.dumps(tasks_to_plan, indent=2)}
     - Available Study Blocks: {json.dumps(available_slots, indent=2)}
     - FIXED MANUAL BLOCKS (USER ALREADY COMMITTED — DO NOT MODIFY OR OVERLAP): {json.dumps(fixed_blocks or [], indent=2)}
     - Global Deadline: {deadline}
@@ -88,27 +86,24 @@ async def generate_intelligent_schedule(
     1. **Real Data Integrity**:
        - You MUST use the REAL names of the subjects from the "All Available Subjects" list.
        - DO NOT use generic names like "Subject 1" or "Study Block".
-       - If a subject has pending tasks in the "Pending Tasks" list, prioritize those tasks and use their IDs.
-       - If a subject has NO pending tasks, you may still allocate multiple 50-minute "General Review" sessions for it — especially when its exam date is close or there is unused time in the available study blocks.
+       - Allocate multiple 50-minute sessions for each subject, rotating fairly.
 
     2. **Autonomous Session Estimation**:
-       - Decide how much time each task/subject needs today.
-       - For pending tasks: The REMAINING time needed is roughly (estimated_minutes - actual_minutes).
+       - Decide how much time each subject needs today.
        - Adjust your time estimate using the per-subject `difficulty_factor` from the ML CONTEXT.
        - SPLIT your total estimation into discrete sessions of MAXIMUM 50 minutes each.
 
     2b. **FILL THE AVAILABLE WINDOW (CRITICAL)**:
        - Treat each entry in "Available Study Blocks" as a continuous window the user has committed to studying.
        - You MUST cover that window with 50/10 sessions until it runs out, only stopping early if `is_exhausted` is true (then leave the last 30+ minutes as rest).
-       - If pending tasks don't need all of the time, distribute the remainder as "General Review" sessions across the subjects, rotating fairly (round-robin), prioritising:
+       - Distribute the sessions across the subjects, rotating fairly (round-robin), prioritising:
             1. Subjects with the soonest `exam_date`
             2. Subjects with the highest `priority`
-            3. Subjects with the highest `days_since_last_study`
+            3. Subjects with the highest `difficulty`
        - DO NOT leave large empty stretches inside an available window unless the user is exhausted.
     
     3. **The Balancing Rules (CRITICAL)**:
-       - **ROTATION RULE**: If a task has `days_since_last_study` > 3, it is a TOP priority today.
-       - **BURNOUT PROTECTION**: If a task has `consecutive_days_studied` >= 3, POSTPONE this subject today.
+       - **ROTATION RULE**: If a subject has a high priority and a close exam date, it is a TOP priority today.
     
     4. **Urgency Handling**: 
        - If 'days_remaining' is low, be more aggressive with time estimates.
@@ -135,7 +130,7 @@ async def generate_intelligent_schedule(
           "subject": "Real Subject Name (Part 1)",
           "adjusted_duration_minutes": 50,
           "activity_type": "study",
-          "task_id": 123,
+          "task_id": null,
           "subject_id": 45
         }},
         {{
@@ -173,7 +168,7 @@ async def generate_intelligent_schedule(
         return data
     except Exception as e:
         print(f"Gemini API Error: {e}")
-        return generate_heuristic_fallback(tasks_to_plan, subjects, available_slots, fixed_blocks)
+        return generate_heuristic_fallback(subjects, available_slots, fixed_blocks)
 
 
 def _parse_hhmm(s):
@@ -184,7 +179,7 @@ def _parse_hhmm(s):
         return None
 
 
-def generate_heuristic_fallback(tasks, subjects, slots, fixed_blocks=None) -> Dict[str, Any]:
+def generate_heuristic_fallback(subjects, slots, fixed_blocks=None) -> Dict[str, Any]:
     """
     Generates a 50/10 schedule that fills each available study block from start to end.
     Honors fixed_blocks (manually-committed user time) as inviolable anchors.
@@ -192,35 +187,19 @@ def generate_heuristic_fallback(tasks, subjects, slots, fixed_blocks=None) -> Di
     fixed_blocks = fixed_blocks or []
     scheduled = []
 
-    pending_tasks = sorted(tasks or [], key=lambda x: x.get("priority", 2))  # 1=High first
-    review_pool = []
-    for s in subjects or []:
-        review_pool.append({
-            "id": None,
-            "subject": s.get("name", "Study"),
-            "subject_id": s.get("id"),
-        })
-
-    pending_idx = 0
+    # Sort subjects by priority (1=High)
+    review_pool = sorted(subjects or [], key=lambda x: x.get("priority", 2))
     review_idx = 0
 
     def next_study_item():
-        nonlocal pending_idx, review_idx
-        if pending_idx < len(pending_tasks):
-            t = pending_tasks[pending_idx]
-            pending_idx += 1
-            return {
-                "subject": t.get("subject", "Study"),
-                "task_id": t.get("id"),
-                "subject_id": t.get("subject_id"),
-            }
+        nonlocal review_idx
         if review_pool:
             item = review_pool[review_idx % len(review_pool)]
             review_idx += 1
             return {
-                "subject": f"{item['subject']} (Review)",
+                "subject": item.get("name", "Study"),
                 "task_id": None,
-                "subject_id": item["subject_id"],
+                "subject_id": item.get("id"),
             }
         return None
 

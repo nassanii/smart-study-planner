@@ -61,27 +61,6 @@ public class SchedulePayloadBuilder
 
         var todayLog = await _logs.GetTodayDtoAsync(userId, ct);
 
-        var upcoming = await _db.StudyTasks
-            .Include(t => t.Subject)
-            .Where(t => t.UserId == userId
-                && (t.Status == StudyTaskStatus.Upcoming || t.Status == StudyTaskStatus.InProgress || t.Status == StudyTaskStatus.Postponed || t.Status == StudyTaskStatus.Snoozed)
-                && (t.Deadline == null || t.Deadline >= date))
-            .OrderBy(t => t.Priority).ThenBy(t => t.Deadline)
-            .Select(t => new AiTaskDto
-            {
-                Id = t.Id,
-                Subject = t.Subject!.Name,
-                Priority = (int)t.Priority,
-                DifficultyRating = t.DifficultyRating,
-                DaysSinceLastStudy = t.DaysSinceLastStudy,
-                ConsecutiveDaysStudied = t.ConsecutiveDaysStudied,
-                EstimatedMinutes = t.EstimatedMinutes,
-                ActualMinutes = t.ActualMinutes ?? 0,
-                Deadline = t.Deadline,
-                Tag = t.Tag
-            })
-            .ToListAsync(ct);
-
         var subjects = await _db.Subjects
             .Where(s => s.UserId == userId)
             .Select(s => new AiSubjectDto
@@ -133,7 +112,6 @@ public class SchedulePayloadBuilder
                     StudyHoursToday = (double)todayLog.StudyHours
                 }
             },
-            CurrentTasksToPlan = upcoming,
             Subjects = subjects,
             AvailableSlots = slotPayload,
             FixedBlocks = fixedBlocks

@@ -16,16 +16,7 @@ import { useState, useCallback } from 'react';
  *       "study_hours_today": float
  *     }
  *   },
- *   "current_tasks_to_plan": [
- *     {
- *       "id": int,
- *       "subject": "string",
- *       "priority": int,
- *       "difficulty_rating": int, // 1-10 rating
- *       "days_since_last_study": int, 
- *       "consecutive_days_studied": int
- *     }
- *   ],
+
  *   "available_slots": [
  *     { "start_time": "HH:MM", "end_time": "HH:MM" }
  *   ]

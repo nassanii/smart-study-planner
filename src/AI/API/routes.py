@@ -30,7 +30,6 @@ async def process_student_data(payload: IncomingPayload):
     if is_exhausted:
         print(" User is likely exhausted. Prioritizing rest in schedule optimization.")
 
-    tasks_to_plan_dict = [task.model_dump() for task in payload.current_tasks_to_plan]
     subjects_dict = [s.model_dump() for s in payload.subjects]
     available_slots_dict = [slot.model_dump() for slot in payload.available_slots]
     fixed_blocks_dict = [b.model_dump() for b in payload.fixed_blocks]
@@ -39,7 +38,6 @@ async def process_student_data(payload: IncomingPayload):
         burnout_score=burnout_score,
         difficulty_factors=difficulty_factors,
         is_exhausted=is_exhausted,
-        tasks_to_plan=tasks_to_plan_dict,
         subjects=subjects_dict,
         available_slots=available_slots_dict,
         fixed_blocks=fixed_blocks_dict,

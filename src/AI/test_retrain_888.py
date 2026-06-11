@@ -18,7 +18,7 @@ payload = {
         "recent_tasks": tasks,
         "behavioral_logs": {"snooze_count_today": 0, "last_focus_ratings": [5], "study_hours_today": 0.0}
     },
-    "current_tasks_to_plan": [{"id": 1, "subject": "Math", "priority": 1, "difficulty_rating": 8, "days_since_last_study": 1, "consecutive_days_studied": 0}],
+
     "available_slots": [{"start_time": "08:00", "end_time": "10:00"}],
 }
 

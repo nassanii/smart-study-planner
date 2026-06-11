@@ -49,11 +49,7 @@ payload = {
             "study_hours_today": 0.0,
         },
     },
-    "current_tasks_to_plan": [
-        {"id": 1, "subject": "Math", "priority": 1, "difficulty_rating": 8, "days_since_last_study": 1, "consecutive_days_studied": 0},
-        {"id": 2, "subject": "Prog", "priority": 2, "difficulty_rating": 9, "days_since_last_study": 1, "consecutive_days_studied": 0},
-        {"id": 3, "subject": "Hist", "priority": 3, "difficulty_rating": 4, "days_since_last_study": 1, "consecutive_days_studied": 0}
-    ],
+
     "available_slots": [{"start_time": "08:00", "end_time": "14:00"}],
 }
 

@@ -42,13 +42,7 @@ payload = {
             "study_hours_today": 2.0,
         },
     },
-    "current_tasks_to_plan": [
-        {
-            "id": 1, "subject": "Computer Science", "priority": 1,
-            "difficulty_rating": 8, "days_since_last_study": 1,
-            "consecutive_days_studied": 0,
-        }
-    ],
+
     "available_slots": [
         {"start_time": "09:00", "end_time": "12:00"},
     ],
