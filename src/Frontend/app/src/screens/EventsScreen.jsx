@@ -39,6 +39,7 @@ const parseEventTime = (e) => {
 };
 
 const priorityColor = (p) => Number(p) === 1 ? '#F43F5E' : Number(p) === 3 ? '#10B981' : '#F59E0B';
+const prioritySurface = (p) => Number(p) === 1 ? '#FFF1F2' : Number(p) === 3 ? '#ECFDF5' : '#FFFBEB';
 
 const HOUR_ROW_HEIGHT = 70;
 const DAY_CELL_WIDTH = 56;
@@ -220,10 +221,6 @@ export const EventsScreen = () => {
     });
   };
 
-  const handleCompleteEvent = (event) => {
-    updateEvent(event.id, { isCompleted: true }).catch((err) => showAlert('Error', extractErrorMessage(err)));
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerRow}>
@@ -338,7 +335,8 @@ export const EventsScreen = () => {
                     top,
                     height,
                     borderLeftColor: color,
-                    backgroundColor: color + '12',
+                    borderColor: color + '40',
+                    backgroundColor: prioritySurface(event.priority),
                     shadowColor: color,
                   },
                 ]}
@@ -355,12 +353,6 @@ export const EventsScreen = () => {
                     </Text>
                   ) : null}
                 </View>
-                <TouchableOpacity
-                  onPress={() => tab === 'scheduled' ? handleCompleteEvent(event) : null}
-                  style={[styles.eventPlay, { borderColor: color }]}
-                >
-                  <Ionicons name={event.is_completed ? 'checkmark' : 'play'} size={14} color={color} />
-                </TouchableOpacity>
               </TouchableOpacity>
             );
           })}
@@ -547,12 +539,12 @@ const styles = StyleSheet.create({
   monthRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 18, marginVertical: 8 },
   monthArrow: { padding: 4 },
   monthLabel: { textAlign: 'center', fontSize: 15 },
-  weekStripWrapper: { marginBottom: 8, height: 86 },
-  weekRow: { paddingHorizontal: 14, alignItems: 'center' },
-  weekCell: { width: DAY_CELL_WIDTH, alignItems: 'center', justifyContent: 'center' },
-  weekDayLabel: { fontSize: 12, marginBottom: 6 },
+  weekStripWrapper: { marginBottom: 4, height: 78, flexGrow: 0 },
+  weekRow: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 10, alignItems: 'flex-start' },
+  weekCell: { width: DAY_CELL_WIDTH, height: 64, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 2 },
+  weekDayLabel: { fontSize: 12, lineHeight: 15, marginBottom: 6 },
   weekDateCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  weekDateNum: { fontSize: 15 },
+  weekDateNum: { fontSize: 15, lineHeight: 18 },
   tabsRow: { flexDirection: 'row', borderBottomWidth: 1, marginHorizontal: 14, marginBottom: 6 },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText: { fontSize: 14 },
@@ -560,16 +552,15 @@ const styles = StyleSheet.create({
   hourRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, minHeight: HOUR_ROW_HEIGHT, borderTopWidth: 1 },
   hourLabel: { width: 50, fontSize: 12, paddingTop: 6 },
   hourBody: { flex: 1, minHeight: HOUR_ROW_HEIGHT, paddingVertical: 4, position: 'relative' },
-  nowIndicator: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', zIndex: 2 },
+  nowIndicator: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', zIndex: 0 },
   nowDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#F87171', marginLeft: -5 },
-  nowLine: { flex: 1, height: 2, backgroundColor: '#F87171' },
-  eventsLayer: { position: 'absolute', top: 0, left: TIMELINE_LEFT, right: TIMELINE_RIGHT, bottom: 0 },
-  eventBlock: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderLeftWidth: 5, borderRadius: 14, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  nowLine: { flex: 1, height: 2, backgroundColor: '#F87171', opacity: 0.85 },
+  eventsLayer: { position: 'absolute', top: 0, left: TIMELINE_LEFT, right: TIMELINE_RIGHT, bottom: 0, zIndex: 2 },
+  eventBlock: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1.5, borderLeftWidth: 5, borderRadius: 14, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 2, zIndex: 3 },
   eventAccent: { width: 8, height: 8, borderRadius: 4, marginRight: 9 },
   eventTitle: { fontSize: 14 },
   eventDesc: { fontSize: 12, marginTop: 2 },
   eventMeta: { fontSize: 11, marginTop: 2 },
-  eventPlay: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { padding: 26, borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '85%' },
   modalTitle: { fontSize: 22, marginBottom: 18 },
