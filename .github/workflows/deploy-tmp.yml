@@ -103,11 +103,11 @@ jobs:
           if [[ -n "$smtp_username" && -n "$smtp_password" && -n "$smtp_from_email" ]]; then
             write_env "Email__Smtp__Enabled" "${EMAIL_SMTP_ENABLED:-true}"
             write_env "Email__Smtp__Host" "${EMAIL_SMTP_HOST:-smtp-relay.brevo.com}"
-            write_env "Email__Smtp__Port" "${EMAIL_SMTP_PORT:-587}"
+            write_env "Email__Smtp__Port" "${EMAIL_SMTP_PORT:-465}"
             write_env "Email__Smtp__UserName" "$smtp_username"
             write_env "Email__Smtp__Password" "$smtp_password"
             write_env "Email__Smtp__EnableSsl" "true"
-            write_env "Email__Smtp__CheckCertificateRevocation" "true"
+            write_env "Email__Smtp__CheckCertificateRevocation" "${EMAIL_SMTP_CHECK_CERT_REVOCATION:-false}"
             write_env "Email__Smtp__FromEmail" "$smtp_from_email"
             write_env "Email__Smtp__FromName" "$smtp_from_name"
           fi

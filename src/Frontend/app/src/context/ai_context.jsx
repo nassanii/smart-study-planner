@@ -377,6 +377,10 @@ export const AIProvider = ({ children }) => {
 
    const generateSchedule = useCallback(async (date, options = {}) => {
       const result = await scheduleApi.generate(date, !!options.useAi);
+      // Surface whether this plan came from the real AI (Gemini) or the heuristic fallback.
+      const scheduleSource = result?.ai_schedule?.source
+         || (result?.has_error ? `error: ${result?.error_message || 'unknown'}` : 'unknown');
+      console.log('[SCHEDULE SOURCE]', scheduleSource, '| mode:', result?.mode, '| ai_message:', result?.ai_schedule?.ai_message ?? '');
       const mapped = mapScheduleFromApi(result);
       setLatestSchedule(mapped);
       if (!result?.hasError) {

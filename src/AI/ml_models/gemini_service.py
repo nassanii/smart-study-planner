@@ -167,13 +167,16 @@ async def generate_intelligent_schedule(
             if data.get("scheduled_slots") and data["scheduled_slots"][-1].get("activity_type") == "break":
                 data["scheduled_slots"].pop()
 
+            # Tag the source so the backend/app can tell a real AI plan from the fallback.
+            data["source"] = f"ai:{model_name}"
+            print(f"[SCHEDULE SOURCE] source=ai model={model_name}")
             return data
         except Exception as e:
             last_error = e
             print(f"Gemini API Error on {model_name}: {e}")
             continue
 
-    print(f"All Gemini models failed (last error: {last_error}). Using heuristic fallback.")
+    print(f"[SCHEDULE SOURCE] source=heuristic (all Gemini models failed; last error: {last_error})")
     return generate_heuristic_fallback(subjects, available_slots, fixed_blocks)
 
 
@@ -318,6 +321,7 @@ def generate_heuristic_fallback(subjects, slots, fixed_blocks=None) -> Dict[str,
         scheduled.pop()
 
     return {
+        "source": "heuristic",
         "scheduled_slots": scheduled,
         "postponed_tasks": [],
         "ai_message": "Heuristic Mode: I've prepared a 50/10 schedule that fills your day. The smart AI couldn't be reached this time."
