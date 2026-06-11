@@ -8,8 +8,8 @@ services:
       dockerfile: deploy/tmp/ai.Dockerfile
     restart: unless-stopped
     environment:
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL_CANDIDATES: ${ANTHROPIC_MODEL_CANDIDATES:-claude-haiku-4-5}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     expose:
       - "8000"

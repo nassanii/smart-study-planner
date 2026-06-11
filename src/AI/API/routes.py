@@ -4,7 +4,7 @@ import json
 from Core.models.incoming_payload import IncomingPayload
 
 from ml_models.model_manager import manage_models
-from ml_models.gemini_service import generate_intelligent_schedule
+from ml_models.claude_service import generate_intelligent_schedule
 
 router = APIRouter()
 

@@ -192,7 +192,7 @@ if [[ "$seed_ok" != "1" ]]; then
 fi
 
 # AI smoke test: time one real schedule generation and surface its source
-# (ai:<model> vs heuristic) in the deploy log. Warn-only — a Gemini hiccup
+# (ai:<model> vs heuristic) in the deploy log. Warn-only — provider hiccups
 # must not fail the deploy.
 ai_payload='{"user_id":424242,"deadline":"2026-12-31","raw_history":{"recent_tasks":[{"subject_id":1,"estimated":60,"actual":70,"status":"completed"}],"behavioral_logs":{"snooze_count_today":1,"last_focus_ratings":[4,3,4],"study_hours_today":2.5}},"subjects":[{"id":1,"name":"Mathematics","difficulty":4,"priority":1,"exam_date":"2026-12-20"},{"id":2,"name":"Physics","difficulty":3,"priority":2,"exam_date":"2026-12-25"}],"available_slots":[{"start_time":"16:00","end_time":"20:00"}],"fixed_blocks":[]}'
 

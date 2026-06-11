@@ -54,8 +54,8 @@ jobs:
 
       - name: Sync runtime environment
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL_CANDIDATES: ${{ secrets.ANTHROPIC_MODEL_CANDIDATES }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEED_TOKEN: ${{ secrets.SEED_TOKEN }}
           SEED_USER_EMAIL: ${{ secrets.SEED_USER_EMAIL }}
@@ -92,8 +92,8 @@ jobs:
           smtp_from_email="${EMAIL_SMTP_FROM_EMAIL:-${BREVO_FROM_EMAIL:-}}"
           smtp_from_name="${EMAIL_SMTP_FROM_NAME:-${BREVO_FROM_NAME:-Smart Study Planner}}"
 
-          write_env "GEMINI_API_KEY" "$GEMINI_API_KEY"
-          write_env "GOOGLE_API_KEY" "$GOOGLE_API_KEY"
+          write_env "ANTHROPIC_API_KEY" "$ANTHROPIC_API_KEY"
+          write_env "ANTHROPIC_MODEL_CANDIDATES" "${ANTHROPIC_MODEL_CANDIDATES:-claude-haiku-4-5}"
           write_env "OPENAI_API_KEY" "$OPENAI_API_KEY"
           write_env "SEED_TOKEN" "$SEED_TOKEN"
           write_env "SEED_USER_EMAIL" "$SEED_USER_EMAIL"

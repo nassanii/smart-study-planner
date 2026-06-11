@@ -109,7 +109,7 @@
 | `.burnout_score` | `float` | Risk score `0.0–1.0`. ≥ 0.75 = exhausted |
 | `.is_exhausted` | `bool` | `true` if burnout ≥ 0.75 |
 | `.difficulty_factors` | `Dict[str, float]` | Per-subject difficulty multiplier (key = subject_id). `1.0` = on track, `> 1.0` = takes longer, `< 1.0` = faster |
-| **ai_schedule** | | Gemini-generated schedule |
+| **ai_schedule** | | Claude-generated schedule or heuristic fallback |
 | `.scheduled_slots[]` | | Ordered list of study/break blocks |
 | `.time_slot` | `string` | Start time `HH:MM` (always `:00` or `:30`) |
 | `.subject` | `string` | Subject name or `"Break"` |
@@ -119,7 +119,7 @@
 | `.postponed_tasks` | `List[int]` | Task IDs skipped due to burnout protection (consecutive_days ≥ 3) |
 | `.ai_message` | `string` | Human-readable strategic summary (Arabic/English) with deadline countdown |
 
-#### Error Response (Gemini failure)
+#### Error Response (Claude failure)
 
 ```json
 {

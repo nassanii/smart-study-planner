@@ -4,7 +4,7 @@ AI-powered study planner with three independent services:
 
 | Service | Tech | Port | Folder |
 |---|---|---|---|
-| **AI Engine** | Python 3.12 · FastAPI · scikit-learn · Gemini | `8000` | [`src/AI`](src/AI) |
+| **AI Engine** | Python 3.12 · FastAPI · scikit-learn · Claude | `8000` | [`src/AI`](src/AI) |
 | **Backend API** | .NET 8 · ASP.NET Core · EF Core · PostgreSQL · JWT | `5080` | [`src/Backend`](src/Backend) |
 | **Mobile/Web App** | Expo SDK 54 · React Native · Axios · AsyncStorage | `8081` (dev) | [`src/Frontend/app`](src/Frontend/app) |
 
@@ -78,14 +78,14 @@ cd ../../..
 ```
 The key is stored in `~/.microsoft/usersecrets/...` outside the repo and never committed.
 
-### 4. Gemini API key (for the AI engine)
+### 4. Claude API key (for the AI engine)
 
 Create `src/AI/.env`:
 ```bash
-echo "GEMINI_API_KEY=your_real_gemini_key_here" > src/AI/.env
+echo "ANTHROPIC_API_KEY=your_real_anthropic_key_here" > src/AI/.env
 ```
 
-If you don’t have a Gemini key, schedule generation will still call the AI service and persist a row, but the response will carry `hasError: true` and a friendly error message — the rest of the app works normally.
+If you don’t have a Claude key, schedule generation will still call the AI service and persist a row, but the response will carry `hasError: true` and a friendly error message — the rest of the app works normally.
 
 ### 5. AI engine Python dependencies
 
@@ -191,7 +191,7 @@ Once all three services are up, walk this flow once to verify everything is wire
    - Password: `Test1234`
 2. Press **Create Account** → you land on the **Onboarding** screen.
 3. Fill the 3 onboarding steps (target GPA, max hours/day, deadline, subjects with difficulty) → press **INITIATE PLAN** → Dashboard appears.
-4. **Dashboard** → press **Generate AI Plan** → see strategic summary (or graceful error if Gemini key isn’t set).
+4. **Dashboard** → press **Generate AI Plan** → see strategic summary (or graceful error if Claude key isn’t set).
 5. **Tasks** tab → tap the floating `+` → pick a subject → set difficulty + estimated minutes → **Create AI Task**. Use the controls on each task to bump difficulty, snooze, complete, or delete.
 6. **Focus** tab → pick subject and (optional) task → choose Focus / Short / Long → press play. When the timer hits 0, rate the session 1–5 stars → it’s saved and adds to today’s study hours.
 7. **Analytics** tab → see real day-streak, snooze rate, planning error from the API.
@@ -284,7 +284,7 @@ Health checks are anonymous. If you see this, your reverse proxy is rewriting re
 Re-pull or re-apply the import fix in [`src/AI/ml_models/model_manager.py`](src/AI/ml_models/model_manager.py) (`from typing import Any, ...`).
 
 **Schedule returns `hasError: true`**
-Set a valid `GEMINI_API_KEY` in [`src/AI/.env`](src/AI/.env) and restart the AI engine.
+Set a valid `ANTHROPIC_API_KEY` in [`src/AI/.env`](src/AI/.env) and restart the AI engine.
 
 **`dotnet ef` not found**
 ```bash
@@ -308,7 +308,7 @@ docker compose -f src/Backend/docker-compose.dev.yml stop
 smart-study-planner/
 ├── README.md                          ← you are here
 ├── src/
-│   ├── AI/                            # FastAPI + scikit-learn + Gemini
+│   ├── AI/                            # FastAPI + scikit-learn + Claude
 │   │   ├── main.py
 │   │   ├── API/                       # routes
 │   │   ├── Core/models/               # Pydantic schemas
