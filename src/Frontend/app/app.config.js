@@ -4,6 +4,8 @@ const googleServicesFile =
   process.env.GOOGLE_SERVICES_JSON ||
   (fs.existsSync("./google-services.json") ? "./google-services.json" : undefined);
 
+const productionApiBaseUrl = "https://api.smart-study-project.187-77-109-189.sslip.io/api/v1";
+
 module.exports = {
   expo: {
     name: "Smart Study Planner",
@@ -48,7 +50,7 @@ module.exports = {
       "expo-router",
     ],
     extra: {
-      apiBaseUrl: "http://localhost:5080/api/v1",
+      apiBaseUrl: productionApiBaseUrl,
       eas: {
         projectId: "e3c88455-4c49-4223-b3d7-37f4ab6ef8af",
       },

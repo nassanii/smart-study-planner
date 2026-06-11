@@ -33,6 +33,102 @@ jobs:
             -e "ssh -i ~/.ssh/tmp_deploy_key" \
             ./ "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/TMP/smart-study-planner/source/"
 
+      - name: Sync runtime environment
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SEED_TOKEN: ${{ secrets.SEED_TOKEN }}
+          SEED_USER_EMAIL: ${{ secrets.SEED_USER_EMAIL }}
+          SEED_USER_PASSWORD: ${{ secrets.SEED_USER_PASSWORD }}
+          SEED_USER_NAME: ${{ secrets.SEED_USER_NAME }}
+          EMAIL_SMTP_ENABLED: ${{ secrets.EMAIL_SMTP_ENABLED }}
+          EMAIL_SMTP_HOST: ${{ secrets.EMAIL_SMTP_HOST }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+          EMAIL_SMTP_USERNAME: ${{ secrets.EMAIL_SMTP_USERNAME }}
+          EMAIL_SMTP_PASSWORD: ${{ secrets.EMAIL_SMTP_PASSWORD }}
+          EMAIL_SMTP_FROM_EMAIL: ${{ secrets.EMAIL_SMTP_FROM_EMAIL }}
+          EMAIL_SMTP_FROM_NAME: ${{ secrets.EMAIL_SMTP_FROM_NAME }}
+          BREVO_SMTP_USERNAME: ${{ secrets.BREVO_SMTP_USERNAME }}
+          BREVO_SMTP_PASSWORD: ${{ secrets.BREVO_SMTP_PASSWORD }}
+          BREVO_FROM_EMAIL: ${{ secrets.BREVO_FROM_EMAIL }}
+          BREVO_FROM_NAME: ${{ secrets.BREVO_FROM_NAME }}
+          FIREBASE_ENABLED: ${{ secrets.FIREBASE_ENABLED }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CREDENTIAL_JSON: ${{ secrets.FIREBASE_CREDENTIAL_JSON }}
+        run: |
+          runtime_env="$(mktemp)"
+          firebase_json="$(mktemp)"
+
+          write_env() {
+            local key="$1"
+            local value="$2"
+            if [[ -n "$value" ]]; then
+              printf '%s=%q\n' "$key" "$value" >> "$runtime_env"
+            fi
+          }
+
+          smtp_username="${EMAIL_SMTP_USERNAME:-${BREVO_SMTP_USERNAME:-}}"
+          smtp_password="${EMAIL_SMTP_PASSWORD:-${BREVO_SMTP_PASSWORD:-}}"
+          smtp_from_email="${EMAIL_SMTP_FROM_EMAIL:-${BREVO_FROM_EMAIL:-}}"
+          smtp_from_name="${EMAIL_SMTP_FROM_NAME:-${BREVO_FROM_NAME:-Smart Study Planner}}"
+
+          write_env "GEMINI_API_KEY" "$GEMINI_API_KEY"
+          write_env "GOOGLE_API_KEY" "$GOOGLE_API_KEY"
+          write_env "OPENAI_API_KEY" "$OPENAI_API_KEY"
+          write_env "SEED_TOKEN" "$SEED_TOKEN"
+          write_env "SEED_USER_EMAIL" "$SEED_USER_EMAIL"
+          write_env "SEED_USER_PASSWORD" "$SEED_USER_PASSWORD"
+          write_env "SEED_USER_NAME" "$SEED_USER_NAME"
+
+          if [[ -n "$smtp_username" && -n "$smtp_password" && -n "$smtp_from_email" ]]; then
+            write_env "Email__Smtp__Enabled" "${EMAIL_SMTP_ENABLED:-true}"
+            write_env "Email__Smtp__Host" "${EMAIL_SMTP_HOST:-smtp-relay.brevo.com}"
+            write_env "Email__Smtp__Port" "${EMAIL_SMTP_PORT:-587}"
+            write_env "Email__Smtp__UserName" "$smtp_username"
+            write_env "Email__Smtp__Password" "$smtp_password"
+            write_env "Email__Smtp__EnableSsl" "true"
+            write_env "Email__Smtp__CheckCertificateRevocation" "true"
+            write_env "Email__Smtp__FromEmail" "$smtp_from_email"
+            write_env "Email__Smtp__FromName" "$smtp_from_name"
+          fi
+
+          if [[ -n "$FIREBASE_CREDENTIAL_JSON" ]]; then
+            printf '%s' "$FIREBASE_CREDENTIAL_JSON" > "$firebase_json"
+            write_env "Firebase__Enabled" "${FIREBASE_ENABLED:-true}"
+            write_env "Firebase__ProjectId" "$FIREBASE_PROJECT_ID"
+            write_env "Firebase__CredentialPath" "/runtime/firebase-service-account.json"
+          fi
+
+          ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+            'mkdir -p /TMP/smart-study-planner/runtime && touch /TMP/smart-study-planner/runtime/.env && chmod 600 /TMP/smart-study-planner/runtime/.env'
+
+          if [[ -s "$runtime_env" ]]; then
+            scp -i ~/.ssh/tmp_deploy_key "$runtime_env" \
+              "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/tmp/smart-study-runtime.env"
+            ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+              'set -euo pipefail
+               env_file=/TMP/smart-study-planner/runtime/.env
+               tmp_file="$(mktemp)"
+               while IFS= read -r line; do
+                 [[ -n "$line" ]] || continue
+                 key="${line%%=*}"
+                 case "$key" in (""|*[!A-Za-z0-9_]*) continue ;; esac
+                 grep -v -E "^${key}=" "$env_file" > "$tmp_file" || true
+                 printf "%s\n" "$line" >> "$tmp_file"
+                 cat "$tmp_file" > "$env_file"
+               done < /tmp/smart-study-runtime.env
+               rm -f /tmp/smart-study-runtime.env "$tmp_file"
+               chmod 600 "$env_file"'
+          fi
+
+          if [[ -s "$firebase_json" ]]; then
+            scp -i ~/.ssh/tmp_deploy_key "$firebase_json" \
+              "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}:/TMP/smart-study-planner/runtime/firebase-service-account.json"
+            ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \
+              'chmod 600 /TMP/smart-study-planner/runtime/firebase-service-account.json'
+          fi
+
       - name: Deploy
         run: |
           ssh -i ~/.ssh/tmp_deploy_key "${{ secrets.TMP_SSH_USER }}@${{ secrets.TMP_SSH_HOST }}" \

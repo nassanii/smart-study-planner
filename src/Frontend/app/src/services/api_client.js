@@ -6,7 +6,7 @@ import { incrementLoading, decrementLoading } from './loading_bus';
 const baseURL = process.env.EXPO_PUBLIC_API_BASE_URL
   || Constants.expoConfig?.extra?.apiBaseUrl
   || Constants.manifest?.extra?.apiBaseUrl
-  || 'http://localhost:5080/api/v1';
+  || 'https://api.smart-study-project.187-77-109-189.sslip.io/api/v1';
 
 export const apiClient = axios.create({
   baseURL,

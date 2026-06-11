@@ -32,8 +32,29 @@ services:
       Jwt__SigningKey: ${TMP_JWT_SIGNING_KEY}
       AiService__BaseUrl: http://tmp-smart-ai:8000/api/v1/
       AiService__TimeoutSeconds: "90"
+      Seed__Token: ${SEED_TOKEN:-}
+      Seed__UserEmail: ${SEED_USER_EMAIL:-}
+      Seed__UserPassword: ${SEED_USER_PASSWORD:-}
+      Seed__UserName: ${SEED_USER_NAME:-}
+      Email__Smtp__Enabled: ${Email__Smtp__Enabled:-false}
+      Email__Smtp__Host: ${Email__Smtp__Host:-smtp-relay.brevo.com}
+      Email__Smtp__Port: ${Email__Smtp__Port:-587}
+      Email__Smtp__UserName: ${Email__Smtp__UserName:-}
+      Email__Smtp__Password: ${Email__Smtp__Password:-}
+      Email__Smtp__EnableSsl: ${Email__Smtp__EnableSsl:-true}
+      Email__Smtp__CheckCertificateRevocation: ${Email__Smtp__CheckCertificateRevocation:-true}
+      Email__Smtp__TimeoutSeconds: ${Email__Smtp__TimeoutSeconds:-15}
+      Email__Smtp__FromEmail: ${Email__Smtp__FromEmail:-}
+      Email__Smtp__FromName: ${Email__Smtp__FromName:-Smart Study Planner}
+      Firebase__Enabled: ${Firebase__Enabled:-false}
+      Firebase__ProjectId: ${Firebase__ProjectId:-}
+      Firebase__CredentialPath: ${Firebase__CredentialPath:-}
+      Firebase__CredentialJson: ${Firebase__CredentialJson:-}
+      Firebase__DryRun: ${Firebase__DryRun:-false}
+      PasswordReset__ResetUrl: ${PasswordReset__ResetUrl:-smartstudyplanner://forgot_password}
     volumes:
       - /TMP/smart-study-planner/data/backend:/data
+      - /TMP/smart-study-planner/runtime:/runtime:ro
     depends_on:
       - ai
     expose:
