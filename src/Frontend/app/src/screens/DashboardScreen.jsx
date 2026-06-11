@@ -146,7 +146,7 @@ export const DashboardScreen = () => {
                <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
                <Text style={[styles.nudgeText, { color: colors.textDark, fontFamily: fonts.medium }]}>
                   {activeTaskCount > 0
-                     ? "Your progress is based on completed tasks, actual study time, and missed courses."
+                     ? "Each course's progress is the percentage of its tasks you've marked done."
                      : "Add tasks inside each course so the app can tell what you are really finishing."}
                </Text>
             </View>
