@@ -6,17 +6,22 @@ import { useAuth } from "../context/auth_context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BarChart, PieChart } from "react-native-chart-kit";
-import { analyticsApi } from "../services/api";
+import { analyticsApi, focusApi } from "../services/api";
 import { useFocus } from "../context/focus_context";
 import { useAppNavigation } from "../context/navigation_context";
 import { subscribeNotifications, markAllRead, clearNotifications } from "../services/notifications_bus";
 import { DailyCheckinModal } from "../components/DailyCheckinModal";
 
+const FOCUS_COLORS = ["#6B5CE7", "#10B981", "#F43F5E", "#F59E0B", "#3B82F6"];
+
+const formatLocalDateKey = (date) =>
+   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 export const DashboardScreen = () => {
    const { colors, fonts } = useTheme();
    const { user } = useAuth();
    const { userData, behavioralLogs, tasks, subjects, latestSchedule, reloadAll, loading } = useAI();
-   const { sessionElapsedSeconds, slotStatuses: liveSlotStatuses, activeSession, mode } = useFocus();
+   const { sessionElapsedSeconds, slotStatuses: liveSlotStatuses, activeSession, mode, selectedSubjectId } = useFocus();
    const { navigate } = useAppNavigation();
    const [insights, setInsights] = useState(null);
    const [showAiAlert, setShowAiAlert] = useState(true);
@@ -24,6 +29,7 @@ export const DashboardScreen = () => {
    const [showPlanWizard, setShowPlanWizard] = useState(false);
    const [notifs, setNotifs] = useState([]);
    const [unread, setUnread] = useState(0);
+   const [focusSessions, setFocusSessions] = useState([]);
    const didLoad = useRef(false);
    const didBootstrapData = useRef(false);
 
@@ -49,6 +55,16 @@ export const DashboardScreen = () => {
       return `${Math.floor(h / 24)}d ago`;
    };
 
+   const loadRecentFocusSessions = () => {
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(today.getDate() - 6);
+      return focusApi
+         .list({ from: formatLocalDateKey(from), to: formatLocalDateKey(today) })
+         .then((data) => setFocusSessions(Array.isArray(data) ? data : []))
+         .catch(() => {});
+   };
+
    useEffect(() => {
       if (didLoad.current) return;
       didLoad.current = true;
@@ -56,6 +72,7 @@ export const DashboardScreen = () => {
          .insights()
          .then(setInsights)
          .catch(() => {});
+      loadRecentFocusSessions();
    }, []);
 
    useEffect(() => {
@@ -65,6 +82,11 @@ export const DashboardScreen = () => {
       didBootstrapData.current = true;
       reloadAll().catch(() => {});
    }, [userData?.isOnboarded, loading, subjects.length, tasks.length, latestSchedule, reloadAll]);
+
+   useEffect(() => {
+      if (!userData?.isOnboarded) return;
+      loadRecentFocusSessions();
+   }, [userData?.isOnboarded, behavioralLogs?.study_hours_today, tasks.length]);
 
    const burnoutScore = latestSchedule?.analysisResults?.burnout_score ?? (insights?.latestBurnout != null ? Number(insights.latestBurnout) : 0);
    const burnoutPct = Math.round(burnoutScore * 100);
@@ -105,6 +127,30 @@ export const DashboardScreen = () => {
       const s = totalSeconds % 60;
       return `${h}:${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
    };
+
+   const focusDistribution = subjects
+      .map((subject, index) => {
+         const sessionSeconds = focusSessions
+            .filter((session) => Number(session.subjectId ?? session.subject_id) === Number(subject.id))
+            .reduce((sum, session) => sum + (Number(session.durationSeconds ?? session.duration_seconds) || 0), 0);
+         const liveSeconds =
+            activeSession && mode === "Focus" && Number(selectedSubjectId) === Number(subject.id)
+               ? sessionElapsedSeconds
+               : 0;
+         const taskSeconds = tasks
+            .filter((task) => Number(task.subject_id ?? task.subjectId) === Number(subject.id))
+            .reduce((sum, task) => sum + ((Number(task.actual_minutes ?? task.actualMinutes) || 0) * 60), 0);
+         const seconds = Math.max(sessionSeconds + liveSeconds, taskSeconds);
+         return {
+            name: subject.name,
+            population: Math.max(0, Math.round(seconds)),
+            color: FOCUS_COLORS[index % FOCUS_COLORS.length],
+            legendFontColor: colors.textLight,
+            legendFontSize: 11,
+         };
+      })
+      .filter((item) => item.population > 0);
+   const focusTotalSeconds = focusDistribution.reduce((sum, item) => sum + item.population, 0);
 
    return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -390,25 +436,58 @@ export const DashboardScreen = () => {
                <MaterialCommunityIcons name="chart-pie" size={20} color={colors.primary} />
             </View>
             
-            {subjects.length > 0 ? (
-               <PieChart
-                  data={subjects.map((s, i) => ({
-                     name: s.name.length > 10 ? s.name.slice(0, 8) + ".." : s.name,
-                     population: tasks.filter(t => t.subject_id === s.id).reduce((sum, t) => sum + (t.actual_minutes || 0), 0) || 0,
-                     color: [ "#6B5CE7", "#10B981", "#F43F5E", "#F59E0B", "#3B82F6" ][i % 5],
-                     legendFontColor: colors.textLight,
-                     legendFontSize: 11
-                  })).filter(d => d.population > 0)}
-                  width={Dimensions.get("window").width - 50}
-                  height={180}
-                  chartConfig={{
-                     color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                  }}
-                  accessor={"population"}
-                  backgroundColor={"transparent"}
-                  paddingLeft={"15"}
-                  absolute
-               />
+            {focusDistribution.length > 0 ? (
+               <View>
+                  {focusDistribution.length > 1 && (
+                     <PieChart
+                        data={focusDistribution.map((item) => ({
+                           ...item,
+                           name: item.name.length > 10 ? item.name.slice(0, 8) + ".." : item.name,
+                        }))}
+                        width={Dimensions.get("window").width - 50}
+                        height={180}
+                        chartConfig={{
+                           color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                        }}
+                        accessor={"population"}
+                        backgroundColor={"transparent"}
+                        paddingLeft={"15"}
+                        absolute
+                     />
+                  )}
+                  <View style={[styles.focusDistributionList, { marginTop: focusDistribution.length > 1 ? 8 : 0 }]}>
+                     {focusDistribution.map((item) => {
+                        const pct = focusTotalSeconds ? Math.round((item.population / focusTotalSeconds) * 100) : 0;
+                        return (
+                           <View key={item.name} style={styles.focusDistributionRow}>
+                              <View style={[styles.focusDot, { backgroundColor: item.color }]} />
+                              <View style={{ flex: 1, minWidth: 0 }}>
+                                 <View style={styles.focusDistributionHeader}>
+                                    <Text
+                                       style={[styles.focusDistributionName, { color: colors.textDark, fontFamily: fonts.bold }]}
+                                       numberOfLines={1}
+                                    >
+                                       {item.name}
+                                    </Text>
+                                    <Text style={[styles.focusDistributionMeta, { color: colors.textLight, fontFamily: fonts.bold }]}>
+                                       {formatDuration(item.population / 3600)} · {pct}%
+                                    </Text>
+                                 </View>
+                                 <View style={[styles.focusDistributionTrack, { backgroundColor: colors.cardAlt }]}>
+                                    <View style={[styles.focusDistributionFill, { backgroundColor: item.color, width: `${pct}%` }]} />
+                                 </View>
+                              </View>
+                           </View>
+                        );
+                     })}
+                  </View>
+               </View>
+            ) : subjects.length > 0 ? (
+               <View style={{ height: 100, justifyContent: "center", alignItems: "center" }}>
+                  <Text style={{ color: colors.textLight, fontFamily: fonts.medium, textAlign: "center" }}>
+                     Start or finish a focus session to see distribution
+                  </Text>
+               </View>
             ) : (
                <View style={{ height: 100, justifyContent: "center", alignItems: "center" }}>
                   <Text style={{ color: colors.textLight, fontFamily: fonts.medium }}>Add courses to see distribution</Text>
@@ -602,6 +681,14 @@ const styles = StyleSheet.create({
    sectionCard: { padding: 22, borderRadius: 28, marginBottom: 35, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 15, elevation: 2 },
    sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
    sectionTitle: { fontSize: 18 },
+   focusDistributionList: { gap: 12 },
+   focusDistributionRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+   focusDot: { width: 10, height: 10, borderRadius: 5 },
+   focusDistributionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 6 },
+   focusDistributionName: { flex: 1, fontSize: 13 },
+   focusDistributionMeta: { fontSize: 11 },
+   focusDistributionTrack: { height: 7, borderRadius: 4, overflow: "hidden" },
+   focusDistributionFill: { height: "100%", borderRadius: 4 },
    dashLink: { fontSize: 13 },
    dashSectionMeta: { fontSize: 12, marginTop: 4 },
    dashSlot: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderLeftWidth: 4 },

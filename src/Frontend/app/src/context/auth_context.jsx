@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { authApi } from '../services/api';
 import { setTokens, getTokens, clearTokens } from '../services/auth_storage';
 import { setAuthFailureHandler } from '../services/api_client';
+import { setNotificationUserScope } from '../services/notifications_bus';
 
 const AuthContext = createContext(null);
 
@@ -10,6 +11,10 @@ export const AuthProvider = ({ children }) => {
   const [accessToken, setAccessToken] = useState(null);
   const [refreshToken, setRefreshToken] = useState(null);
   const [hydrating, setHydrating] = useState(true);
+
+  useEffect(() => {
+    setNotificationUserScope(user?.userId || null);
+  }, [user?.userId]);
 
   const applyTokens = useCallback(async (tokens) => {
     console.log('[auth] applyTokens user=', tokens.user?.userId, 'isOnboarded=', tokens.user?.isOnboarded);

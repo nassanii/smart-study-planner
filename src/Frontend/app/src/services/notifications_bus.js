@@ -1,12 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'smart-study.in-app-notifications.v1';
+const STORAGE_KEY_PREFIX = 'smart-study.in-app-notifications.v1';
 
 let listeners = [];
 let items = [];
 let unreadCount = 0;
 let hasHydrated = false;
 let hydratePromise = null;
+let currentScope = 'anonymous';
+
+const getStorageKey = () => `${STORAGE_KEY_PREFIX}:${currentScope || 'anonymous'}`;
 
 function notify() {
   listeners.forEach((fn) => fn({ items: [...items], unreadCount }));
@@ -34,26 +37,41 @@ function normalizeStored(payload) {
   };
 }
 
+function mergeNotificationItems(primary, secondary) {
+  const seen = new Set();
+  return [...primary, ...secondary]
+    .filter((item) => {
+      if (!item?.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 50);
+}
+
 function persistNotifications() {
   AsyncStorage
-    .setItem(STORAGE_KEY, JSON.stringify({ items, unreadCount }))
+    .setItem(getStorageKey(), JSON.stringify({ items, unreadCount }))
     .catch(() => {});
 }
 
 export function hydrateNotifications() {
   if (hasHydrated) return Promise.resolve({ items: [...items], unreadCount });
   if (!hydratePromise) {
+    const storageKey = getStorageKey();
     hydratePromise = AsyncStorage
-      .getItem(STORAGE_KEY)
+      .getItem(storageKey)
       .then((raw) => {
+        if (storageKey !== getStorageKey()) return;
         if (raw) {
           const stored = normalizeStored(JSON.parse(raw));
-          items = stored.items;
-          unreadCount = stored.unreadCount;
+          items = mergeNotificationItems(items, stored.items);
+          unreadCount = items.filter((item) => !item.read).length;
         }
       })
       .catch(() => {})
       .finally(() => {
+        if (storageKey !== getStorageKey()) return;
         hasHydrated = true;
         hydratePromise = null;
         notify();
@@ -63,6 +81,21 @@ export function hydrateNotifications() {
 }
 
 hydrateNotifications();
+
+export function setNotificationUserScope(scope) {
+  const nextScope = scope ? `user:${scope}` : 'anonymous';
+  if (currentScope === nextScope && hasHydrated) {
+    return hydrateNotifications();
+  }
+
+  currentScope = nextScope;
+  items = [];
+  unreadCount = 0;
+  hasHydrated = false;
+  hydratePromise = null;
+  notify();
+  return hydrateNotifications();
+}
 
 export function subscribeNotifications(fn) {
   listeners.push(fn);

@@ -6,6 +6,7 @@ import { useAppNavigation } from '../context/navigation_context';
 import { Ionicons } from '@expo/vector-icons';
 import { showAlert, showConfirm } from '../services/dialogs';
 import { extractErrorMessage } from '../services/errors';
+import { TimePickerModal } from '../components/TimePickerModal';
 
 const DAYS_OF_WEEK = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -456,75 +457,18 @@ export const EventsScreen = () => {
             </ScrollView>
           </View>
 
-          <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
-            <View style={styles.modalOverlay}>
-              <View style={[styles.timePickerContent, { backgroundColor: colors.surface }]}>
-                <View style={styles.pickerHeader}>
-                  <Text style={[styles.modalTitle, { color: colors.textDark, fontFamily: fonts.bold, marginBottom: 0 }]}>
-                    Select {pickerTarget === 'start' ? 'Start' : 'End'} Time
-                  </Text>
-                  <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                    <Ionicons name="close" size={26} color={colors.textDark} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.timePickerBody}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.timePickerLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>HOUR</Text>
-                    <ScrollView showsVerticalScrollIndicator={false} style={styles.timeColumn}>
-                      {Array.from({ length: 24 }, (_, h) => h).map((h) => {
-                        const currentHour = pickerTarget === 'start' ? eventForm.startHour : eventForm.endHour;
-                        const isSel = currentHour === h;
-                        return (
-                          <TouchableOpacity
-                            key={h}
-                            onPress={() => setEventForm({
-                              ...eventForm,
-                              [pickerTarget === 'start' ? 'startHour' : 'endHour']: h,
-                            })}
-                            style={[styles.timeOption, isSel && { backgroundColor: colors.primary + '20' }]}
-                          >
-                            <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
-                              {String(h).padStart(2, '0')}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                  <Text style={{ color: colors.textDark, fontFamily: fonts.bold, fontSize: 22, marginHorizontal: 8 }}>:</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.timePickerLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>MIN</Text>
-                    <ScrollView showsVerticalScrollIndicator={false} style={styles.timeColumn}>
-                      {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => {
-                        const currentMinute = pickerTarget === 'start' ? eventForm.startMinute : eventForm.endMinute;
-                        const isSel = currentMinute === m;
-                        return (
-                          <TouchableOpacity
-                            key={m}
-                            onPress={() => setEventForm({
-                              ...eventForm,
-                              [pickerTarget === 'start' ? 'startMinute' : 'endMinute']: m,
-                            })}
-                            style={[styles.timeOption, isSel && { backgroundColor: colors.primary + '20' }]}
-                          >
-                            <Text style={{ color: isSel ? colors.primary : colors.textDark, fontFamily: fonts.bold, fontSize: 17 }}>
-                              {String(m).padStart(2, '0')}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setShowTimePicker(false)}
-                  style={[styles.modalBtn, { backgroundColor: colors.primary, marginHorizontal: 26, marginBottom: 26 }]}
-                >
-                  <Text style={[styles.modalBtnText, { color: '#FFF', fontFamily: fonts.bold }]}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
+          <TimePickerModal
+            visible={showTimePicker}
+            title={`${pickerTarget === 'start' ? 'Start' : 'End'} Time`}
+            hour={pickerTarget === 'start' ? eventForm.startHour : eventForm.endHour}
+            minute={pickerTarget === 'start' ? eventForm.startMinute : eventForm.endMinute}
+            onClose={() => setShowTimePicker(false)}
+            onChange={({ hour, minute }) => setEventForm((form) => ({
+              ...form,
+              [pickerTarget === 'start' ? 'startHour' : 'endHour']: hour,
+              [pickerTarget === 'start' ? 'startMinute' : 'endMinute']: minute,
+            }))}
+          />
         </View>
       </Modal>
     </View>
@@ -572,10 +516,4 @@ const styles = StyleSheet.create({
   modalFooter: { flexDirection: 'row', gap: 12, paddingBottom: 12, marginTop: 18 },
   modalBtn: { flex: 1, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   modalBtnText: { fontSize: 16 },
-  timePickerContent: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20, maxHeight: '70%' },
-  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 26, paddingBottom: 6 },
-  timePickerBody: { flexDirection: 'row', paddingHorizontal: 26, marginVertical: 14, alignItems: 'center', height: 260 },
-  timePickerLabel: { fontSize: 10, letterSpacing: 1, textAlign: 'center', marginBottom: 6 },
-  timeColumn: { flex: 1 },
-  timeOption: { paddingVertical: 12, alignItems: 'center', borderRadius: 8, marginVertical: 1 },
 });

@@ -11,6 +11,7 @@ import { slotsApi } from "../services/api";
 import { showAlert } from "../services/dialogs";
 import { LinearGradient } from "expo-linear-gradient";
 import { DatePickerModal } from "./DatePickerModal";
+import { TimePickerModal } from "./TimePickerModal";
 
 const formatDateDisplay = (dateStr) => {
    if (!dateStr) return "";
@@ -189,9 +190,6 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
       }
    };
 
-   const hourOptions = useMemo(() => Array.from({ length: 24 }, (_, h) => h), []);
-   const minuteOptions = useMemo(() => [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], []);
-
    useEffect(() => {
       if (visible) {
          const dateToUse = selectedDate || getLocalTodayDateString();
@@ -268,46 +266,6 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
          setLoadingMode(null);
       }
    };
-
-   const renderTimeColumn = (label, values, selectedValue, onSelect) => (
-      <View style={styles.timePickerColumn}>
-         <Text style={[styles.timePickerColumnLabel, { color: colors.textLight, fontFamily: fonts.bold }]}>
-            {label}
-         </Text>
-         <ScrollView
-            showsVerticalScrollIndicator={false}
-            style={[styles.timePickerScroll, { backgroundColor: colors.cardAlt }]}
-            contentContainerStyle={styles.timePickerScrollContent}
-         >
-            {values.map((value) => {
-               const isSelected = selectedValue === value;
-               return (
-                  <TouchableOpacity
-                     key={value}
-                     onPress={() => onSelect(value)}
-                     style={[
-                        styles.timePickerOption,
-                        { backgroundColor: isSelected ? colors.primary + "18" : "transparent" },
-                     ]}
-                  >
-                     <Text
-                        style={[
-                           styles.timePickerOptionText,
-                           {
-                              color: isSelected ? colors.primary : colors.textDark,
-                              fontFamily: fonts.bold,
-                              opacity: isSelected ? 1 : 0.72,
-                           },
-                        ]}
-                     >
-                        {String(value).padStart(2, "0")}
-                     </Text>
-                  </TouchableOpacity>
-               );
-            })}
-         </ScrollView>
-      </View>
-   );
 
    if (!visible) return null;
 
@@ -609,40 +567,16 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
             onSelect={(date) => setManualForm({ ...manualForm, deadline: date })}
          />
 
-         <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
-            <View style={styles.timePickerOverlay}>
-               <View style={[styles.timePickerContent, { backgroundColor: colors.surface }]}>
-                  <View style={[styles.timePickerHeader, { borderBottomColor: colors.border }]}>
-                     <Text style={[styles.timePickerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Start Time</Text>
-                     <TouchableOpacity
-                        onPress={() => setShowTimePicker(false)}
-                        style={[styles.timePickerClose, { backgroundColor: colors.cardAlt }]}
-                     >
-                        <Ionicons name="close" size={22} color={colors.textDark} />
-                     </TouchableOpacity>
-                  </View>
-                  <View style={styles.timePickerBody}>
-                     {renderTimeColumn("Hour", hourOptions, manualForm.startHour ?? 9, (h) =>
-                        setManualForm({ ...manualForm, startHour: h, startMinute: manualForm.startMinute || 0 })
-                     )}
-                     <View style={styles.timePickerSeparator}>
-                        <Text style={[styles.timePickerSeparatorText, { color: colors.textDark, fontFamily: fonts.bold }]}>:</Text>
-                     </View>
-                     {renderTimeColumn("Min", minuteOptions, manualForm.startMinute || 0, (m) =>
-                        setManualForm({ ...manualForm, startMinute: m, startHour: manualForm.startHour ?? 9 })
-                     )}
-                  </View>
-                  <View style={styles.timePickerFooter}>
-                     <TouchableOpacity
-                        onPress={() => setShowTimePicker(false)}
-                        style={[styles.generateBtn, styles.timePickerDone, { backgroundColor: colors.primary }]}
-                     >
-                        <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>Done</Text>
-                     </TouchableOpacity>
-                  </View>
-               </View>
-            </View>
-         </Modal>
+         <TimePickerModal
+            visible={showTimePicker}
+            title="Start Time"
+            hour={manualForm.startHour ?? 9}
+            minute={manualForm.startMinute || 0}
+            onClose={() => setShowTimePicker(false)}
+            onChange={({ hour, minute }) =>
+               setManualForm({ ...manualForm, startHour: hour, startMinute: minute })
+            }
+         />
 
          <Modal visible={showDurationPicker} transparent animationType="slide" onRequestClose={() => setShowDurationPicker(false)}>
             <View style={styles.overlay}>
@@ -750,44 +684,19 @@ export const DailyCheckinModal = ({ visible, onClose, selectedDate }) => {
             </View>
          </Modal>
 
-         <Modal visible={showHourPicker} transparent animationType="slide" onRequestClose={() => setShowHourPicker(false)}>
-            <View style={styles.timePickerOverlay}>
-               <View style={[styles.timePickerContent, { backgroundColor: colors.surface }]}>
-                  <View style={[styles.timePickerHeader, { borderBottomColor: colors.border }]}>
-                     <Text style={[styles.timePickerTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>
-                        {activeSlotField === "start" ? "Start Time" : "End Time"}
-                     </Text>
-                     <TouchableOpacity
-                        onPress={() => setShowHourPicker(false)}
-                        style={[styles.timePickerClose, { backgroundColor: colors.cardAlt }]}
-                     >
-                        <Ionicons name="close" size={22} color={colors.textDark} />
-                     </TouchableOpacity>
-                  </View>
-                  <View style={styles.timePickerBody}>
-                     {renderTimeColumn("Hour", hourOptions, parseInt(newSlot[activeSlotField].split(":")[0], 10), (h) => {
-                        const m = newSlot[activeSlotField].split(":")[1];
-                        setNewSlot({ ...newSlot, [activeSlotField]: `${String(h).padStart(2, "0")}:${m}` });
-                     })}
-                     <View style={styles.timePickerSeparator}>
-                        <Text style={[styles.timePickerSeparatorText, { color: colors.textDark, fontFamily: fonts.bold }]}>:</Text>
-                     </View>
-                     {renderTimeColumn("Min", minuteOptions, parseInt(newSlot[activeSlotField].split(":")[1], 10), (m) => {
-                        const h = newSlot[activeSlotField].split(":")[0];
-                        setNewSlot({ ...newSlot, [activeSlotField]: `${h}:${String(m).padStart(2, "0")}` });
-                     })}
-                  </View>
-                  <View style={styles.timePickerFooter}>
-                     <TouchableOpacity
-                        onPress={() => setShowHourPicker(false)}
-                        style={[styles.generateBtn, styles.timePickerDone, { backgroundColor: colors.primary }]}
-                     >
-                        <Text style={[styles.generateText, { fontFamily: fonts.bold }]}>Done</Text>
-                     </TouchableOpacity>
-                  </View>
-               </View>
-            </View>
-         </Modal>
+         <TimePickerModal
+            visible={showHourPicker}
+            title={activeSlotField === "start" ? "Start Time" : "End Time"}
+            hour={parseInt(newSlot[activeSlotField].split(":")[0], 10)}
+            minute={parseInt(newSlot[activeSlotField].split(":")[1], 10)}
+            onClose={() => setShowHourPicker(false)}
+            onChange={({ hour, minute }) =>
+               setNewSlot({
+                  ...newSlot,
+                  [activeSlotField]: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+               })
+            }
+         />
       </Modal>
    );
 };
@@ -1060,83 +969,6 @@ const styles = StyleSheet.create({
    durationPickerContent: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20 },
    durationHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 26, paddingBottom: 6 },
    wheelLens: { position: "absolute", borderRadius: 14, borderLeftWidth: 1, borderRightWidth: 1 },
-   timePickerOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.56)",
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 24,
-   },
-   timePickerContent: {
-      width: "100%",
-      maxWidth: 520,
-      maxHeight: "82%",
-      borderRadius: 24,
-      overflow: "hidden",
-   },
-   timePickerHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      borderBottomWidth: 1,
-   },
-   timePickerTitle: { fontSize: 20 },
-   timePickerClose: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: "center",
-      alignItems: "center",
-   },
-   timePickerBody: {
-      flexDirection: "row",
-      alignItems: "stretch",
-      gap: 12,
-      height: 300,
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 12,
-   },
-   timePickerColumn: { flex: 1, minWidth: 0 },
-   timePickerColumnLabel: {
-      fontSize: 11,
-      textAlign: "center",
-      marginBottom: 8,
-      textTransform: "uppercase",
-   },
-   timePickerScroll: {
-      flex: 1,
-      borderRadius: 16,
-   },
-   timePickerScrollContent: { padding: 6 },
-   timePickerOption: {
-      minHeight: 42,
-      borderRadius: 12,
-      justifyContent: "center",
-      alignItems: "center",
-      marginVertical: 2,
-   },
-   timePickerOptionText: { fontSize: 17 },
-   timePickerSeparator: {
-      width: 18,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingTop: 20,
-   },
-   timePickerSeparatorText: { fontSize: 24 },
-   timePickerFooter: {
-      paddingHorizontal: 20,
-      paddingTop: 4,
-      paddingBottom: 20,
-   },
-   timePickerDone: {
-      marginTop: 0,
-      marginHorizontal: 0,
-      marginBottom: 0,
-   },
    priorityRow: { flexDirection: "row", gap: 8 },
    prioBtn: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
 });
