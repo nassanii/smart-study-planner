@@ -62,10 +62,16 @@ public class BehavioralLogService : IBehavioralLogService
 
     public async Task AddStudyMinutesAsync(int userId, int minutes, CancellationToken ct)
     {
+        await AddStudySecondsAsync(userId, minutes * 60, ct);
+    }
+
+    public async Task AddStudySecondsAsync(int userId, int seconds, CancellationToken ct)
+    {
         var today = TodayLocal();
         var log = await GetOrCreateForDateAsync(userId, today, ct);
-        var hours = Math.Round((decimal)minutes / 60m, 2);
-        log.StudyHours = Math.Round(log.StudyHours + hours, 2);
+        var boundedSeconds = Math.Max(0, seconds);
+        var hours = (decimal)boundedSeconds / 3600m;
+        log.StudyHours = Math.Round(log.StudyHours + hours, 6);
         await _db.SaveChangesAsync(ct);
     }
 

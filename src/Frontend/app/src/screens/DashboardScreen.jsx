@@ -99,7 +99,7 @@ export const DashboardScreen = () => {
          : { label: "Open next session", icon: "play-circle-outline", target: "calendar" };
 
    const formatDuration = (totalHours) => {
-      const totalSeconds = Math.floor(totalHours * 3600);
+      const totalSeconds = Math.round(totalHours * 3600);
       const h = Math.floor(totalSeconds / 3600);
       const m = Math.floor((totalSeconds % 3600) / 60);
       const s = totalSeconds % 60;

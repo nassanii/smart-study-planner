@@ -10,7 +10,7 @@ public class BehavioralLogConfiguration : IEntityTypeConfiguration<BehavioralLog
     public void Configure(EntityTypeBuilder<BehavioralLog> builder)
     {
         builder.HasKey(b => b.Id);
-        builder.Property(b => b.StudyHours).HasColumnType("decimal(5,2)");
+        builder.Property(b => b.StudyHours).HasColumnType("decimal(9,6)");
         builder.Property(b => b.AvgFocusRating).HasColumnType("decimal(3,2)");
         builder.Property(b => b.LastFocusRatingsJson).HasColumnType("jsonb");
 

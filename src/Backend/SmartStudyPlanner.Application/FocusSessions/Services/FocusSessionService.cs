@@ -139,8 +139,7 @@ public class FocusSessionService : IFocusSessionService
 
         await _db.SaveChangesAsync(ct);
 
-        var minutes = (int)Math.Round(dto.DurationSeconds / 60.0);
-        await _behavioralLogs.AddStudyMinutesAsync(userId, minutes, ct);
+        await _behavioralLogs.AddStudySecondsAsync(userId, dto.DurationSeconds, ct);
         await _behavioralLogs.RecordFocusRatingAsync(userId, dto.FocusRating, ct);
 
         if (session.TaskId.HasValue)
