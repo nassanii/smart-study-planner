@@ -147,7 +147,8 @@ export const AIProvider = ({ children }) => {
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState(null);
 
-   const didLoadInitial = useRef(false);
+   const didLoadInitial = useRef(null);
+   const isOnboarded = !!(user?.isOnboarded ?? user?.is_onboarded);
 
    const userData = user
       ? {
@@ -157,7 +158,7 @@ export const AIProvider = ({ children }) => {
          target_gpa: user.targetGpa,
          max_hours_per_day: user.maxHoursPerDay,
          deadline: user.deadline,
-         isOnboarded: user.isOnboarded,
+         isOnboarded,
       }
       : { user_id: null, deadline: null, isOnboarded: false };
 
@@ -220,14 +221,14 @@ export const AIProvider = ({ children }) => {
          setSubjects([]);
          setBehavioralLogs(emptyBehavioral);
          setLatestSchedule(null);
-         didLoadInitial.current = false;
+         didLoadInitial.current = null;
          return;
       }
-      if (user?.isOnboarded && !didLoadInitial.current) {
-         didLoadInitial.current = true;
+      if (isOnboarded && didLoadInitial.current !== user?.userId) {
+         didLoadInitial.current = user?.userId;
          reloadAll();
       }
-   }, [isAuthenticated, user?.isOnboarded, reloadAll]);
+   }, [isAuthenticated, isOnboarded, user?.userId, reloadAll]);
 
    const updateTaskDifficulty = useCallback(async (id, rating) => {
       const updated = await tasksApi.difficulty(id, rating);

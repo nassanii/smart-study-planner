@@ -15,8 +15,8 @@ import { DailyCheckinModal } from "../components/DailyCheckinModal";
 export const DashboardScreen = () => {
    const { colors, fonts } = useTheme();
    const { user } = useAuth();
-   const { userData, behavioralLogs, tasks, subjects, latestSchedule } = useAI();
-   const { sessionElapsedSeconds, slotStatuses: liveSlotStatuses } = useFocus();
+   const { userData, behavioralLogs, tasks, subjects, latestSchedule, reloadAll, loading } = useAI();
+   const { sessionElapsedSeconds, slotStatuses: liveSlotStatuses, activeSession, mode } = useFocus();
    const { navigate } = useAppNavigation();
    const [insights, setInsights] = useState(null);
    const [showAiAlert, setShowAiAlert] = useState(true);
@@ -25,6 +25,7 @@ export const DashboardScreen = () => {
    const [notifs, setNotifs] = useState([]);
    const [unread, setUnread] = useState(0);
    const didLoad = useRef(false);
+   const didBootstrapData = useRef(false);
 
    useEffect(() => {
       return subscribeNotifications(({ items, unreadCount }) => {
@@ -57,9 +58,21 @@ export const DashboardScreen = () => {
          .catch(() => {});
    }, []);
 
+   useEffect(() => {
+      if (didBootstrapData.current) return;
+      if (!userData?.isOnboarded || loading) return;
+      if (subjects.length > 0 || tasks.length > 0 || latestSchedule) return;
+      didBootstrapData.current = true;
+      reloadAll().catch(() => {});
+   }, [userData?.isOnboarded, loading, subjects.length, tasks.length, latestSchedule, reloadAll]);
+
    const burnoutScore = latestSchedule?.analysisResults?.burnout_score ?? (insights?.latestBurnout != null ? Number(insights.latestBurnout) : 0);
    const burnoutPct = Math.round(burnoutScore * 100);
-   const flowPct = Math.min(100, Math.round(((behavioralLogs?.study_hours_today || 0) / (userData?.max_hours_per_day || 6)) * 100));
+   const liveStudyHoursToday = (Number(behavioralLogs?.study_hours_today) || 0) + (sessionElapsedSeconds / 3600);
+   const insightStudyHoursToday = Number(insights?.studyHoursToday) || 0;
+   const displayStudyHoursToday = Math.max(liveStudyHoursToday, insightStudyHoursToday);
+   const liveSessionCount = (behavioralLogs?.last_focus_ratings?.length || 0) + (activeSession && mode === "Focus" ? 1 : 0);
+   const flowPct = Math.min(100, Math.round((displayStudyHoursToday / (userData?.max_hours_per_day || 6)) * 100));
 
    const dayStreak = insights?.dayStreak ?? 0;
    const avgFocus = insights?.avgFocusRating ?? 0;
@@ -279,7 +292,9 @@ export const DashboardScreen = () => {
                   </View>
                   <Text style={[styles.wellnessHint, { color: colors.textLight, fontFamily: fonts.medium }]}>
                      {flowPct}% —{" "}
-                     {avgFocus > 4.2 ? "Great focus!" : avgFocus > 3.5 ? "Good focus" : avgFocus > 2.5 ? "Moderate focus" : "Needs focus"}
+                     {liveSessionCount > 0
+                        ? `${liveSessionCount} session${liveSessionCount === 1 ? "" : "s"} today`
+                        : avgFocus > 4.2 ? "Great focus!" : avgFocus > 3.5 ? "Good focus" : avgFocus > 2.5 ? "Moderate focus" : "Needs focus"}
                   </Text>
                </View>
 
@@ -313,7 +328,7 @@ export const DashboardScreen = () => {
                </View>
                <View style={[styles.insightBox, { backgroundColor: colors.cardAlt }]}>
                   <Text style={[styles.insightVal, { color: "#FFD166", fontFamily: fonts.bold }]}>
-                     {formatDuration((insights?.studyHoursToday || 0) + (sessionElapsedSeconds / 3600))}
+                     {formatDuration(displayStudyHoursToday)}
                   </Text>
                   <Text style={[styles.insightLab, { color: colors.textLight, fontFamily: fonts.bold }]}>STUDY TODAY</Text>
                </View>

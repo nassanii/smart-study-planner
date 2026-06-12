@@ -340,6 +340,8 @@ export const FocusScreen = () => {
     : (plannedSubjectName || subjects.find(s => s.id === selectedSubjectId)?.name || '—');
 
   const { behavioralLogs } = useAI();
+  const liveStudyHoursToday = (Number(behavioralLogs.study_hours_today) || 0) + (sessionElapsedSeconds / 3600);
+  const liveSessionCount = (behavioralLogs.last_focus_ratings?.length || 0) + (activeSession && mode === 'Focus' ? 1 : 0);
 
   const handleSwitchTarget = async (subject, task = null) => {
     setShowSwitchModal(false);
@@ -388,7 +390,7 @@ export const FocusScreen = () => {
               onPress={openBlockPicker}
               style={[styles.blockPickerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
-              <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={styles.blockPickerTextWrap}>
                 {(() => {
                   const hasBlock = plannedSubjectName && plannedSubjectName !== 'Break';
                   // Prefer the task title when a specific task is selected
@@ -402,16 +404,20 @@ export const FocusScreen = () => {
                   subtitleParts.push(`${Math.round((initialDuration || 0) / 60)} min`);
                   return (
                     <>
-                      <Text style={{
-                        color: title ? colors.textDark : colors.textLight,
-                        fontFamily: fonts.bold,
-                        fontSize: 15,
-                        textAlign: 'center',
-                      }} numberOfLines={1}>
+                      <Text style={[
+                        styles.blockPickerTitle,
+                        {
+                          color: title ? colors.textDark : colors.textLight,
+                          fontFamily: fonts.bold,
+                        },
+                      ]} numberOfLines={2}>
                         {title || 'Pick a block to start'}
                       </Text>
                       {title && (
-                        <Text style={{ color: colors.textLight, fontFamily: fonts.medium, fontSize: 12, marginTop: 2, textAlign: 'center' }}>
+                        <Text
+                          style={[styles.blockPickerSubtitle, { color: colors.textLight, fontFamily: fonts.medium }]}
+                          numberOfLines={1}
+                        >
                           {subtitleParts.join(' · ')}
                         </Text>
                       )}
@@ -433,7 +439,12 @@ export const FocusScreen = () => {
              <Text style={[styles.timerSubtitle, { color: isOvertime ? '#F43F5E' : colors.textLight, fontFamily: fonts.medium, marginTop: -15 }]}>
                {isOvertime ? 'Overtime' : (mode === 'Focus' ? 'Until Break' : 'Until Study')}
              </Text>
-             <Text style={[styles.timerSubtitle, { color: colors.primary, fontFamily: fonts.bold, marginTop: 10, fontSize: 16 }]}>
+             <Text
+               style={[styles.timerSubject, { color: colors.primary, fontFamily: fonts.bold }]}
+               numberOfLines={2}
+               adjustsFontSizeToFit
+               minimumFontScale={0.82}
+             >
                {selectedSubjectName}
              </Text>
           </LinearGradient>
@@ -465,13 +476,13 @@ export const FocusScreen = () => {
          <View style={[styles.statsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.statCol}>
                <Text style={[styles.statBig, { color: colors.primary, fontFamily: fonts.bold }]}>
-                  {formatDurationLong(behavioralLogs.study_hours_today + (sessionElapsedSeconds / 3600))}
+                  {formatDurationLong(liveStudyHoursToday)}
                </Text>
                <Text style={[styles.statSmall, { color: colors.textLight, fontFamily: fonts.bold }]}>Study Today</Text>
             </View>
            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
            <View style={styles.statCol}>
-              <Text style={[styles.statBig, { color: colors.accent.science || '#22C55E', fontFamily: fonts.bold }]}>{behavioralLogs.last_focus_ratings.length}</Text>
+              <Text style={[styles.statBig, { color: colors.accent.science || '#22C55E', fontFamily: fonts.bold }]}>{liveSessionCount}</Text>
               <Text style={[styles.statSmall, { color: colors.textLight, fontFamily: fonts.bold }]}>Sessions</Text>
            </View>
            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
@@ -623,7 +634,14 @@ export const FocusScreen = () => {
                  </View>
                  <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
                  <View style={styles.statCol}>
-                   <Text style={[styles.statBig, { color: colors.primary, fontSize: 18, fontFamily: fonts.bold }]}>{nextSlotPreview?.subject}</Text>
+                   <Text
+                     style={[styles.statBig, styles.upNextActivityText, { color: colors.primary, fontFamily: fonts.bold }]}
+                     numberOfLines={2}
+                     adjustsFontSizeToFit
+                     minimumFontScale={0.78}
+                   >
+                     {nextSlotPreview?.subject}
+                   </Text>
                    <Text style={[styles.statSmall, { color: colors.textLight, fontFamily: fonts.bold }]}>Activity</Text>
                  </View>
                </View>
@@ -698,16 +716,20 @@ const styles = StyleSheet.create({
   sessionBadgeText: { fontSize: 12 },
   fieldLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 10, opacity: 0.6, alignSelf: 'flex-start' },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, marginRight: 10 },
-  blockPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, marginBottom: 18 },
+  blockPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 68, paddingHorizontal: 46, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, marginBottom: 18 },
+  blockPickerTextWrap: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
+  blockPickerTitle: { width: '100%', fontSize: 15, lineHeight: 19, textAlign: 'center' },
+  blockPickerSubtitle: { width: '100%', fontSize: 12, lineHeight: 16, marginTop: 3, textAlign: 'center' },
   blockRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 8 },
   blockSourceBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   modeSelector: { flexDirection: 'row', borderRadius: 24, padding: 5, marginBottom: 30, width: '100%' },
   modeBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 18 },
   modeText: { fontSize: 14 },
   timerCircle: { alignSelf: 'center', width: SCREEN_WIDTH * 0.7, height: SCREEN_WIDTH * 0.7, borderRadius: (SCREEN_WIDTH * 0.7) / 2, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginBottom: 35 },
-  circleInner: { width: '100%', height: '100%', borderRadius: (SCREEN_WIDTH * 0.7) / 2, justifyContent: 'center', alignItems: 'center' },
+  circleInner: { width: '100%', height: '100%', borderRadius: (SCREEN_WIDTH * 0.7) / 2, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 26 },
   timerText: { fontSize: 70, letterSpacing: -2, marginBottom: 4 },
   timerSubtitle: { fontSize: 16, opacity: 0.6 },
+  timerSubject: { width: '100%', marginTop: 10, fontSize: 16, lineHeight: 20, textAlign: 'center' },
   ratingBtn: {
     width: 48,
     height: 48,
@@ -778,6 +800,7 @@ const styles = StyleSheet.create({
   dividerLine: { width: 1, height: '60%', alignSelf: 'center' },
   statCol: { alignItems: 'center', flex: 1 },
   statBig: { fontSize: 22, marginBottom: 6 },
+  upNextActivityText: { width: '100%', fontSize: 16, lineHeight: 20, textAlign: 'center' },
   statSmall: { fontSize: 12, opacity: 0.5 },
   fireRow: { flexDirection: 'row', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 25 },

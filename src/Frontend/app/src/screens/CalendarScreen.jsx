@@ -96,6 +96,10 @@ export const CalendarScreen = () => {
     const startB = (b.time_slot || '').split('-')[0].trim();
     return startA.localeCompare(startB);
   });
+  const selectedPersistedSlotStatuses = selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || {};
+  const daySlotStatuses = isTrulyToday
+    ? { ...selectedPersistedSlotStatuses, ...(slotStatus || {}) }
+    : selectedPersistedSlotStatuses;
 
   // Fetch month's completed sessions for dots
   useEffect(() => {
@@ -209,38 +213,43 @@ export const CalendarScreen = () => {
     setCustomReason('');
   };
 
-  const confirmSnooze = () => {
+  const confirmSnooze = async () => {
     const reason = snoozeReason === 'Other' ? customReason : snoozeReason;
     if (!reason) {
       Alert.alert("Reason Required", "Please select or enter a reason.");
       return;
     }
-    setSlotStatus(prev => ({ ...prev, [snoozeTarget.idx]: { status: 'snoozed', reason } }));
+    const target = snoozeTarget;
+    const nextStatus = { status: 'snoozed', reason };
+    const scheduleId = isTrulyToday ? (selectedDaySchedule?.id || latestSchedule?.id) : selectedDaySchedule?.id;
+
+    setSnoozeTarget(null);
+    setSlotStatus(prev => ({ ...prev, [target.idx]: nextStatus }));
     
-    // Update local selectedDaySchedule if it's today for immediate feedback
-    if (isTrulyToday) {
-      setSelectedDaySchedule(prev => {
-        if (!prev) return prev;
-        const newStatuses = { ...(prev.slotStatuses || prev.slot_statuses || {}), [snoozeTarget.idx]: { status: 'snoozed', reason } };
-        return { ...prev, slotStatuses: newStatuses };
-      });
-    }
+    setSelectedDaySchedule(prev => {
+      if (!prev) return prev;
+      const newStatuses = { ...(prev.slotStatuses || prev.slot_statuses || {}), [target.idx]: nextStatus };
+      return { ...prev, slotStatuses: newStatuses, slot_statuses: newStatuses };
+    });
 
     const slots = currentSlots;
-    const slot = slots?.[snoozeTarget.idx];
-    
-    // Persist to backend
-    if (latestSchedule?.id && isTrulyToday) {
-      scheduleApi.updateSlotStatus(latestSchedule.id, snoozeTarget.idx, { status: 'snoozed', reason })
-        .catch(err => console.error("Failed to persist slot snooze:", err));
-    }
+    const slot = slots?.[target.idx];
 
-    if (slot?.task_id) {
-      snoozeTask(slot.task_id, reason).catch(() => {});
+    try {
+      if (scheduleId && isTrulyToday) {
+        await scheduleApi.updateSlotStatus(scheduleId, target.idx, nextStatus);
+      }
+
+      if (slot?.task_id) {
+        await snoozeTask(slot.task_id, reason);
+      } else {
+        reloadBehavioral().catch(() => {});
+      }
+
+      reloadAll().catch(() => {});
+    } catch (err) {
+      Alert.alert('Could not snooze', err.response?.data?.title || err.message || 'Please try again.');
     }
-    reloadAll().catch(() => {});
-    reloadBehavioral().catch(() => {});
-    setSnoozeTarget(null);
   };
 
 
@@ -525,8 +534,8 @@ export const CalendarScreen = () => {
             <View style={styles.progressInfo}>
                <Text style={[styles.progressTitle, { color: colors.textDark, fontFamily: fonts.bold }]}>Daily Progress</Text>
                <Text style={[styles.progressSub, { color: colors.textLight, fontFamily: fonts.medium }]}>
-                 {Object.keys(selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus).filter(idx => {
-                   const s = (selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus)[idx];
+                 {Object.keys(daySlotStatuses).filter(idx => {
+                   const s = daySlotStatuses[idx];
                    const item = currentSlots[idx];
                    return s.status === 'completed' && item?.activity_type !== 'break';
                  }).length} / {currentSlots.filter(s => s.activity_type !== 'break').length} tasks finished
@@ -534,8 +543,8 @@ export const CalendarScreen = () => {
             </View>
             <View style={[styles.progressBadge, { backgroundColor: colors.primary }]}>
                <Text style={[styles.progressBadgeText, { fontFamily: fonts.bold }]}>
-                 {((Object.keys(selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus).filter(idx => {
-                   const s = (selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || slotStatus)[idx];
+                 {((Object.keys(daySlotStatuses).filter(idx => {
+                   const s = daySlotStatuses[idx];
                    const item = currentSlots[idx];
                    return s.status === 'completed' && item?.activity_type !== 'break';
                  }).length / (currentSlots.filter(s => s.activity_type !== 'break').length || 1)) * 100).toFixed(0)}%
@@ -577,8 +586,7 @@ export const CalendarScreen = () => {
              currentSlots.map((item, idx) => {
                 const isBreak = item.activity_type === 'break';
                 const subColor = isBreak ? colors.textLight : getEventColor({ subject_id: item.subject_id });
-                const dayStatuses = selectedDaySchedule?.slot_statuses || selectedDaySchedule?.slotStatuses || (isTrulyToday ? slotStatus : {});
-                const status = dayStatuses[idx] || { status: 'pending' };
+                const status = daySlotStatuses[idx] || { status: 'pending' };
                 
                 const isLocked = idx > activeSlotIndex && isTrulyToday;
                 const isActiveTask = idx === activeSlotIndex && isTrulyToday;
